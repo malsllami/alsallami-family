@@ -1,0 +1,220 @@
+@import "tailwindcss";
+
+/* ─── متغيرات التصميم ─── */
+:root {
+  --background-main:      #36404a;
+  --background-secondary: #2B3542;
+  --card-background:      #2E3947;
+  --gold-main:            #C6A16B;
+  --gold-dark:            #8D673D;
+  --text-light:           #F4F1EA;
+
+  --font-heading: 'Amiri',   serif;
+  --font-body:    'Cairo',   sans-serif;
+  --font-nav:     'Tajawal', sans-serif;
+  --font-brand:   'Amiri',   serif;
+}
+
+/* ─── خطوط Tailwind ─── */
+@theme {
+  --font-heading: 'Amiri',   serif;
+  --font-body:    'Cairo',   sans-serif;
+  --font-nav:     'Tajawal', sans-serif;
+  --font-brand:   'Amiri',   serif;
+}
+
+/* ─── الجسم — خلفية بنسيج ورق فاخر ─── */
+body {
+  margin: 0;
+  color:        var(--text-light);
+  font-family:  var(--font-body);
+  direction:    rtl;
+  overflow-x:   hidden;
+  background-color: var(--background-main);
+  /* طبقة 1: نسيج حبيبي خفيف جداً (grain)
+     طبقة 2 & 3: توهج ذهبي دافئ في الزوايا */
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.78' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23n)' opacity='0.042'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse 90% 55% at 5% 30%,  rgba(198,161,107,0.055) 0%, transparent 65%),
+    radial-gradient(ellipse 70% 65% at 95% 75%, rgba(198,161,107,0.04)  0%, transparent 65%);
+  background-size:       200px 200px, 100% 100%, 100% 100%;
+  background-attachment: scroll,      fixed,     fixed;
+}
+
+/* ─── العناوين ─── */
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* ─── روابط النافبار — خط منزلق ─── */
+.nav-link {
+  position: relative;
+  padding-bottom: 6px;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  height: 1.5px;
+  width: 0;
+  background: var(--gold-main);
+  border-radius: 999px;
+  transition: width 0.35s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.nav-link:hover::after,
+.nav-link--active::after {
+  width: 100%;
+}
+
+/* ─── توهج ذهبي ناعم على الأزرار ─── */
+.btn-primary {
+  transition: box-shadow 0.35s ease, filter 0.35s ease, transform 0.2s ease;
+}
+.btn-primary:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 28px rgba(198, 161, 107, 0.22);
+}
+.btn-primary:active {
+  transform: scale(0.97);
+}
+
+.btn-outline {
+  transition: background 0.3s ease, color 0.3s ease, box-shadow 0.35s ease;
+}
+.btn-outline:hover {
+  box-shadow: 0 4px 20px rgba(198, 161, 107, 0.14);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* ─── بطاقات المحتوى ─── */
+.site-card {
+  background: linear-gradient(145deg, rgba(65,76,87,0.68) 0%, rgba(44,57,68,0.68) 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow:
+    0 4px 24px rgba(0,0,0,0.2),
+    inset 0 1px 0 rgba(255,255,255,0.055);
+  transition:
+    transform    0.38s cubic-bezier(0.23,1,0.32,1),
+    border-color 0.38s ease,
+    box-shadow   0.38s ease;
+}
+
+.site-card:hover {
+  border-color: rgba(198,161,107,0.32);
+  box-shadow:
+    0 10px 40px rgba(0,0,0,0.28),
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 0 0 1px rgba(198,161,107,0.1);
+  transform: translateY(-4px);
+}
+
+/* ─── حقول الإدخال ─── */
+.form-input {
+  width: 100%;
+  background: rgba(48,60,72,0.85);
+  border: 1.5px solid rgba(255,255,255,0.09);
+  border-radius: 14px;
+  padding: 16px 20px;
+  color: #fff;
+  font-family: var(--font-body);
+  font-size: 15px;
+  outline: none;
+  transition:
+    border-color 0.25s ease,
+    box-shadow   0.25s ease,
+    background   0.25s ease;
+}
+
+.form-input::placeholder {
+  color: rgba(255,255,255,0.3);
+}
+
+.form-input:hover {
+  border-color: rgba(255,255,255,0.18);
+}
+
+.form-input:focus {
+  border-color: rgba(198,161,107,0.58);
+  box-shadow: 0 0 0 3px rgba(198,161,107,0.08), inset 0 1px 0 rgba(255,255,255,0.04);
+  background: rgba(56,70,82,0.9);
+}
+
+/* ─── دوارة زر التحميل ─── */
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
+}
+
+.btn-spinner {
+  width: 22px;
+  height: 22px;
+  border: 2.5px solid rgba(0,0,0,0.12);
+  border-top-color: rgba(0,0,0,0.72);
+  border-radius: 50%;
+  animation: btn-spin 0.65s linear infinite;
+  flex-shrink: 0;
+}
+
+/* ─── حدود المدار المتحركة (loading border) ─── */
+@keyframes border-orbit {
+  to { transform: rotate(360deg); }
+}
+
+/* ─── شريط تكبير شجرة العائلة ─── */
+.tree-zoom-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(198, 161, 107, 0.25);
+  outline: none;
+  cursor: pointer;
+}
+
+.tree-zoom-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold-main);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(198, 161, 107, 0.45);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tree-zoom-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 3px 14px rgba(198, 161, 107, 0.65);
+}
+
+.tree-zoom-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold-main);
+  border: 2px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(198, 161, 107, 0.45);
+  cursor: pointer;
+}
+
+.tree-zoom-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to left,
+    rgba(198, 161, 107, 0.15),
+    rgba(198, 161, 107, 0.35)
+  );
+  border-radius: 999px;
+  height: 4px;
+}
