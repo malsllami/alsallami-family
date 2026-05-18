@@ -34,6 +34,7 @@ export default function Login() {
       const result = await response.json()
       if (result.success) {
         const userData = result.user
+        sessionStorage.removeItem('adminUnlocked')
         localStorage.setItem('user', JSON.stringify(userData))
         login(userData)
         navigate('/member-dashboard')
