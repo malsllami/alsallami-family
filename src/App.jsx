@@ -144,6 +144,23 @@ export default function App() {
               <span className="lg:mr-20 block text-[var(--gold-main)]">لعائلة السلامي</span>
             </h1>
 
+            {/* فخذ العفاريت */}
+            <div className="mt-5 flex items-center gap-4 justify-center lg:justify-start">
+              <span className="h-px flex-1 max-w-[60px] bg-gradient-to-l from-[var(--gold-main)] to-transparent opacity-60" />
+              <span
+                style={{
+                  fontFamily: 'var(--font-heading)',
+                  fontSize: 'clamp(1.3rem, 3vw, 1.9rem)',
+                  color: 'var(--gold-main)',
+                  letterSpacing: '0.06em',
+                  textShadow: '0 0 24px rgba(198,161,107,0.35)',
+                }}
+              >
+                فخذ العفاريت
+              </span>
+              <span className="h-px flex-1 max-w-[60px] bg-gradient-to-r from-[var(--gold-main)] to-transparent opacity-60" />
+            </div>
+
             <p className="mt-6 text-xl text-gray-300 leading-loose max-w-[480px] lg:mr-0 mx-auto">
               منصة تجمع أفراد العائلة وتوثّق تاريخنا وتحفظ ذكرياتنا للأجيال القادمة
             </p>
