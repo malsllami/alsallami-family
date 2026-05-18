@@ -3,17 +3,13 @@ import { useNavigate } from 'react-router-dom'
 
 /* ════ بيانات افتراضية — تُستبدل بجلب من API عند توفر الباكند ════════════ */
 const FALLBACK = {
-  id:'root', name:'إبراهيم العفريتي', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
-    { id:'c1', name:'أحمد', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
-      { id:'c2', name:'صاحب', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
-        { id:'c3', name:'محمد', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
-          { id:'c4', name:'صاحب',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-          { id:'c5', name:'شامي',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-          { id:'c6', name:'يحيى',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-          { id:'c7', name:'علي',     gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-          { id:'c8', name:'إبراهيم', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-        ]},
-      ]},
+  id:'N000', name:'إبراهيم العفريتي', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
+    { id:'N001', name:'أحمد', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
+      { id:'N002', name:'صاحب',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
+      { id:'N003', name:'شامي',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
+      { id:'N004', name:'يحيى',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
+      { id:'N005', name:'علي',     gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
+      { id:'N006', name:'إبراهيم', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
     ]},
   ],
 }
