@@ -12,7 +12,7 @@ var READ_ONLY_ACTIONS = {
   'getFamilyTree': true, 'getAdminStats': true, 'getPendingRequests': true,
   'getTreeRequests': true, 'getAllMembers': true, 'getOnlineUsers': true,
   'getFunds': true, 'getFundMembers': true, 'getArticles': true,
-  'getMemberData': true,
+  'getMemberData': true, 'verifyViewerCode': true,
 };
 
 function trackApiCall(action) {
@@ -87,6 +87,9 @@ function doPost(e) {
     if (action === 'updateWifeStatus')       return respond(updateWifeStatus(body));
     if (action === 'updateChildStatus')      return respond(updateChildStatus(body));
     if (action === 'addTreeNode')            return respond(addTreeNode(body));
+
+    // ── مشاهد الشجرة ─────────────────────────────────────────────────────
+    if (action === 'verifyViewerCode')  return respond(verifyViewerCode(body));
 
     // ── الصناديق ──────────────────────────────────────────────────────────
     if (action === 'getFunds')           return respond(getFunds(body));
@@ -230,4 +233,16 @@ function formatDate(date) {
     return Utilities.formatDate(date, 'Asia/Riyadh', 'yyyy-MM-dd');
   }
   return String(date);
+}
+
+/* ═══ التحقق من رمز مشاهد الشجرة ════════════════════════════════════════ */
+function verifyViewerCode(body) {
+  var code   = String(body.code || '').trim();
+  if (!code) return { success: false, message: 'الرمز مطلوب' };
+
+  var stored = getSetting('رمز المشاهد');
+  if (!stored) return { success: false, message: 'لم يُعثر على رمز المشاهد في الإعدادات' };
+
+  var match = code === String(stored).trim();
+  return { success: match, message: match ? 'تم التحقق' : 'الرمز غير صحيح' };
 }

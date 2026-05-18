@@ -347,21 +347,21 @@ function PR({ label, value, color }) {
 }
 
 /* ════ الصفحة الرئيسية ════════════════════════════════════════════════════ */
-export default function FamilyTree() {
+export default function FamilyTree({ viewerMode = false }) {
   const navigate   = useNavigate()
   const user       = JSON.parse(localStorage.getItem('user') || 'null')
 
   /* ── حالة الشجرة ── */
   const [treeRoot,   setTreeRoot]  = useState(FALLBACK)
   const [loading,    setLoading]   = useState(!!import.meta.env.VITE_API_URL)
-  const [pub,        setPub]       = useState(true)
+  const [pub,        setPub]       = useState(!viewerMode)
   const [branch,     setBranch]    = useState(null)
   const [genLevel,   setGenLevel]  = useState(2)
   const [sel,        setSel]       = useState(null)
   const [tx,         setTx]        = useState({ x: 0, y: 0, s: 0.5 })
   const [isDragging, setDrag]      = useState(false)
-  const showWives = !pub && !!user
-  const isAdmin   = user?.roles?.includes('admin')
+  const showWives = !pub && (!!user || viewerMode)
+  const isAdmin   = !viewerMode && user?.roles?.includes('admin')
 
   /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
   useEffect(() => {
@@ -625,7 +625,7 @@ export default function FamilyTree() {
           </select>
 
           {/* زر موقعي في الشجرة */}
-          {myNode && (
+          {!viewerMode && myNode && (
             <button
               onClick={() => { setSel(myNode); centerOn(myNode) }}
               className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
@@ -642,7 +642,7 @@ export default function FamilyTree() {
           )}
 
           {/* زر تبديل العرض — الأعضاء فقط */}
-          {user && (
+          {!viewerMode && user && (
             <button
               onClick={() => { setPub(v => !v); setSel(null); setBranch(null) }}
               className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
