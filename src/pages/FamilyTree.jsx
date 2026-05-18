@@ -3,38 +3,13 @@ import { useNavigate } from 'react-router-dom'
 
 /* ════ بيانات افتراضية — تُستبدل بجلب من API عند توفر الباكند ════════════ */
 const FALLBACK = {
-  id:'root', name:'سالم الجد الأكبر', gender:'male', birthYear:1880, alive:false, marital:'married', job:'business',
-  wives:[{id:'w1',name:'أم محمد'}],
-  children:[
-    {
-      id:'c1', name:'محمد سالم', gender:'male', birthYear:1915, alive:false, marital:'married', job:'retired',
-      wives:[{id:'w2',name:'أم عبدالله'}],
-      children:[
-        {
-          id:'c11', name:'عبدالله محمد', gender:'male', birthYear:1948, alive:true, marital:'married', job:'retired',
-          wives:[{id:'w3',name:'فاطمة'},{id:'w3b',name:'مريم'}],
-          children:[
-            { id:'c111', name:'سالم عبدالله',  gender:'male',   birthYear:1975, alive:true,  marital:'married', job:'employee', wives:[{id:'w4',name:'ريم'}],  children:[] },
-            { id:'c112', name:'نورة عبدالله',  gender:'female', birthYear:1978, alive:true,  marital:'married', job:'',         marriedOut:true, wives:[],       children:[] },
-            { id:'c113', name:'خالد عبدالله',  gender:'male',   birthYear:1982, alive:true,  marital:'single',  job:'student',  wives:[],         children:[] },
-          ],
-        },
-        {
-          id:'c12', name:'أحمد محمد', gender:'male', birthYear:1952, alive:true, marital:'married', job:'business',
-          wives:[{id:'w5',name:'هند'},{id:'w6',name:'سارة'}],
-          children:[
-            { id:'c121', name:'يوسف أحمد',  gender:'male',   birthYear:1980, alive:true, marital:'married', job:'employee', wives:[{id:'w7',name:'لمى'}], children:[] },
-            { id:'c122', name:'سلمى أحمد',  gender:'female', birthYear:1985, alive:true, marital:'married', job:'',         wives:[],                      children:[] },
-          ],
-        },
-      ],
-    },
-    {
-      id:'c2', name:'علي سالم', gender:'male', birthYear:1922, alive:true, marital:'single', job:'retired',
-      wives:[], children:[
-        { id:'c21', name:'ناصر علي', gender:'male', birthYear:1955, alive:true, marital:'married', job:'employee', wives:[{id:'w8',name:'أمل'}], children:[] },
-      ],
-    },
+  id:'root', name:'أحمد بن صاحب العفريتي', gender:'male', birthYear:1860, alive:false, marital:'married', job:'',
+  wives:[], children:[
+    { id:'c1', name:'شامي',    gender:'male', birthYear:1890, alive:false, marital:'married', job:'', wives:[], children:[] },
+    { id:'c2', name:'صاحب',   gender:'male', birthYear:1893, alive:false, marital:'married', job:'', wives:[], children:[] },
+    { id:'c3', name:'يحيى',   gender:'male', birthYear:1896, alive:false, marital:'married', job:'', wives:[], children:[] },
+    { id:'c4', name:'علي',    gender:'male', birthYear:1900, alive:false, marital:'married', job:'', wives:[], children:[] },
+    { id:'c5', name:'إبراهيم', gender:'male', birthYear:1903, alive:false, marital:'married', job:'', location:'الشقيق', wives:[], children:[] },
   ],
 }
 
@@ -60,8 +35,36 @@ const JOBS = { student:'طالب', employee:'موظف', retired:'متقاعد', 
 const calcAge   = (by, alive) => alive ? new Date().getFullYear() - by : null
 const firstName = str => (str || '').split(' ')[0]
 
+/* ════ وظائف مساعدة للشجرة ═════════════════════════════════════════════════ */
+function flatByDepth(node, targetDepth, currentDepth) {
+  if (currentDepth === targetDepth) return [node]
+  return (node.children || []).flatMap(c => flatByDepth(c, targetDepth, currentDepth + 1))
+}
+function treeMaxDepth(node, d) {
+  if (!(node.children?.length)) return d
+  return Math.max(...node.children.map(c => treeMaxDepth(c, d + 1)))
+}
+function findNodeById(node, id) {
+  if (node.id === id) return node
+  for (const c of (node.children || [])) {
+    const r = findNodeById(c, id)
+    if (r) return r
+  }
+  return null
+}
+function updateNodeInTree(node, nodeId, updates) {
+  if (node.id === nodeId) return { ...node, ...updates }
+  return { ...node, children: (node.children || []).map(c => updateNodeInTree(c, nodeId, updates)) }
+}
+function updateWifeInTree(node, wifeId, updates) {
+  const wives = (node.wives || []).map(w => w.id === wifeId ? { ...w, ...updates } : w)
+  return { ...node, wives, children: (node.children || []).map(c => updateWifeInTree(c, wifeId, updates)) }
+}
+
 /* ════ وظائف التخطيط ══════════════════════════════════════════════════════ */
 function visKids(node, pub) {
+  // عام: جميع الذكور (مسجلون + أبناء مضافون) — الإناث في الوضع الكامل فقط
+  // عند تسجيل الابن لاحقاً يُكتب رقم عضو الابن في GAS ويُتخطى السجل تلقائياً
   return (node.children || []).filter(c => pub ? c.gender === 'male' : true)
 }
 function wExt(node, showWives) {
@@ -121,7 +124,7 @@ function buildWivesData(nodes, showWives) {
       const step     = 2 * WR + WWG + 2 * DR + WCG
       const wifeCX   = n.cx + n.r + WDG + 2 * DR + WCG + WR + i * step
       const diamondX = wifeCX - WR - WCG - DR
-      wives.push({ ...w, cx: wifeCX, cy: n.cy, diamondX, diamondY: n.cy })
+      wives.push({ ...w, cx: wifeCX, cy: n.cy, diamondX, diamondY: n.cy, husbandName: n.name })
     })
     const lastW = wives[wives.length - 1]
     wLines.push({ x1: n.cx + n.r, y1: n.cy, x2: lastW.cx + WR, y2: n.cy })
@@ -191,33 +194,145 @@ function MarriageDiamond({ cx, cy }) {
 }
 
 /* ════ نافذة التفاصيل ════════════════════════════════════════════════════ */
-function Popup({ node, onClose }) {
-  const a = calcAge(node.birthYear, node.alive)
+function Popup({ node, onClose, isAdmin, onUpdateNode }) {
+  const [editing,   setEditing]   = useState(false)
+  const [editName,  setEditName]  = useState(node.name)
+  const [editAlive, setEditAlive] = useState(node.alive)
+  const [saving,    setSaving]    = useState(false)
+
+  const isWifeDaughter = node.isWife || node.isDaughter || node.isSon
+  const a = isWifeDaughter ? null : calcAge(node.birthYear, node.alive)
+
+  const lineage = node.isWife
+    ? (node.husbandName ? `زوجة ${firstName(node.husbandName)}` : 'زوجة')
+    : node.isDaughter
+    ? (node.fatherName  ? `بنت ${firstName(node.fatherName)}`   : 'بنت')
+    : node.isSon
+    ? (node.fatherName  ? `ابن ${firstName(node.fatherName)}`    : 'ابن')
+    : null
+
+  const handleSave = async () => {
+    setSaving(true)
+    const API = import.meta.env.VITE_API_URL
+    if (API) {
+      try {
+        if (node.isWife) {
+          await fetch(API, { method: 'POST', body: JSON.stringify({
+            action: 'updateWifeStatus', wifeId: node.wifeRecordId, status: editAlive ? 'حي' : 'متوفى',
+          }) })
+        } else if (node.isDaughter || node.isSon) {
+          await fetch(API, { method: 'POST', body: JSON.stringify({
+            action: 'updateChildStatus', childId: node.childRecordId, status: editAlive ? 'حي' : 'متوفى',
+          }) })
+        } else {
+          await fetch(API, { method: 'POST', body: JSON.stringify({
+            action: 'updateTreeNode', nodeId: node.id, name: editName.trim(), status: editAlive ? 'حي' : 'متوفى',
+          }) })
+        }
+      } catch { /* network error — local state still updated */ }
+    }
+    const updates = isWifeDaughter
+      ? { alive: editAlive }
+      : { name: editName.trim(), alive: editAlive }
+    onUpdateNode(node.id, updates)
+    setSaving(false)
+    onClose()
+  }
+
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
       <div className="relative w-full max-w-[300px] rounded-[26px] p-6 z-10"
         onClick={e => e.stopPropagation()}
         style={{ background: 'rgba(20,28,38,0.98)', border: '1px solid rgba(255,255,255,0.11)', backdropFilter: 'blur(24px)', boxShadow: '0 32px 80px rgba(0,0,0,0.7)' }}>
-        <button onClick={onClose}
-          className="absolute top-4 left-4 w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-all text-sm">✕</button>
-        <div className="flex justify-center mb-4">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center"
-            style={{ background: node.gender === 'female' ? 'rgba(244,63,94,0.1)' : 'rgba(59,130,246,0.1)', border: `2px solid ${GOLD}` }}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-              stroke={node.gender === 'female' ? '#fb7185' : '#60a5fa'} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a6 6 0 0 1 12 0v2" />
-            </svg>
+
+        {/* ── رأس النافذة ── */}
+        <div className="flex items-center justify-between mb-5">
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-all text-sm">✕</button>
+          {isAdmin && !editing && (
+            <button onClick={() => setEditing(true)}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
+              style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.25)', color: 'var(--gold-main)' }}>
+              تعديل
+            </button>
+          )}
+          {isAdmin && editing && (
+            <button onClick={() => { setEditing(false); setEditName(node.name); setEditAlive(node.alive) }}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }}>
+              إلغاء
+            </button>
+          )}
+        </div>
+
+        {/* ── وضع التعديل ── */}
+        {editing ? (
+          <div className="space-y-4">
+            <p className="font-nav text-xs text-center mb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              تعديل بيانات {node.isWife ? 'الزوجة' : node.isDaughter ? 'الابنة' : node.isSon ? 'الابن' : 'العقدة'}
+            </p>
+
+            {/* حقل الاسم — للعقد العادية فقط */}
+            {!isWifeDaughter && (
+              <div>
+                <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.4)' }}>الاسم</label>
+                <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
+                  className="form-input w-full" style={{ direction: 'rtl' }} />
+              </div>
+            )}
+
+            <div>
+              <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.4)' }}>الحال</label>
+              <div className="flex gap-2">
+                <button onClick={() => setEditAlive(true)} className="flex-1 font-nav text-sm py-2 rounded-xl transition-all"
+                  style={{ background: editAlive ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${editAlive ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`, color: editAlive ? '#4ade80' : 'rgba(255,255,255,0.4)' }}>
+                  حي
+                </button>
+                <button onClick={() => setEditAlive(false)} className="flex-1 font-nav text-sm py-2 rounded-xl transition-all"
+                  style={{ background: !editAlive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!editAlive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !editAlive ? '#9ca3af' : 'rgba(255,255,255,0.4)' }}>
+                  متوفى
+                </button>
+              </div>
+            </div>
+
+            <button onClick={handleSave} disabled={saving || (!isWifeDaughter && !editName.trim())}
+              className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all disabled:opacity-50"
+              style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }}>
+              {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+            </button>
           </div>
-        </div>
-        <p className="text-center text-lg font-bold text-[var(--gold-main)] mb-5">{node.name}</p>
-        <div className="divide-y divide-white/[0.06]">
-          {a !== null && <PR label="العمر" value={`${a} سنة`} />}
-          <PR label="الحال" value={node.alive ? 'حي' : 'متوفى'} color={node.alive ? '#4ade80' : '#9ca3af'} />
-          <PR label="الحالة الاجتماعية" value={node.marital === 'married' ? 'متزوج' : 'أعزب'} />
-          {JOBS[node.job] && <PR label="العمل" value={JOBS[node.job]} />}
-          {node.marriedOut && <PR label="ملاحظة" value="متزوجة خارج القبيلة" color="#a78bfa" />}
-        </div>
+        ) : (
+          <>
+            {/* ── وضع العرض ── */}
+            <div className="flex justify-center mb-4">
+              <div className="w-14 h-14 rounded-full flex items-center justify-center"
+                style={{ background: (isWifeDaughter || node.gender === 'female') ? 'rgba(244,63,94,0.1)' : 'rgba(59,130,246,0.1)', border: `2px solid ${GOLD}` }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                  stroke={(isWifeDaughter || node.gender === 'female') ? '#fb7185' : '#60a5fa'}
+                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a6 6 0 0 1 12 0v2" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-center text-lg font-bold text-[var(--gold-main)] mb-1">{node.name}</p>
+            {lineage && (
+              <p className="text-center font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.38)' }}>{lineage}</p>
+            )}
+            <div className="divide-y divide-white/[0.06]">
+              {a !== null && <PR label="العمر" value={`${a} سنة`} />}
+              <PR label="الحال" value={node.alive ? 'حي' : 'متوفى'} color={node.alive ? '#4ade80' : '#9ca3af'} />
+              {!isWifeDaughter && <>
+                <PR label="الحالة الاجتماعية" value={node.marital === 'married' ? 'متزوج' : 'أعزب'} />
+                {node.job && <PR label="العمل" value={JOBS[node.job] || node.job} />}
+                {node.location && <PR label="المنطقة" value={node.location} color="#a78bfa" />}
+                {node.marriedOut && <PR label="ملاحظة" value="متزوجة خارج القبيلة" color="#a78bfa" />}
+                {node.generation > 0 && <PR label="الجيل" value={`${node.generation}`} />}
+                {node.path && <PR label="المسار" value={node.path} />}
+              </>}
+            </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -237,30 +352,39 @@ export default function FamilyTree() {
   const user       = JSON.parse(localStorage.getItem('user') || 'null')
 
   /* ── حالة الشجرة ── */
-  const [treeRoot, setTreeRoot] = useState(FALLBACK)
-  const [loading,  setLoading]  = useState(false)
-  const [pub,      setPub]      = useState(true)
-  const [branch,   setBranch]   = useState(null)
-  const [sel,      setSel]      = useState(null)
+  const [treeRoot,   setTreeRoot]  = useState(FALLBACK)
+  const [loading,    setLoading]   = useState(!!import.meta.env.VITE_API_URL)
+  const [pub,        setPub]       = useState(true)
+  const [branch,     setBranch]    = useState(null)
+  const [genLevel,   setGenLevel]  = useState(2)
+  const [sel,        setSel]       = useState(null)
+  const [tx,         setTx]        = useState({ x: 0, y: 0, s: 0.5 })
+  const [isDragging, setDrag]      = useState(false)
   const showWives = !pub && !!user
+  const isAdmin   = user?.roles?.includes('admin')
 
   /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
   useEffect(() => {
     const API = import.meta.env.VITE_API_URL
-    if (!API) return // لا يوجد باكند بعد، نستخدم البيانات الافتراضية
-    setLoading(true)
-    fetch(API, { method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }) })
-      .then(r => r.json())
-      .then(d => { if (d.success && d.tree) setTreeRoot(d.tree) })
-      .catch(() => {}) // في حال الفشل نبقى مع البيانات الافتراضية
-      .finally(() => setLoading(false))
+    if (!API) return
+    const load = async () => {
+      try {
+        const r = await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }) })
+        const d = await r.json()
+        if (d.success && d.tree?.length > 0) setTreeRoot(d.tree[0])
+      } catch { /* keep FALLBACK on error */ }
+      finally { setLoading(false) }
+    }
+    load()
   }, [])
 
   /* ── بناء الشجرة ── */
+  const maxGen = useMemo(() => treeMaxDepth(treeRoot, 0), [treeRoot])
+
   const effectiveRoot = useMemo(() => {
     if (!branch) return treeRoot
-    const b = (treeRoot.children || []).find(c => c.id === branch)
-    return b ? { ...treeRoot, children: [b] } : treeRoot
+    const b = findNodeById(treeRoot, branch)
+    return b || treeRoot
   }, [branch, treeRoot])
 
   const { nodes, lines, wives, wLines, svgW, svgH } = useMemo(() => {
@@ -277,16 +401,38 @@ export default function FamilyTree() {
     }
   }, [effectiveRoot, showWives])
 
-  const branches = useMemo(
-    () => (treeRoot.children || [])
+  /* ── موقع العضو الحالي في الشجرة ── */
+  const myNode = useMemo(() => {
+    if (!user?.memberId) return null
+    return nodes.find(n => n.memberId === user.memberId) || null
+  }, [nodes, user])
+
+  const centerOn = (n) => {
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    setTx(prev => ({
+      s: prev.s,
+      x: vw / 2 - n.cx * prev.s,
+      y: BAR_H + (vh - BAR_H) / 2 - n.cy * prev.s,
+    }))
+  }
+
+  const handleUpdateNode = (nodeId, updates) => {
+    setTreeRoot(prev => updateWifeInTree(updateNodeInTree(prev, nodeId, updates), nodeId, updates))
+    setSel(prev => prev?.id === nodeId ? { ...prev, ...updates } : prev)
+  }
+
+
+  const branches = useMemo(() => {
+    const nodesAtLevel = genLevel <= maxGen
+      ? flatByDepth(treeRoot, genLevel, 0)
+      : []
+    return nodesAtLevel
       .filter(c => !pub || c.gender === 'male')
-      .map(c => ({ id: c.id, name: c.name })),
-    [treeRoot, pub],
-  )
+      .map(c => ({ id: c.id, name: c.name }))
+  }, [treeRoot, pub, genLevel, maxGen])
 
   /* ══════════════════ Pan / Zoom ══════════════════ */
-  const [tx, setTx]           = useState({ x: 0, y: 0, s: 0.5 })
-  const [isDragging, setDrag] = useState(false)
   const svgRef  = useRef(null)
   const drag    = useRef({ active: false, moved: false, sx: 0, sy: 0, stx: 0, sty: 0 })
   const pinch   = useRef({ dist: 1, midX: 0, midY: 0 })
@@ -301,7 +447,7 @@ export default function FamilyTree() {
       const r    = newS / prev.s
       return { s: newS, x: cx - r * (cx - prev.x), y: cy - r * (cy - prev.y) }
     })
-  }, [])
+  }, [setTx])
 
   /* ملاءمة الشجرة للشاشة */
   const fitToScreen = useCallback(() => {
@@ -315,9 +461,19 @@ export default function FamilyTree() {
       x: (vw  - svgW * s) / 2,
       y: BAR_H + (avH - svgH * s) / 2 + 16,
     })
-  }, [svgW, svgH])
+  }, [svgW, svgH, setTx])
 
-  useEffect(() => { fitToScreen() }, [fitToScreen])
+  useEffect(() => { const id = requestAnimationFrame(fitToScreen); return () => cancelAnimationFrame(id) }, [fitToScreen])
+
+  useEffect(() => {
+    const prev = { overflow: document.body.style.overflow, touchAction: document.body.style.touchAction }
+    document.body.style.overflow = 'hidden'
+    document.body.style.touchAction = 'none'
+    return () => {
+      document.body.style.overflow = prev.overflow
+      document.body.style.touchAction = prev.touchAction
+    }
+  }, [])
 
   /* زوم عبر عجلة الماوس */
   useEffect(() => {
@@ -347,8 +503,8 @@ export default function FamilyTree() {
       }
     }
     const onTM = e => {
-      if (e.touches.length !== 2) return
       e.preventDefault()
+      if (e.touches.length !== 2) return
       const [t1, t2] = e.touches
       const rect    = el.getBoundingClientRect()
       const newDist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY)
@@ -377,7 +533,6 @@ export default function FamilyTree() {
 
   /* تحريك بالسحب (Drag to Pan) */
   const onPD = e => {
-    e.currentTarget.setPointerCapture(e.pointerId)
     drag.current = { active: true, moved: false, sx: e.clientX, sy: e.clientY, stx: tx.x, sty: tx.y }
   }
   const onPM = e => {
@@ -398,7 +553,7 @@ export default function FamilyTree() {
 
   /* ════════════════ الواجهة ════════════════ */
   return (
-    <div style={{ width: '100vw', height: '100svh', background: '#080d14', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ width: '100vw', height: '100svh', background: '#080d14', overflow: 'hidden', position: 'relative', touchAction: 'none' }}>
 
       {/* ── شريط الأدوات العلوي ── */}
       <div style={{
@@ -423,7 +578,7 @@ export default function FamilyTree() {
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
-          الرئيسية
+          <span className="hidden sm:inline">الرئيسية</span>
         </button>
 
         {/* العنوان */}
@@ -434,6 +589,23 @@ export default function FamilyTree() {
         {/* أدوات التحكم */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
 
+          {/* اختيار مستوى الجيل */}
+          <select
+            value={genLevel}
+            onChange={e => { setGenLevel(Number(e.target.value)); setBranch(null); setSel(null) }}
+            className="font-nav text-sm rounded-xl px-3 py-1.5 outline-none cursor-pointer"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.65)',
+              maxWidth: 'clamp(68px, 20vw, 100px)',
+            }}
+          >
+            {Array.from({ length: maxGen }, (_, i) => i + 1).map(g => (
+              <option key={g} value={g} style={{ background: '#1a2533' }}>الجيل {g}</option>
+            ))}
+          </select>
+
           {/* فلتر الفخذ */}
           <select
             value={branch || ''}
@@ -443,7 +615,7 @@ export default function FamilyTree() {
               background: 'rgba(255,255,255,0.06)',
               border: `1px solid ${branch ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`,
               color: branch ? '#60a5fa' : 'rgba(255,255,255,0.65)',
-              maxWidth: 130,
+              maxWidth: 'clamp(80px, 24vw, 130px)',
             }}
           >
             <option value="" style={{ background: '#1a2533' }}>🌳 الكل</option>
@@ -452,11 +624,28 @@ export default function FamilyTree() {
             ))}
           </select>
 
+          {/* زر موقعي في الشجرة */}
+          {myNode && (
+            <button
+              onClick={() => { setSel(myNode); centerOn(myNode) }}
+              className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
+              style={{
+                background: 'rgba(198,161,107,0.12)',
+                border: '1px solid rgba(198,161,107,0.3)',
+                color: 'var(--gold-main)',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <span className="hidden sm:inline">موقعي</span>
+              <span className="sm:hidden">◎</span>
+            </button>
+          )}
+
           {/* زر تبديل العرض — الأعضاء فقط */}
           {user && (
             <button
               onClick={() => { setPub(v => !v); setSel(null); setBranch(null) }}
-              className="font-nav text-sm px-3 py-1.5 rounded-xl transition-all duration-200"
+              className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
               style={{
                 background: pub ? 'transparent' : 'rgba(198,161,107,0.12)',
                 border: `1px solid ${pub ? 'rgba(255,255,255,0.1)' : 'rgba(198,161,107,0.3)'}`,
@@ -464,7 +653,8 @@ export default function FamilyTree() {
                 whiteSpace: 'nowrap',
               }}
             >
-              {pub ? '👁 كامل' : '🌐 عام'}
+              <span className="hidden sm:inline">{pub ? '👁 كامل' : '🌐 عام'}</span>
+              <span className="sm:hidden">{pub ? '👁' : '🌐'}</span>
             </button>
           )}
         </div>
@@ -506,7 +696,7 @@ export default function FamilyTree() {
 
           {/* الزوجات + الماسات */}
           {wives.map((w, i) => (
-            <g key={`wu${i}`}>
+            <g key={`wu${i}`} onClick={() => onNodeClick(w)} style={{ cursor: 'pointer' }}>
               <MarriageDiamond cx={w.diamondX} cy={w.diamondY} />
               <WifeCircle cx={w.cx} cy={w.cy} name={w.name} />
             </g>
@@ -584,7 +774,7 @@ export default function FamilyTree() {
       )}
 
       {/* ── نافذة التفاصيل ── */}
-      {sel && <Popup node={sel} onClose={() => setSel(null)} />}
+      {sel && <Popup node={sel} onClose={() => setSel(null)} isAdmin={isAdmin} onUpdateNode={handleUpdateNode} />}
     </div>
   )
 }

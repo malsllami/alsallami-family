@@ -46,7 +46,7 @@ export default function Router() {
 
   return (
 
-    <BrowserRouter>
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
 
       <Routes>
 

@@ -1,71 +1,4 @@
-import { useState } from 'react'
-
-/* ════ بيانات أولية ════════════════════════════════════════════════════════ */
-const FUNDS_INITIAL = [
-  {
-    id: 'f1',
-    name: 'صندوق التكافل الأسري',
-    color: 'blue',
-    vision: 'بناء مجتمع أسري متماسك يضمن كرامة أبنائه في أوقات الحاجة ويعزز روح التعاون بين أفراد العائلة.',
-    objectives: [
-      'دعم الأسر المحتاجة من أبناء عائلة السلامي',
-      'تقديم مساعدات عاجلة في الأزمات الصحية والأسرية',
-      'تمويل تعليم أبناء ذوي الدخل المحدود',
-      'المساهمة في تكاليف الزواج وإعانات الوفاة',
-      'دعم مشاريع الأسر المنتجة',
-    ],
-    conditions: [
-      'أن يكون المستفيد من أبناء عائلة السلامي الموثقين',
-      'تقديم طلب رسمي موثق بالمستندات اللازمة',
-      'الموافقة بالأغلبية من مجلس إدارة الصندوق',
-      'عدم الاستفادة مرتين في نفس العام إلا في الحالات الاستثنائية',
-      'الالتزام بسداد أي قروض في المواعيد المحددة إن وجدت',
-    ],
-    directors: [
-      { name: 'أحمد بن سالم السلامي',    role: 'رئيس الصندوق' },
-      { name: 'محمد بن عبدالله السلامي', role: 'أمين الصندوق' },
-      { name: 'خالد بن علي السلامي',     role: 'عضو مجلس الإدارة' },
-      { name: 'ناصر بن يوسف السلامي',   role: 'عضو مجلس الإدارة' },
-    ],
-    members: [
-      { name: 'سالم أحمد السلامي',    memberId: '1001', joinDate: '2023-01-15', amount: 500 },
-      { name: 'عبدالله محمد السلامي', memberId: '1002', joinDate: '2023-02-20', amount: 500 },
-      { name: 'يوسف خالد السلامي',    memberId: '1003', joinDate: '2023-03-10', amount: 300 },
-      { name: 'فهد علي السلامي',      memberId: '1004', joinDate: '2023-04-05', amount: 500 },
-      { name: 'عمر ناصر السلامي',     memberId: '1005', joinDate: '2023-05-12', amount: 200 },
-    ],
-    stats: { totalMembers: 47, beneficiaries: 23, totalDistributed: 85000, activeCases: 5 },
-  },
-  {
-    id: 'f2',
-    name: 'صندوق الدراسات والمنح',
-    color: 'purple',
-    vision: 'تمكين أبناء عائلة السلامي من التعليم العالي ودعم مسيرتهم الأكاديمية والمهنية نحو مستقبل مشرق.',
-    objectives: [
-      'تقديم منح دراسية للطلاب المتميزين في الجامعات',
-      'دعم الابتعاث الخارجي لمواصلة الدراسات العليا',
-      'تمويل الدورات التدريبية والشهادات المهنية',
-      'مكافأة الطلاب المتفوقين في المراحل الدراسية',
-    ],
-    conditions: [
-      'معدل أكاديمي لا يقل عن 3.5 من 5 أو ما يعادله',
-      'أن يكون الطالب من أبناء العائلة المسجلين رسمياً',
-      'تقديم كشف الدرجات الرسمي الموثق',
-      'المداومة على تقديم التقارير الأكاديمية الدورية',
-    ],
-    directors: [
-      { name: 'ناصر بن علي السلامي',    role: 'رئيس الصندوق' },
-      { name: 'عبدالرحمن محمد السلامي', role: 'أمين الصندوق' },
-      { name: 'هند يوسف السلامي',        role: 'المشرفة الأكاديمية' },
-    ],
-    members: [
-      { name: 'لمى يوسف السلامي',    memberId: '1006', joinDate: '2023-05-01', amount: 400 },
-      { name: 'سلمى أحمد السلامي',   memberId: '1007', joinDate: '2023-06-15', amount: 400 },
-      { name: 'فاطمة خالد السلامي',  memberId: '1008', joinDate: '2023-07-20', amount: 300 },
-    ],
-    stats: { totalMembers: 18, beneficiaries: 9, totalDistributed: 42000, activeCases: 3 },
-  },
-]
+import { useState, useEffect, useCallback } from 'react'
 
 /* ════ ألوان ═══════════════════════════════════════════════════════════════ */
 const C = {
@@ -75,8 +8,13 @@ const C = {
 }
 const COLOR_LABELS = { blue: 'أزرق', purple: 'بنفسجي', gold: 'ذهبي' }
 const BLANK_FUND = {
-  name: '', color: 'blue', vision: '', objectives: [], conditions: [], directors: [],
-  members: [], stats: { totalMembers: 0, beneficiaries: 0, totalDistributed: 0, activeCases: 0 },
+  name: '', color: 'blue', vision: '', description: '', objectives: [], conditions: [], directors: [],
+}
+
+/* ════ helper ════════════════════════════════════════════════════════════════ */
+async function callApi(body) {
+  const res = await fetch(import.meta.env.VITE_API_URL, { method: 'POST', body: JSON.stringify(body) })
+  return res.json()
 }
 
 /* ════ مكونات مساعدة ══════════════════════════════════════════════════════ */
@@ -113,10 +51,10 @@ function IconBtn({ onClick, disabled, color, title, children }) {
 }
 
 /* ════ تصدير ═══════════════════════════════════════════════════════════════ */
-function exportCSV(fund) {
+function exportCSV(fund, members) {
   const rows = [
-    ['الاسم', 'رقم العضوية', 'تاريخ الانضمام', 'مبلغ الاشتراك (ريال)'],
-    ...fund.members.map(m => [m.name, m.memberId, m.joinDate, m.amount]),
+    ['الاسم', 'رقم العضوية', 'تاريخ الانضمام', 'المبلغ الكامل (ريال)'],
+    ...members.map(m => [m.name, m.memberId, m.joinDate, m.totalAmount || 0]),
   ]
   const csv = '﻿' + rows.map(r => r.map(v => `"${v}"`).join(',')).join('\n')
   Object.assign(document.createElement('a'), {
@@ -125,9 +63,9 @@ function exportCSV(fund) {
   }).click()
 }
 
-function printFund(fund) {
-  const rows = fund.members.map(m =>
-    `<tr><td>${m.name}</td><td>${m.memberId}</td><td>${m.joinDate}</td><td>${m.amount.toLocaleString('ar-SA')} ريال</td></tr>`
+function printFund(fund, members) {
+  const rows = members.map(m =>
+    `<tr><td>${m.name}</td><td>${m.memberId}</td><td>${m.joinDate}</td><td>${(m.totalAmount || 0).toLocaleString('ar-SA')} ريال</td></tr>`
   ).join('')
   const win = window.open('', '_blank')
   win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>${fund.name}</title>
@@ -138,8 +76,8 @@ function printFund(fund) {
     td{padding:9px 12px;border:1px solid #ddd;text-align:right}tr:nth-child(even)td{background:#fafaf8}
     .meta{color:#888;font-size:13px;margin-bottom:16px}@media print{body{padding:0}}</style>
     </head><body><h1>${fund.name} — قائمة الأعضاء</h1>
-    <p class="meta">إجمالي الأعضاء: ${fund.stats.totalMembers} | المستفيدون: ${fund.stats.beneficiaries} | تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
-    <table><thead><tr><th>الاسم</th><th>رقم العضوية</th><th>تاريخ الانضمام</th><th>الاشتراك</th></tr></thead>
+    <p class="meta">إجمالي الأعضاء: ${members.length} | تاريخ الطباعة: ${new Date().toLocaleDateString('ar-SA')}</p>
+    <table><thead><tr><th>الاسم</th><th>رقم العضوية</th><th>تاريخ الانضمام</th><th>المبلغ</th></tr></thead>
     <tbody>${rows}</tbody></table>
     <p class="meta" style="margin-top:20px">* هذا المستند سري ومخصص لإدارة الصندوق فقط</p></body></html>`)
   win.document.close(); win.focus(); win.print()
@@ -151,19 +89,46 @@ export default function Funds() {
   const isAdmin  = user?.roles?.includes('admin')
   const isMember = !!user
 
-  const [funds,      setFunds]      = useState(FUNDS_INITIAL)
-  const [active,     setActive]     = useState(FUNDS_INITIAL[0].id)
-  const [modal,      setModal]      = useState(null)   // null | 'new' | 'edit'
+  const [funds,      setFunds]      = useState([])
+  const [members,    setMembers]    = useState([])
+  const [active,     setActive]     = useState(null)
+  const [loading,    setLoading]    = useState(true)
+  const [modal,      setModal]      = useState(null)
   const [draft,      setDraft]      = useState(null)
   const [saving,     setSaving]     = useState(false)
   const [deletingId, setDeletingId] = useState(null)
 
-  const fund = funds.find(f => f.id === active) ?? funds[0]
+  const fund = funds.find(f => f.id === active) ?? funds[0] ?? null
   const c    = C[fund?.color] || C.blue
+
+  /* ── تحميل الصناديق ── */
+  const loadFunds = useCallback(async () => {
+    try {
+      const data = await callApi({ action: 'getFunds' })
+      if (data.success) {
+        setFunds(data.funds)
+        setActive(prev => prev || (data.funds[0]?.id ?? null))
+      }
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }, [])
+
+  /* ── تحميل أعضاء الصندوق الحالي ── */
+  const loadMembers = useCallback(async (fundId) => {
+    if (!fundId) { setMembers([]); return }
+    try {
+      const data = await callApi({ action: 'getFundMembers', fundId })
+      if (data.success) setMembers(data.members)
+      else setMembers([])
+    } catch { setMembers([]) }
+  }, [])
+
+  useEffect(() => { loadFunds() }, [loadFunds])
+  useEffect(() => { loadMembers(active) }, [active, loadMembers])
 
   /* ── فتح المودال ── */
   const openNew = () => {
-    setDraft({ ...BLANK_FUND, id: `f${Date.now()}` })
+    setDraft({ ...BLANK_FUND })
     setModal('new')
   }
   const openEdit = (f) => {
@@ -181,7 +146,7 @@ export default function Funds() {
   const setLines = (field) => (e) => setDraft(d => ({ ...d, [field]: e.target.value.split('\n') }))
 
   const addDirector = () =>
-    setDraft(d => ({ ...d, directors: [...d.directors, { name: '', role: '' }] }))
+    setDraft(d => ({ ...d, directors: [...d.directors, { name: '', role: '', phone: '' }] }))
   const removeDirector = (i) =>
     setDraft(d => ({ ...d, directors: d.directors.filter((_, idx) => idx !== i) }))
   const setDir = (i, field) => (e) =>
@@ -193,43 +158,52 @@ export default function Funds() {
     const clean = {
       ...draft,
       objectives: draft.objectives.filter(o => o.trim()),
-      conditions:  draft.conditions.filter(c => c.trim()),
-      directors:   draft.directors.filter(d => d.name.trim()),
+      conditions: draft.conditions.filter(c => c.trim()),
+      directors:  draft.directors.filter(d => d.name.trim()),
     }
+    setSaving(true)
     try {
-      setSaving(true)
-      try {
-        await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: modal === 'new' ? 'createFund' : 'updateFund', fund: clean }),
-        })
-      } catch { /* API offline — update local state anyway */ }
-      if (modal === 'new') {
-        setFunds(prev => [...prev, clean])
-        setActive(clean.id)
+      const action = modal === 'new' ? 'createFund' : 'updateFund'
+      const data = await callApi({ action, fund: clean })
+      if (data.success) {
+        await loadFunds()
+        if (data.fundId) setActive(data.fundId)
+        setModal(null)
       } else {
-        setFunds(prev => prev.map(f => f.id === clean.id ? clean : f))
+        alert(data.message || 'حدث خطأ')
       }
-      setModal(null)
-    } finally { setSaving(false) }
+    } catch {
+      alert('حدث خطأ في الاتصال بالخادم')
+    } finally {
+      setSaving(false)
+    }
   }
 
   /* ── حذف ── */
   const handleDelete = async (fundId) => {
     if (!confirm('هل تريد حذف هذا الصندوق نهائياً؟ لا يمكن التراجع عن هذه العملية.')) return
+    setDeletingId(fundId)
     try {
-      setDeletingId(fundId)
-      try {
-        await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'deleteFund', fundId }),
-        })
-      } catch { /* API offline — update local state anyway */ }
-      const remaining = funds.filter(f => f.id !== fundId)
-      setFunds(remaining)
-      if (active === fundId) setActive(remaining[0]?.id ?? null)
-    } finally { setDeletingId(null) }
+      await callApi({ action: 'deleteFund', fundId })
+      if (active === fundId) setActive(null)
+      await loadFunds()
+    } catch {
+      alert('حدث خطأ')
+    } finally {
+      setDeletingId(null)
+    }
   }
+
+  /* ── حالة التحميل ── */
+  if (loading) {
+    return (
+      <div className="px-5 lg:px-10 py-10 flex items-center justify-center h-64">
+        <p className="font-nav text-gray-500">جاري التحميل...</p>
+      </div>
+    )
+  }
+
+  const totalDistributed = members.reduce((s, m) => s + (Number(m.totalAmount) || 0), 0)
 
   return (
     <div className="px-5 lg:px-10 py-10 space-y-7">
@@ -253,7 +227,7 @@ export default function Funds() {
       <div className="flex flex-wrap gap-3 items-center">
         {funds.map(f => {
           const fc = C[f.color] || C.blue
-          const isAct = f.id === active
+          const isAct = f.id === (active ?? funds[0]?.id)
           return (
             <div key={f.id} className="flex items-center gap-1.5">
               <button onClick={() => setActive(f.id)}
@@ -292,11 +266,9 @@ export default function Funds() {
       {fund && (
         <>
           {/* إحصائيات سريعة */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <StatCard label="إجمالي الأعضاء"   value={fund.stats.totalMembers}     c={c} />
-            <StatCard label="المستفيدون"        value={fund.stats.beneficiaries}    c={c} />
-            <StatCard label="إجمالي الصرف"     value={fund.stats.totalDistributed} c={c} sub="ريال سعودي" />
-            <StatCard label="حالات نشطة"       value={fund.stats.activeCases}      c={c} />
+          <div className="grid grid-cols-2 sm:grid-cols-2 gap-4">
+            <StatCard label="إجمالي الأعضاء"   value={members.length}      c={c} />
+            <StatCard label="إجمالي الصرف"     value={totalDistributed}    c={c} sub="ريال سعودي" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -365,14 +337,14 @@ export default function Funds() {
                       <span>📊</span>
                       <span className="font-nav text-sm font-semibold" style={{ color: c.accent }}>أعضاء الصندوق</span>
                     </div>
-                    {isAdmin && (
+                    {isAdmin && members.length > 0 && (
                       <div className="flex gap-2">
-                        <button onClick={() => exportCSV(fund)}
+                        <button onClick={() => exportCSV(fund, members)}
                           className="font-nav text-xs px-2.5 py-1.5 rounded-xl transition-all duration-200"
                           style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.25)', color: '#4ade80' }}>
                           Excel
                         </button>
-                        <button onClick={() => printFund(fund)}
+                        <button onClick={() => printFund(fund, members)}
                           className="font-nav text-xs px-2.5 py-1.5 rounded-xl transition-all duration-200"
                           style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
                           PDF
@@ -384,18 +356,18 @@ export default function Funds() {
 
                 {isMember ? (
                   <div className="px-5 py-3">
-                    {fund.members.length === 0 ? (
+                    {members.length === 0 ? (
                       <p className="font-nav text-sm text-gray-600 py-3">لا يوجد أعضاء مسجلون</p>
-                    ) : fund.members.map((m, i) => (
-                      <div key={i} className="flex items-center justify-between py-2.5"
-                        style={{ borderBottom: i < fund.members.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
+                    ) : members.map((m, i) => (
+                      <div key={m.id || i} className="flex items-center justify-between py-2.5"
+                        style={{ borderBottom: i < members.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}>
                         <div>
                           <p className="font-nav text-sm text-white">{m.name}</p>
                           <p className="font-nav text-xs text-gray-500">عضو #{m.memberId}</p>
                         </div>
                         <div className="text-left">
                           <p className="font-nav text-sm font-bold" style={{ color: c.accent }}>
-                            {m.amount.toLocaleString('ar-SA')}
+                            {(m.totalAmount || 0).toLocaleString('ar-SA')}
                             <span className="text-xs font-normal text-gray-500 mr-1">ريال</span>
                           </p>
                           <p className="font-nav text-xs text-gray-500">{m.joinDate}</p>
@@ -403,7 +375,7 @@ export default function Funds() {
                       </div>
                     ))}
                     <p className="font-nav text-xs text-gray-600 pt-2 pb-1">
-                      يعرض {fund.members.length} من {fund.stats.totalMembers} عضو
+                      يعرض {members.length} عضو
                     </p>
                   </div>
                 ) : (
@@ -417,7 +389,7 @@ export default function Funds() {
                       </svg>
                     </div>
                     <p className="font-nav text-sm text-gray-400 mb-1">عدد الأعضاء</p>
-                    <p className="text-3xl font-bold mb-1" style={{ color: c.accent }}>{fund.stats.totalMembers}</p>
+                    <p className="text-3xl font-bold mb-1" style={{ color: c.accent }}>{members.length}</p>
                     <p className="font-nav text-xs text-gray-500">سجّل دخولك لعرض قائمة الأعضاء</p>
                   </div>
                 )}

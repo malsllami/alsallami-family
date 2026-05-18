@@ -1,41 +1,47 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
 
+// تحويل الأرقام العربية إلى إنجليزية على مستوى الواجهة
+function normalizeInput(str) {
+  return String(str || '').trim()
+    .replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
+    .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
+}
+
 export default function Login() {
-  const { login } = useAuth()
+  const { login }   = useAuth()
+  const navigate    = useNavigate()
   const [phone,    setPhone]    = useState('')
   const [password, setPassword] = useState('')
   const [loading,  setLoading]  = useState(false)
+  const [error,    setError]    = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    setError('')
     try {
       setLoading(true)
       const response = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'login', phone, password }),
+        body: JSON.stringify({
+          action:   'login',
+          phone:    normalizeInput(phone),
+          password: normalizeInput(password),
+        }),
       })
       const result = await response.json()
       if (result.success) {
-        const userData = {
-          memberId:          result.memberId,
-          firstName:         result.firstName,
-          phone:             result.phone,
-          roles:             result.roles,
-          approved:          result.approved,
-          mustChangePassword: result.mustChangePassword,
-        }
+        const userData = result.user
         localStorage.setItem('user', JSON.stringify(userData))
         login(userData)
-        window.location.href = '/member-dashboard'
+        navigate('/member-dashboard')
       } else {
-        alert(result.message)
+        setError(result.message || 'بيانات الدخول غير صحيحة')
       }
-    } catch (error) {
-      console.log(error)
-      alert('حدث خطأ أثناء تسجيل الدخول')
+    } catch {
+      setError('تعذّر الاتصال بالخادم، تحقق من اتصالك بالإنترنت')
     } finally {
       setLoading(false)
     }
@@ -85,8 +91,16 @@ export default function Login() {
         {/* النموذج */}
         <form onSubmit={handleSubmit} className="mt-10 space-y-5">
 
+          {error && (
+            <div className="font-nav text-sm text-center py-2.5 px-4 rounded-2xl"
+              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
+              {error}
+            </div>
+          )}
+
           <input
             type="text"
+            inputMode="numeric"
             value={phone}
             onChange={e => setPhone(e.target.value)}
             placeholder="رقم الجوال"

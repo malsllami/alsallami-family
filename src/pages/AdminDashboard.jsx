@@ -1,6 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PasswordInput from '../components/PasswordInput'
+import TreeNavigator from '../components/TreeNavigator'
+
+/* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور */
+function buildFlatTree(roots) {
+  const flat = []
+  function walk(n, pId, pGen) {
+    if (n.isWife) return
+    if (!n.isChildRecord) {
+      const g = n.generation || 1
+      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g })
+      ;(n.children || []).forEach(c => walk(c, n.id, g))
+    } else if (!n.isDaughter && n.childRecordId) {
+      flat.push({
+        id: 'child_' + n.childRecordId,
+        childRecordId: n.childRecordId,
+        name: n.name,
+        parentId: pId,
+        gen: (pGen || 1) + 1,
+        isChildRecord: true,
+      })
+    }
+  }
+  roots.forEach(r => walk(r, '', 0))
+  return flat
+}
 
 /* ═══════════ مؤشر لون الاستهلاك ═══════════ */
 function usageTheme(pct) {
@@ -57,9 +82,37 @@ export default function AdminDashboard() {
   const [tempLoading,  setTempLoading]  = useState(false)
   const [tempResult,   setTempResult]   = useState(null)
 
+  const [regRequests,        setRegRequests]        = useState([])
+  const [regRequestsLoading, setRegRequestsLoading] = useState(true)
+  const [regActionLoading,   setRegActionLoading]   = useState(null)
+  const [regResult,          setRegResult]          = useState(null)
+
   const [treeRequests,        setTreeRequests]        = useState([])
+  const [notFoundPanel,       setNotFoundPanel]       = useState(null)   // requestId الذي فُتح لوحة الموقع
+  const [adminAncestor,       setAdminAncestor]       = useState(null)   // العقدة التي اختارها المدير
+  const [adminTreeData,       setAdminTreeData]       = useState(null)
+  const [adminTreeLoading,    setAdminTreeLoading]    = useState(false)
+
+  const AM_INITIAL = {
+    nationalId:'', firstName:'', phone:'',
+    branch:'', parentNodeId:'', parentName:'',
+    tempPassword:'', maritalStatus:'',
+    job:'', jobOther:'', city:'',
+    role:'عضو', aliveStatus:'حي',
+  }
+  const JOBS_LIST    = ['موظف', 'طالب', 'متقاعد', 'رجل أعمال', 'أخرى']
+  const ROLES_LIST   = ['عضو', 'مدير صندوق', 'مدير']
+  const MARITAL_LIST = ['أعزب', 'متزوج', 'مطلق', 'أرمل']
+  const [amData,     setAmData]     = useState(AM_INITIAL)
+  const [amLoading,  setAmLoading]  = useState(false)
+  const [amResult,   setAmResult]   = useState(null)
+  const [amFlatTree, setAmFlatTree] = useState([])
+  const [amCascade,  setAmCascade]  = useState([])
   const [treeRequestsLoading, setTreeRequestsLoading] = useState(true)
   const [treeActionLoading,   setTreeActionLoading]   = useState(null)
+
+  const [openSec, setOpenSec] = useState({ tempPass: true, regReq: true, treeReq: true, addMember: true })
+  const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
 
   /* جلب إحصائيات المنصة */
   useEffect(() => {
@@ -70,7 +123,7 @@ export default function AdminDashboard() {
           body: JSON.stringify({ action: 'getAdminStats' }),
         })
         const data = await res.json()
-        if (data.success) setStats(data)
+        if (data.success) setStats({ ...data.stats, charts: data.charts })
       } catch (e) { console.error(e) }
       finally    { setStatsLoading(false) }
     }
@@ -95,15 +148,115 @@ export default function AdminDashboard() {
         const data = await res.json()
         if (data.success)
           setStats(prev => ({ ...prev, onlineUsers: data.onlineUsers }))
-      } catch {}
+      } catch (_) { /* ignore network errors */ }
     }, 60_000)
     return () => clearInterval(id)
   }, [])
 
+  /* جلب طلبات التسجيل — دالة للزر تضبط loading بنفسها */
+  const fetchRegRequests = async () => {
+    setRegRequestsLoading(true)
+    setRegResult(null)
+    try {
+      const res  = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'getPendingRequests', status: 'معلق' }),
+      })
+      const data = await res.json()
+      if (data.success) setRegRequests(data.requests || [])
+    } catch (e) { console.error(e) }
+    finally { setRegRequestsLoading(false) }
+  }
+  /* useEffect يُحمّل بدون setState sync — loading يبدأ true من الـ useState */
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'getPendingRequests', status: 'معلق' }),
+        })
+        const data = await res.json()
+        if (data.success) setRegRequests(data.requests || [])
+      } catch (e) { console.error(e) }
+      finally { setRegRequestsLoading(false) }
+    }
+    load()
+  }, [])
+
+  const handleRegAction = async (requestId, action) => {
+    try {
+      setRegActionLoading(requestId + action)
+      const res = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action, requestId }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setRegRequests(prev => prev.filter(r => r.requestId !== requestId))
+        setRegResult({ success: true, message: result.message })
+      } else {
+        setRegResult({ success: false, message: result.message || 'حدث خطأ' })
+      }
+    } catch { setRegResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
+    finally { setRegActionLoading(null) }
+  }
+
+  /* تحميل عقد الشجرة للاستخدام في اختيار الأب عند إضافة عضو */
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
+        })
+        const data = await res.json()
+        if (data.success && data.tree?.length) setAmFlatTree(buildFlatTree(data.tree))
+      } catch (_) { /* ignore network errors */ }
+    }
+    load()
+  }, [])
+
+  /* تحميل الشجرة عند فتح لوحة NOTFOUND */
+  useEffect(() => {
+    if (!notFoundPanel || adminTreeData) return
+    const load = async () => {
+      setAdminTreeLoading(true)
+      try {
+        const r = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
+        })
+        const d = await r.json()
+        if (d.success && d.tree?.length > 0) setAdminTreeData(d.tree[0])
+      } catch (_) { /* ignore network errors */ }
+      setAdminTreeLoading(false)
+    }
+    load()
+  }, [notFoundPanel, adminTreeData])
+
+  /* موافقة على طلب NOTFOUND مع تحديد موقع الأب */
+  const handleApproveNotFound = async (requestId) => {
+    if (!adminAncestor) return
+    try {
+      setTreeActionLoading(requestId + 'approveTreeRequest')
+      const res = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'approveTreeRequest', requestId, ancestorId: adminAncestor.parentId }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setTreeRequests(prev => prev.filter(r => r.requestId !== requestId))
+        setNotFoundPanel(null)
+        setAdminAncestor(null)
+      } else {
+        alert(result.message || 'حدث خطأ')
+      }
+    } catch { alert('تعذّر الاتصال بالخادم') }
+    finally { setTreeActionLoading(null) }
+  }
+
   /* جلب طلبات الربط بالشجرة */
   const fetchTreeRequests = async () => {
+    setTreeRequestsLoading(true)
     try {
-      setTreeRequestsLoading(true)
       const res  = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
         body: JSON.stringify({ action: 'getTreeRequests' }),
@@ -113,7 +266,20 @@ export default function AdminDashboard() {
     } catch (e) { console.error(e) }
     finally { setTreeRequestsLoading(false) }
   }
-  useEffect(() => { fetchTreeRequests() }, [])
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'getTreeRequests' }),
+        })
+        const data = await res.json()
+        if (data.success) setTreeRequests(data.requests || [])
+      } catch (e) { console.error(e) }
+      finally { setTreeRequestsLoading(false) }
+    }
+    load()
+  }, [])
 
   const handleTreeAction = async (requestId, action) => {
     try {
@@ -129,6 +295,85 @@ export default function AdminDashboard() {
         alert(result.message || 'حدث خطأ')
     } catch { alert('تعذّر الاتصال بالخادم') }
     finally { setTreeActionLoading(null) }
+  }
+
+  /* مساعدات الشجرة لاختيار الأب */
+  const amBranches = amFlatTree.filter(n => n.gen === 3)
+
+  const handleBranchChange = branchName => {
+    const bn = amFlatTree.find(n => n.name === branchName && n.gen === 3 && !n.isChildRecord)
+    setAmData(p => ({ ...p, branch: branchName, parentNodeId: bn?.id || '', parentName: bn?.name || '' }))
+    if (bn) {
+      const kids = amFlatTree.filter(n => n.parentId === bn.id)
+      setAmCascade(kids.length ? [{ label: `أبناء ${branchName}`, options: kids, selectedId: '' }] : [])
+    } else {
+      setAmCascade([])
+    }
+  }
+
+  const handleCascadeChange = (levelIdx, selectedId) => {
+    const node = amFlatTree.find(n => n.id === selectedId)
+    setAmData(p => ({ ...p, parentNodeId: selectedId || p.parentNodeId, parentName: node?.name || p.parentName }))
+    if (!selectedId || node?.isChildRecord) {
+      setAmCascade(prev => prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l))
+      return
+    }
+    const kids = amFlatTree.filter(n => n.parentId === selectedId)
+    setAmCascade(prev => {
+      const next = prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l)
+      if (kids.length) next.push({ label: `أبناء ${node?.name || ''}`, options: kids, selectedId: '' })
+      return next
+    })
+  }
+
+  /* إضافة عضو مباشرة */
+  const handleAddMember = async () => {
+    const isDeceased = amData.aliveStatus === 'متوفى'
+    if (!amData.firstName)   return setAmResult({ success: false, message: 'الاسم الأول مطلوب' })
+    if (!isDeceased && !amData.nationalId)  return setAmResult({ success: false, message: 'رقم الهوية مطلوب' })
+    if (!isDeceased && !amData.phone)
+      return setAmResult({ success: false, message: 'رقم الجوال مطلوب' })
+    if (!isDeceased && (!amData.tempPassword || amData.tempPassword.length < 6))
+      return setAmResult({ success: false, message: 'كلمة المرور المؤقتة يجب أن تكون 6 أحرف على الأقل' })
+    const jobFinal   = amData.job === 'أخرى' ? amData.jobOther : amData.job
+    const parentNode = amFlatTree.find(n => n.id === amData.parentNodeId)
+    try {
+      setAmLoading(true)
+      setAmResult(null)
+      const res = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({
+          action:               'addMember',
+          nationalId:           amData.nationalId,
+          firstName:            amData.firstName,
+          phone:                amData.phone,
+          branch:               amData.branch,
+          parentNodeId:         amData.parentNodeId,
+          parentChildRecordId:  parentNode?.childRecordId || '',
+          fatherName:           amData.parentName,
+          tempPassword:         amData.tempPassword,
+          maritalStatus:        amData.maritalStatus,
+          job:                  jobFinal,
+          city:                 amData.city,
+          role:                 amData.role,
+          aliveStatus:          amData.aliveStatus,
+        }),
+      })
+      const result = await res.json()
+      setAmResult(result)
+      if (result.success) {
+        setAmData(AM_INITIAL)
+        setAmCascade([])
+        try {
+          const tr = await fetch(import.meta.env.VITE_API_URL, {
+            method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
+          })
+          const td = await tr.json()
+          if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
+        } catch (_) { /* ignore network errors */ }
+      }
+    } catch { setAmResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
+    finally  { setAmLoading(false) }
   }
 
   /* توليد كلمة مرور عشوائية */
@@ -336,7 +581,7 @@ export default function AdminDashboard() {
       {/* ── العنوان ── */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-bold text-[var(--gold-main)]">لوحة تحكم المدير</h1>
+          <h1 className="text-2xl sm:text-4xl font-bold text-[var(--gold-main)]">لوحة تحكم المدير</h1>
           <p className="mt-2 font-nav text-gray-400">
             مرحباً {user?.firstName}، إليك نظرة عامة على المنصة
           </p>
@@ -355,14 +600,14 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* بطاقة الاستهلاك */}
-        <div className="rounded-[28px] p-7 lg:col-span-2" style={{ background: 'rgba(234,179,8,0.07)', border: '1px solid rgba(234,179,8,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7 lg:col-span-2" style={{ background: 'rgba(234,179,8,0.07)', border: '1px solid rgba(234,179,8,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
 
           <div className="flex items-start justify-between mb-7">
             <div>
               <p className="font-nav text-sm text-gray-400 mb-3">استهلاك السكربت اليومي</p>
               <div className="flex items-baseline gap-3 flex-wrap">
                 <span
-                  className="text-6xl font-black tabular-nums transition-colors duration-500"
+                  className="text-4xl sm:text-6xl font-black tabular-nums transition-colors duration-500"
                   style={{ color: theme.text }}
                 >
                   {scriptUsage}%
@@ -457,7 +702,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* بطاقة المتواجدين */}
-        <div className="rounded-[28px] p-7 flex flex-col" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7 flex flex-col" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
           <div className="flex items-center justify-between">
             <p className="font-nav text-sm text-gray-400">المتواجدون الآن</p>
             <span
@@ -468,7 +713,7 @@ export default function AdminDashboard() {
 
           <div className="flex-1 flex items-center justify-center py-6">
             <div className="text-center">
-              <div className="relative w-32 h-32 mx-auto">
+              <div className="relative w-24 h-24 sm:w-32 sm:h-32 mx-auto">
                 <div
                   className="absolute inset-0 rounded-full animate-ping"
                   style={{ background: 'rgba(34,197,94,0.07)', animationDuration: '2.2s' }}
@@ -478,14 +723,14 @@ export default function AdminDashboard() {
                   style={{ background: 'rgba(34,197,94,0.05)', animationDuration: '2.2s', animationDelay: '0.4s' }}
                 />
                 <div
-                  className="relative w-32 h-32 rounded-full flex items-center justify-center"
+                  className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center"
                   style={{
                     background: 'radial-gradient(circle, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.04) 100%)',
                     border:     '1.5px solid rgba(34,197,94,0.28)',
                     boxShadow:  '0 0 36px rgba(34,197,94,0.14)',
                   }}
                 >
-                  <span className="text-5xl font-black text-green-400 tabular-nums">
+                  <span className="text-3xl sm:text-5xl font-black text-green-400 tabular-nums">
                     {onlineUsers}
                   </span>
                 </div>
@@ -504,7 +749,7 @@ export default function AdminDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* إحصائيات الطلبات */}
-        <div className="rounded-[28px] p-7" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
           <p className="font-nav text-sm text-gray-400 mb-6">إحصائيات طلبات API</p>
 
           {/* اليوم / الأسبوع */}
@@ -517,7 +762,7 @@ export default function AdminDashboard() {
               }}
             >
               <p className="font-nav text-xs text-gray-400 mb-3">اليوم</p>
-              <p className="text-5xl font-black text-[var(--gold-main)] tabular-nums leading-none">
+              <p className="text-3xl sm:text-5xl font-black text-[var(--gold-main)] tabular-nums leading-none">
                 {todayRequests}
               </p>
               <p className="font-nav text-xs text-gray-500 mt-3">طلب</p>
@@ -531,7 +776,7 @@ export default function AdminDashboard() {
               }}
             >
               <p className="font-nav text-xs text-gray-400 mb-3">هذا الأسبوع</p>
-              <p className="text-5xl font-black text-indigo-400 tabular-nums leading-none">
+              <p className="text-3xl sm:text-5xl font-black text-indigo-400 tabular-nums leading-none">
                 {weekRequests}
               </p>
               <p className="font-nav text-xs text-gray-500 mt-3">طلب</p>
@@ -572,7 +817,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* بيانات المدير الشخصية */}
-        <div className="rounded-[28px] p-7" style={{ background: 'rgba(198,161,107,0.07)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(198,161,107,0.07)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
           <p className="font-nav text-sm text-gray-400 mb-5">بيانات المدير الشخصية</p>
 
           <div className="divide-y divide-white/[0.06]">
@@ -644,24 +889,30 @@ export default function AdminDashboard() {
       {/* ══════════════════════════════════════
           كلمة مرور مؤقتة لعضو
          ══════════════════════════════════════ */}
-      <div className="rounded-[28px] p-7" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
 
-        <div className="flex items-start justify-between mb-6">
+        <button className="flex items-start justify-between w-full text-right"
+          onClick={() => toggleSec('tempPass')}>
           <div>
             <p className="font-nav text-sm text-gray-400 mb-1">كلمة مرور مؤقتة للعضو</p>
-            <p className="font-nav text-xs text-gray-600">أدخل رقم العضوية وكلمة مرور مؤقتة — سيُطلب من العضو تغييرها عند أول دخول</p>
+            {openSec.tempPass && <p className="font-nav text-xs text-gray-600">أدخل رقم العضوية وكلمة مرور مؤقتة — سيُطلب من العضو تغييرها عند أول دخول</p>}
           </div>
-          <div
-            className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-            style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.22)' }}
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-              stroke="#eab308" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.22)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="#eab308" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+              style={{ transform: openSec.tempPass ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              <polyline points="6 9 12 15 18 9"/>
             </svg>
           </div>
-        </div>
+        </button>
+        {openSec.tempPass && <div className="mt-6">
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
@@ -733,34 +984,142 @@ export default function AdminDashboard() {
           {tempLoading ? 'جاري التطبيق...' : 'تطبيق كلمة المرور المؤقتة'}
         </button>
 
+        </div>}
+
+      </div>
+
+      {/* ══════════════════════════════════════
+          طلبات التسجيل المعلقة
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSec('regReq')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">طلبات العضوية المعلقة</p>
+            {openSec.regReq && <p className="font-nav text-xs text-gray-600">مراجعة طلبات الانضمام وقبولها أو رفضها</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {regRequests.length > 0 && (
+              <span className="font-nav text-xs px-2.5 py-1 rounded-full font-bold"
+                style={{ background: 'rgba(99,102,241,0.14)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
+                {regRequests.length}
+              </span>
+            )}
+            <button onClick={e => { e.stopPropagation(); fetchRegRequests() }}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 hover:opacity-80"
+              style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc' }}>
+              تحديث
+            </button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+              style={{ transform: openSec.regReq ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', flexShrink: 0 }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ display: openSec.regReq ? 'block' : 'none' }}>
+        {regResult && (
+          <div className="mb-4 mt-5 px-4 py-3 rounded-2xl font-nav text-sm"
+            style={{
+              background: regResult.success ? 'rgba(34,197,94,0.08)'  : 'rgba(239,68,68,0.08)',
+              border:     regResult.success ? '1px solid rgba(34,197,94,0.22)' : '1px solid rgba(239,68,68,0.22)',
+              color:      regResult.success ? '#4ade80' : '#f87171',
+            }}>
+            {regResult.message}
+          </div>
+        )}
+
+        {regRequestsLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+            ))}
+          </div>
+        ) : regRequests.length === 0 ? (
+          <div className="py-10 text-center font-nav text-sm text-gray-600">
+            لا توجد طلبات معلقة
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {regRequests.map(req => (
+              <div key={req.requestId}
+                className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(99,102,241,0.12)' }}>
+
+                <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-bold text-sm text-white">
+                      {[req.name, req.fatherName, req.grandName].filter(Boolean).join(' ')}
+                    </p>
+                    <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.22)' }}>
+                      #{req.requestId}
+                    </span>
+                  </div>
+                  <p className="font-nav text-xs text-gray-400">
+                    الجوال: <span className="text-white">{req.phone}</span>
+                    {req.email && <> &nbsp;|&nbsp; البريد: <span className="text-white">{req.email}</span></>}
+                  </p>
+                  {req.birthDate && (
+                    <p className="font-nav text-xs text-gray-500">تاريخ الميلاد: {req.birthDate}</p>
+                  )}
+                  <p className="font-nav text-[10px] text-gray-600">تاريخ الطلب: {req.date}</p>
+                </div>
+
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => handleRegAction(req.requestId, 'approveRequest')}
+                    disabled={!!regActionLoading}
+                    className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                    style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
+                    {regActionLoading === req.requestId + 'approveRequest' ? '...' : 'قبول'}
+                  </button>
+                  <button
+                    onClick={() => handleRegAction(req.requestId, 'rejectRequest')}
+                    disabled={!!regActionLoading}
+                    className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
+                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
+                    {regActionLoading === req.requestId + 'rejectRequest' ? '...' : 'رفض'}
+                  </button>
+                </div>
+
+              </div>
+            ))}
+          </div>
+        )}
+        </div>
       </div>
 
       {/* ══════════════════════════════════════
           طلبات الربط بالشجرة
          ══════════════════════════════════════ */}
-      <div className="rounded-[28px] p-7" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
 
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSec('treeReq')}>
           <div>
             <p className="font-nav text-sm text-gray-400 mb-1">طلبات الربط بالشجرة العائلية</p>
-            <p className="font-nav text-xs text-gray-600">مراجعة طلبات الأعضاء للانتساب إلى شجرة العائلة</p>
+            {openSec.treeReq && <p className="font-nav text-xs text-gray-600">مراجعة طلبات الأعضاء للانتساب إلى شجرة العائلة</p>}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             {treeRequests.length > 0 && (
-              <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+              <span className="font-nav text-xs px-2.5 py-1 rounded-full font-bold"
                 style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.28)', color: '#34d399' }}>
-                {treeRequests.length} معلق
+                {treeRequests.length}
               </span>
             )}
-            <button
-              onClick={fetchTreeRequests}
+            <button onClick={e => { e.stopPropagation(); fetchTreeRequests() }}
               className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 hover:opacity-80"
               style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.22)', color: '#34d399' }}>
               تحديث
             </button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+              style={{ transform: openSec.treeReq ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', flexShrink: 0 }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
           </div>
         </div>
 
+        <div style={{ display: openSec.treeReq ? 'block' : 'none' }}>
         {treeRequestsLoading ? (
           <div className="space-y-3">
             {[1,2].map(i => (
@@ -773,55 +1132,334 @@ export default function AdminDashboard() {
           </div>
         ) : (
           <div className="space-y-3">
-            {treeRequests.map(req => (
-              <div key={req.id} className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(16,185,129,0.12)' }}>
+            {treeRequests.map(req => {
+              const isNotFound  = req.parentId === 'NOTFOUND'
+              const panelOpen   = notFoundPanel === req.requestId
+              return (
+                <div key={req.requestId}>
+                  <div className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isNotFound ? 'rgba(251,146,60,0.2)' : 'rgba(16,185,129,0.12)'}` }}>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <p className="font-bold text-sm text-white">{req.memberName}</p>
-                    <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.22)' }}>
-                      #{req.memberId}
-                    </span>
-                    <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
-                      الجيل {req.generationLevel}
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <p className="font-bold text-sm text-white">{req.memberName}</p>
+                        <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.22)' }}>
+                          #{req.memberId}
+                        </span>
+                        {isNotFound
+                          ? <span className="font-nav text-[10px] px-2 py-0.5 rounded-full font-bold"
+                              style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.28)' }}>
+                              أب غير موجود
+                            </span>
+                          : <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                              style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
+                              الجيل {req.generation}
+                            </span>
+                        }
+                      </div>
+                      <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                        {isNotFound
+                          ? <span style={{ color: '#fb923c' }}>الأب المفقود: <span className="font-semibold" style={{ color: '#fdba74' }}>{req.parentName}</span></span>
+                          : <>الأب: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{req.parentName}</span></>
+                        }
+                      </p>
+                      <p className="font-nav text-xs mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)', direction: 'rtl' }}>
+                        {req.path
+                          ? <>{req.path} ← <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span></>
+                          : <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span>
+                        }
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 flex-shrink-0">
+                      {isNotFound ? (
+                        <button
+                          onClick={() => { setNotFoundPanel(panelOpen ? null : req.requestId); setAdminAncestor(null) }}
+                          disabled={!!treeActionLoading}
+                          className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                          style={{ background: panelOpen ? 'rgba(251,146,60,0.18)' : 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)', color: '#fb923c' }}>
+                          {panelOpen ? 'إلغاء' : 'حدد موقع الأب'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleTreeAction(req.requestId, 'approveTreeRequest')}
+                          disabled={!!treeActionLoading}
+                          className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                          style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
+                          {treeActionLoading === req.requestId + 'approveTreeRequest' ? '...' : 'موافقة'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleTreeAction(req.requestId, 'rejectTreeRequest')}
+                        disabled={!!treeActionLoading}
+                        className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
+                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
+                        {treeActionLoading === req.requestId + 'rejectTreeRequest' ? '...' : 'رفض'}
+                      </button>
+                    </div>
                   </div>
-                  <p className="font-nav text-xs text-gray-400">
-                    الأب المطلوب: <span className="text-white">{req.parentName}</span>
-                  </p>
-                  {req.path && (
-                    <p className="font-nav text-[10px] text-gray-600 mt-1 truncate">
-                      المسار: {req.path}
-                    </p>
+
+                  {/* لوحة تحديد موقع الأب المفقود */}
+                  {isNotFound && panelOpen && (
+                    <div className="rounded-2xl p-5 mt-1.5"
+                      style={{ background: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.18)' }}>
+                      <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                        اختر في الشجرة الشخص الذي يُعدّ أباً لـ &quot;{req.parentName}&quot; — الجيل يُحسب تلقائياً
+                      </p>
+                      {adminTreeLoading ? (
+                        <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                          جاري تحميل الشجرة...
+                        </p>
+                      ) : (
+                        <TreeNavigator
+                          treeData={adminTreeData}
+                          onSelect={setAdminAncestor}
+                          selected={adminAncestor}
+                        />
+                      )}
+                      {adminAncestor && (
+                        <button
+                          onClick={() => handleApproveNotFound(req.requestId)}
+                          disabled={!!treeActionLoading}
+                          className="mt-4 w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                          style={{ background: 'rgba(251,146,60,0.14)', border: '1px solid rgba(251,146,60,0.38)', color: '#fb923c' }}>
+                          {treeActionLoading === req.requestId + 'approveTreeRequest'
+                            ? 'جاري الإضافة...'
+                            : `تأكيد: إضافة "${req.parentName}" تحت ${adminAncestor.parentName} — الجيل ${adminAncestor.generationLevel}`}
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
-
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleTreeAction(req.id, 'approveTreeRequest')}
-                    disabled={!!treeActionLoading}
-                    className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
-                    style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
-                    {treeActionLoading === req.id + 'approveTreeRequest' ? '...' : 'موافقة'}
-                  </button>
-                  <button
-                    onClick={() => handleTreeAction(req.id, 'rejectTreeRequest')}
-                    disabled={!!treeActionLoading}
-                    className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
-                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
-                    {treeActionLoading === req.id + 'rejectTreeRequest' ? '...' : 'رفض'}
-                  </button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          إضافة عضو مباشرة
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(198,161,107,0.07)', border: '1px solid rgba(198,161,107,0.22)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-start justify-between cursor-pointer" onClick={() => toggleSec('addMember')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">إضافة عضو مباشرة</p>
+            {openSec.addMember && <p className="font-nav text-xs text-gray-600">للمدير أو الأعضاء غير المتمكنين من التسجيل الإلكتروني</p>}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.25)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="var(--gold-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+              </svg>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+              style={{ transform: openSec.addMember ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ display: openSec.addMember ? 'block' : 'none' }}>
+
+        {/* البيانات الأساسية */}
+        {amData.aliveStatus !== 'متوفى' ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <AmField label="رقم الهوية *">
+              <input className="form-input" placeholder="10 أرقام" inputMode="numeric" maxLength={10}
+                value={amData.nationalId}
+                onChange={e => setAmData(p => ({ ...p, nationalId: e.target.value }))} />
+            </AmField>
+            <AmField label="الاسم الأول *">
+              <input className="form-input" placeholder="محمد"
+                value={amData.firstName}
+                onChange={e => setAmData(p => ({ ...p, firstName: e.target.value }))} />
+            </AmField>
+            <AmField label="رقم الجوال *">
+              <input className="form-input" placeholder="05xxxxxxxx" inputMode="numeric"
+                value={amData.phone}
+                onChange={e => setAmData(p => ({ ...p, phone: e.target.value }))} />
+            </AmField>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AmField label="الاسم الأول *">
+              <input className="form-input" placeholder="اسم المتوفى"
+                value={amData.firstName}
+                onChange={e => setAmData(p => ({ ...p, firstName: e.target.value }))} />
+            </AmField>
+            <div className="flex items-end pb-1">
+              <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(156,163,175,0.7)' }}>
+                سيُضاف للشجرة العائلية فقط<br/>بدون حساب تسجيل دخول
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* موقع العضو في الشجرة */}
+        <div className="mt-4 p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="font-nav text-xs text-gray-500 mb-3">موقع العضو في الشجرة العائلية</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <AmField label="الفخذ">
+              <select className="form-input" value={amData.branch}
+                onChange={e => handleBranchChange(e.target.value)}>
+                <option value="">— اختر الفخذ —</option>
+                {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+              </select>
+            </AmField>
+            {amData.parentName && (
+              <AmField label="الأب المختار">
+                <div className="form-input flex items-center gap-2" style={{ color: 'var(--gold-main)' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+                  </svg>
+                  {amData.parentName}
+                </div>
+              </AmField>
+            )}
+          </div>
+
+          {amCascade.length > 0 && (
+            <div className="mt-3 space-y-3">
+              {amCascade.map((level, i) => (
+                <AmField key={i} label={level.label}>
+                  <select className="form-input" value={level.selectedId}
+                    onChange={e => handleCascadeChange(i, e.target.value)}>
+                    <option value="">— اتركه فارغاً لاختيار الأب الحالي —</option>
+                    {level.options.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                  </select>
+                </AmField>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* البيانات التفصيلية — للأحياء فقط */}
+        {amData.aliveStatus !== 'متوفى' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <AmField label="كلمة المرور المؤقتة *">
+              <PasswordInput className="form-input" placeholder="6 أحرف على الأقل"
+                value={amData.tempPassword}
+                onChange={e => setAmData(p => ({ ...p, tempPassword: e.target.value }))} />
+            </AmField>
+
+            <AmField label="الحالة الاجتماعية">
+              <select className="form-input" value={amData.maritalStatus}
+                onChange={e => setAmData(p => ({ ...p, maritalStatus: e.target.value }))}>
+                <option value="">— اختر —</option>
+                {MARITAL_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </AmField>
+
+            <AmField label="المهنة">
+              <select className="form-input" value={amData.job}
+                onChange={e => setAmData(p => ({ ...p, job: e.target.value }))}>
+                <option value="">— اختر —</option>
+                {JOBS_LIST.map(j => <option key={j} value={j}>{j}</option>)}
+              </select>
+            </AmField>
+
+            {amData.job === 'أخرى' && (
+              <AmField label="اذكر المهنة">
+                <input className="form-input" placeholder="مثال: مقاول" value={amData.jobOther}
+                  onChange={e => setAmData(p => ({ ...p, jobOther: e.target.value }))} />
+              </AmField>
+            )}
+
+            <AmField label="المدينة">
+              <input className="form-input" placeholder="الرياض" value={amData.city}
+                onChange={e => setAmData(p => ({ ...p, city: e.target.value }))} />
+            </AmField>
+          </div>
+        )}
+
+        {/* الدور وحالة العضو */}
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="mb-2 font-nav text-xs text-gray-500">الدور</p>
+            <div className="flex gap-2">
+              {ROLES_LIST.map(r => (
+                <button key={r} type="button"
+                  onClick={() => setAmData(p => ({ ...p, role: r }))}
+                  className="flex-1 font-nav text-xs py-2.5 rounded-2xl transition-all duration-200"
+                  style={{
+                    background: amData.role === r ? 'rgba(198,161,107,0.15)' : 'rgba(255,255,255,0.03)',
+                    border:     amData.role === r ? '1px solid rgba(198,161,107,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    color:      amData.role === r ? 'var(--gold-main)' : 'rgba(255,255,255,0.35)',
+                  }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 font-nav text-xs text-gray-500">حالة العضو</p>
+            <div className="flex gap-3">
+              {['حي', 'متوفى'].map(val => (
+                <button key={val} type="button"
+                  onClick={() => setAmData(p => ({ ...p, aliveStatus: val }))}
+                  className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
+                  style={{
+                    background: amData.aliveStatus === val
+                      ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)')
+                      : 'rgba(255,255,255,0.03)',
+                    border: amData.aliveStatus === val
+                      ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)')
+                      : '1px solid rgba(255,255,255,0.08)',
+                    color: amData.aliveStatus === val
+                      ? (val === 'حي' ? '#4ade80' : '#9ca3af')
+                      : 'rgba(255,255,255,0.35)',
+                  }}>
+                  {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* النتيجة */}
+        {amResult && (
+          <div className="mt-5 px-4 py-3 rounded-2xl font-nav text-sm"
+            style={{
+              background: amResult.success ? 'rgba(34,197,94,0.08)'  : 'rgba(239,68,68,0.08)',
+              border:     amResult.success ? '1px solid rgba(34,197,94,0.22)' : '1px solid rgba(239,68,68,0.22)',
+              color:      amResult.success ? '#4ade80' : '#f87171',
+            }}>
+            {amResult.message}
+            {amResult.success && amResult.memberId && (
+              <span className="mr-3 text-gray-400">رقم العضو: {amResult.memberId}</span>
+            )}
+            {amResult.success && !amResult.memberId && amResult.nodeId && (
+              <span className="mr-3 text-gray-400">رقم عقدة الشجرة: {amResult.nodeId}</span>
+            )}
+          </div>
+        )}
+
+        <button onClick={handleAddMember} disabled={amLoading}
+          className="mt-5 font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+          style={{ background: 'rgba(198,161,107,0.14)', border: '1px solid rgba(198,161,107,0.35)', color: 'var(--gold-main)' }}>
+          {amLoading ? 'جاري الإضافة...' : 'إضافة العضو'}
+        </button>
+
+        </div>
       </div>
 
     </div>
   </>
 )
+}
+
+function AmField({ label, children }) {
+  return (
+    <div>
+      <label className="block mb-1.5 font-nav text-xs text-gray-500">{label}</label>
+      {children}
+    </div>
+  )
 }

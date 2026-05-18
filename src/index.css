@@ -21,6 +21,11 @@
   --font-body:    'Cairo',   sans-serif;
   --font-nav:     'Tajawal', sans-serif;
   --font-brand:   'Amiri',   serif;
+
+  /* تحسين تباين النصوص على الخلفيات الداكنة */
+  --color-gray-400: #9ea8b3;
+  --color-gray-500: #7e8a96;
+  --color-gray-600: #61707e;
 }
 
 /* ─── الجسم — خلفية بنسيج ورق فاخر ─── */

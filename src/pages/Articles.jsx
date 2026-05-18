@@ -1,46 +1,14 @@
-import { useState } from 'react'
-
-/* ════ بيانات أولية — كل المحتوى قابل للتعديل من المدير ══════════════════ */
-const ARTICLES_INITIAL = [
-  {
-    id: 'a1',
-    type: 'featured',
-    title: 'وادي حلي بن يعقوب',
-    category: 'جغرافيا وتاريخ',
-    description: 'من أعرق أودية المنطقة الجنوبية، يمتد عبر قرى عريقة تحمل إرثاً تاريخياً وعمقاً قبلياً أصيلاً',
-    date: '2024-01-01',
-    mapUrl: 'https://www.openstreetmap.org/export/embed.html?bbox=41.0%2C18.6%2C41.9%2C19.5&layer=mapnik&marker=19.05%2C41.42',
-    mapLabel: 'وادي حلي بن يعقوب',
-    mapSubLabel: 'منطقة مكة المكرمة — محافظة القنفذة',
-    aboutText: 'وادي حلي بن يعقوب واحد من أجمل الأودية في المنطقة الجنوبية من المملكة العربية السعودية، يقع ضمن نطاق محافظة القنفذة التابعة لمنطقة مكة المكرمة. يتميز الوادي بطبيعته الخلابة وأرضه الخصبة التي جعلته وجهة للعيش والاستقرار منذ القدم. تجري فيه المياه الموسمية التي تُحيي مزارعه وتُغذي قراه المتناثرة على ضفتيه.\n\nيكتسب الوادي أهميته من موقعه الاستراتيجي الذي يربط التهامة بالمناطق الجبلية، مما جعله ممراً تاريخياً للقوافل التجارية. ويعدّ اليوم مقصداً للراغبين في الاستقرار ضمن بيئة طبيعية هادئة تجمع بين البساطة والأصالة.',
-    tribesIntro: 'يسكن الوادي عدد من القبائل العربية الأصيلة التي توارثت هذه الأرض جيلاً بعد جيل، وتتميز هذه القبائل بقيمها الراسخة وتماسكها الاجتماعي وحفاظها على الموروث القبلي.',
-    tribes: [
-      { name: 'آل السلامي',       desc: 'من أعرق عائلات الوادي وأكثرها عدداً وامتداداً' },
-      { name: 'قبيلة آل يعقوب',   desc: 'نُسب إليهم الوادي وهم من أوائل المستوطنين' },
-      { name: 'قبائل بني مالك',    desc: 'تمتد قراهم على امتداد المجرى الرئيسي للوادي' },
-      { name: 'عائلات قحطانية',   desc: 'تمثل الإرث القحطاني الأصيل في المنطقة' },
-    ],
-    villages: [
-      { name: 'قرية حدبة السلالمة', desc: 'موطن عائلة السلامي الأصلي، تقع على ربوة مشرفة على الوادي وتتميز بطبيعتها الجبلية الجميلة. تضم عدداً من المنازل التراثية الأصيلة التي تحكي قصة أجداد العائلة.', highlight: true },
-      { name: 'قرية المخواة',   desc: 'من أكبر قرى الوادي وتحتضن أسواقاً أسبوعية تجذب أبناء المنطقة.',              highlight: false },
-      { name: 'قرية الشقيق',   desc: 'تتميز بموقعها الساحلي القريب وكانت منفذاً بحرياً تاريخياً للمنطقة.',            highlight: false },
-      { name: 'قرية العبدية',  desc: 'من القرى الزراعية المعروفة بإنتاجها من المانجو والموز والنخيل.',               highlight: false },
-      { name: 'قرية حلي',      desc: 'تمثل المركز التاريخي للوادي وبها عدد من الآثار والمعالم القديمة.',             highlight: false },
-      { name: 'قرية القضب',    desc: 'تشتهر بينابيعها المائية ومصايفها الجبلية الهادئة.',                           highlight: false },
-    ],
-    geoInfo: [
-      { label: 'المنطقة الإدارية', value: 'مكة المكرمة' },
-      { label: 'المحافظة',         value: 'القنفذة' },
-      { label: 'التوجه',           value: 'جنوب غرب المملكة' },
-      { label: 'المناخ',           value: 'حار رطب — صيف / معتدل — شتاء' },
-    ],
-    body: '',
-  },
-]
+import { useState, useEffect, useCallback } from 'react'
 
 const BLANK_ARTICLE = {
   type: 'standard', title: '', category: '', description: '', body: '',
   date: new Date().toISOString().split('T')[0],
+}
+
+/* ════ helper ════════════════════════════════════════════════════════════════ */
+async function callApi(body) {
+  const res = await fetch(import.meta.env.VITE_API_URL, { method: 'POST', body: JSON.stringify(body) })
+  return res.json()
 }
 
 /* ════ مكوّن مقسّم الأقسام ════════════════════════════════════════════════ */
@@ -105,12 +73,24 @@ export default function Articles() {
   const user    = JSON.parse(localStorage.getItem('user') || 'null')
   const isAdmin = user?.roles?.includes('admin')
 
-  const [articles,   setArticles]   = useState(ARTICLES_INITIAL)
-  const [modal,      setModal]      = useState(null)   // null | 'new' | articleId
+  const [articles,   setArticles]   = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [modal,      setModal]      = useState(null)
   const [draft,      setDraft]      = useState(null)
   const [saving,     setSaving]     = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [expanded,   setExpanded]   = useState(null)
+
+  /* ── تحميل المقالات ── */
+  const loadArticles = useCallback(async () => {
+    try {
+      const data = await callApi({ action: 'getArticles' })
+      if (data.success) setArticles(data.articles)
+    } catch { /* ignore */ }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { loadArticles() }, [loadArticles])
 
   /* ── تعديل المسودة ── */
   const setD = (f) => (e) => setDraft(d => ({ ...d, [f]: e.target.value }))
@@ -129,7 +109,7 @@ export default function Articles() {
 
   /* ── فتح المودال ── */
   const openNew = () => {
-    setDraft({ ...BLANK_ARTICLE, id: `a${Date.now()}` })
+    setDraft({ ...BLANK_ARTICLE })
     setModal('new')
   }
   const openEdit = (a) => {
@@ -145,37 +125,45 @@ export default function Articles() {
   /* ── حفظ ── */
   const handleSave = async () => {
     if (!draft.title.trim()) return alert('عنوان المقال مطلوب')
+    setSaving(true)
     try {
-      setSaving(true)
-      try {
-        await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: modal === 'new' ? 'createArticle' : 'updateArticle', article: draft }),
-        })
-      } catch { /* API offline — update local state anyway */ }
-      if (modal === 'new') {
-        setArticles(prev => [...prev, draft])
+      const action = modal === 'new' ? 'createArticle' : 'updateArticle'
+      const data = await callApi({ action, article: draft })
+      if (data.success) {
+        await loadArticles()
+        setModal(null)
       } else {
-        setArticles(prev => prev.map(a => a.id === draft.id ? draft : a))
+        alert(data.message || 'حدث خطأ')
       }
-      setModal(null)
-    } finally { setSaving(false) }
+    } catch {
+      alert('حدث خطأ في الاتصال بالخادم')
+    } finally {
+      setSaving(false)
+    }
   }
 
   /* ── حذف ── */
   const handleDelete = async (articleId) => {
     if (!confirm('هل تريد حذف هذا المقال نهائياً؟')) return
+    setDeletingId(articleId)
     try {
-      setDeletingId(articleId)
-      try {
-        await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'deleteArticle', articleId }),
-        })
-      } catch { /* API offline — update local state anyway */ }
-      setArticles(prev => prev.filter(a => a.id !== articleId))
+      await callApi({ action: 'deleteArticle', articleId })
       if (expanded === articleId) setExpanded(null)
-    } finally { setDeletingId(null) }
+      await loadArticles()
+    } catch {
+      alert('حدث خطأ')
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  /* ── حالة التحميل ── */
+  if (loading) {
+    return (
+      <div className="px-5 lg:px-10 py-10 flex items-center justify-center h-64">
+        <p className="font-nav text-gray-500">جاري التحميل...</p>
+      </div>
+    )
   }
 
   const featuredArticle  = articles.find(a => a.type === 'featured')
@@ -199,6 +187,13 @@ export default function Articles() {
         )}
       </div>
 
+      {/* ══ رسالة فارغة ══ */}
+      {articles.length === 0 && (
+        <div className="py-20 text-center font-nav text-gray-600">
+          لا توجد مقالات — {isAdmin ? 'اضغط "+ إضافة مقال" لإنشاء أول مقال' : 'لا توجد مقالات منشورة حالياً'}
+        </div>
+      )}
+
       {/* ══ المقال المميز ══ */}
       {featuredArticle && (
         <article className="rounded-[32px] overflow-hidden"
@@ -218,22 +213,24 @@ export default function Articles() {
           </div>
 
           {/* الخريطة */}
-          <div style={{ height: 380, position: 'relative', background: 'rgba(0,0,0,0.4)' }}>
-            <iframe
-              title={featuredArticle.mapLabel}
-              src={featuredArticle.mapUrl}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              loading="lazy"
-            />
-            <div style={{
-              position: 'absolute', bottom: 12, right: 12,
-              background: 'rgba(8,13,20,0.85)', border: '1px solid rgba(198,161,107,0.3)',
-              borderRadius: 14, padding: '8px 14px', backdropFilter: 'blur(8px)',
-            }}>
-              <p className="font-nav text-xs" style={{ color: 'var(--gold-main)' }}>📍 {featuredArticle.mapLabel}</p>
-              <p className="font-nav text-xs text-gray-400 mt-0.5">{featuredArticle.mapSubLabel}</p>
+          {featuredArticle.mapUrl && (
+            <div style={{ height: 380, position: 'relative', background: 'rgba(0,0,0,0.4)' }}>
+              <iframe
+                title={featuredArticle.mapLabel}
+                src={featuredArticle.mapUrl}
+                style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+                loading="lazy"
+              />
+              <div style={{
+                position: 'absolute', bottom: 12, right: 12,
+                background: 'rgba(8,13,20,0.85)', border: '1px solid rgba(198,161,107,0.3)',
+                borderRadius: 14, padding: '8px 14px', backdropFilter: 'blur(8px)',
+              }}>
+                <p className="font-nav text-xs" style={{ color: 'var(--gold-main)' }}>📍 {featuredArticle.mapLabel}</p>
+                <p className="font-nav text-xs text-gray-400 mt-0.5">{featuredArticle.mapSubLabel}</p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* المحتوى */}
           <div className="px-8 py-8 space-y-10">
@@ -255,7 +252,7 @@ export default function Articles() {
                 )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {featuredArticle.tribes.map((t, i) => (
-                    <div key={i} className="rounded-2xl p-4"
+                    <div key={t.id || i} className="rounded-2xl p-4"
                       style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.14)' }}>
                       <p className="font-bold text-[var(--gold-main)] text-sm mb-1">{t.name}</p>
                       <p className="font-nav text-xs text-gray-400 leading-5">{t.desc}</p>
@@ -270,7 +267,7 @@ export default function Articles() {
               <ArticleSection title="أبرز القرى والمواقع" icon="🏘️">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {featuredArticle.villages.map((v, i) => (
-                    <div key={i} className="rounded-2xl p-4"
+                    <div key={v.id || i} className="rounded-2xl p-4"
                       style={{
                         background: v.highlight ? 'rgba(198,161,107,0.1)' : 'rgba(255,255,255,0.03)',
                         border: `1px solid ${v.highlight ? 'rgba(198,161,107,0.3)' : 'rgba(255,255,255,0.08)'}`,
@@ -299,7 +296,7 @@ export default function Articles() {
               <ArticleSection title="معلومات جغرافية" icon="🗺️">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {featuredArticle.geoInfo.map((info, i) => (
-                    <div key={i} className="rounded-2xl p-4 text-center"
+                    <div key={info.id || i} className="rounded-2xl p-4 text-center"
                       style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.15)' }}>
                       <p className="font-nav text-xs text-gray-500 mb-1">{info.label}</p>
                       <p className="font-bold text-sm text-blue-300">{info.value}</p>

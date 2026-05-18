@@ -1,0 +1,549 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Admin.gs — لوحة المدير والإحصائيات
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function columnToLetter(col) {
+  var letter = '';
+  while (col > 0) {
+    var rem = (col - 1) % 26;
+    letter  = String.fromCharCode(65 + rem) + letter;
+    col     = Math.floor((col - 1) / 26);
+  }
+  return letter;
+}
+
+/* ═══ إحصائيات لوحة المدير ══════════════════════════════════════════════ */
+
+function getAdminStats(body) {
+  var members   = sheetToObjects('الأعضاء');
+  var requests  = sheetToObjects('طلبات التسجيل');
+  var treeReqs  = sheetToObjects('طلبات الشجرة');
+  var funds     = sheetToObjects('الصناديق');
+  var articles  = sheetToObjects('المقالات');
+  var treeNodes = sheetToObjects('الشجرة العائلية');
+
+  var activeMembers  = members.filter(function(m)  { return m['حالة الحساب'] !== 'موقوف'; }).length;
+  var pendingReg     = requests.filter(function(r) { return r['الحالة'] === 'معلق'; }).length;
+  var pendingTree    = treeReqs.filter(function(r) { return r['الحالة'] === 'معلق'; }).length;
+  var activeFunds    = funds.filter(function(f)    { return f['الحالة'] !== 'مغلق'; }).length;
+  var totalArticles  = articles.length;
+  var totalTreeNodes = treeNodes.length;
+  var maxGen = 0;
+  treeNodes.forEach(function(n) {
+    var g = parseInt(n['مستوى الجيل'] || 0, 10);
+    if (g > maxGen) maxGen = g;
+  });
+
+  // توزيع الجيل
+  var generationMap = {};
+  members.forEach(function(m) {
+    var g = String(m['الجيل'] || 'غير محدد');
+    generationMap[g] = (generationMap[g] || 0) + 1;
+  });
+
+  // توزيع المدن
+  var cityMap = {};
+  members.forEach(function(m) {
+    var c = String(m['المدينة'] || 'غير محدد');
+    if (c) cityMap[c] = (cityMap[c] || 0) + 1;
+  });
+
+  // إحصائيات API من PropertiesService
+  var props     = PropertiesService.getScriptProperties();
+  var tz        = 'Asia/Riyadh';
+  var now       = new Date();
+  var apiDaily  = [];
+  var apiWeek   = 0;
+  var apiToday  = 0;
+  for (var di = 6; di >= 0; di--) {
+    var d   = new Date(now.getTime() - di * 24 * 3600 * 1000);
+    var key = 'api_' + Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    var cnt = parseInt(props.getProperty(key) || '0', 10);
+    apiDaily.push(cnt);
+    apiWeek += cnt;
+    if (di === 0) apiToday = cnt;
+  }
+  var apiLimit = 500;
+
+  return {
+    success: true,
+    stats: {
+      totalMembers:    members.length,
+      activeMembers:   activeMembers,
+      pendingRequests: pendingReg,
+      pendingTree:     pendingTree,
+      totalFunds:      activeFunds,
+      totalArticles:   totalArticles,
+      totalTreeNodes:  totalTreeNodes,
+      totalGenerations: maxGen,
+      scriptCount:     apiToday,
+      scriptLimit:     apiLimit,
+      scriptUsage:     Math.min(100, Math.round((apiToday / apiLimit) * 100)),
+      todayRequests:   apiToday,
+      weekRequests:    apiWeek,
+      dailyStats:      apiDaily,
+    },
+    charts: {
+      byGeneration: generationMap,
+      byCity:       cityMap,
+    }
+  };
+}
+
+/* ═══ جلب طلبات التسجيل المعلقة ═════════════════════════════════════════ */
+
+function getPendingRequests(body) {
+  var all      = sheetToObjects('طلبات التسجيل');
+  var statusFilter = body.status || 'معلق';
+
+  var filtered = statusFilter === 'الكل'
+    ? all
+    : all.filter(function(r) { return r['الحالة'] === statusFilter; });
+
+  var result = filtered.map(function(r) {
+    return {
+      requestId:   String(r['رقم الطلب']            || ''),
+      name:        String(r['الاسم الأول']           || ''),
+      fatherName:  String(r['اسم الأب']              || ''),
+      grandName:   String(r['اسم الجد']              || ''),
+      branch:      String(r['الفخذ']                 || ''),
+      generation:  String(r['الجيل']                 || ''),
+      phone:       String(r['رقم الجوال']            || ''),
+      email:       String(r['البريد الإلكتروني']     || ''),
+      birthDate:   formatDate(r['تاريخ الميلاد']),
+      city:        String(r['المدينة']               || ''),
+      job:         String(r['المهنة']                || ''),
+      nationalId:  String(r['رقم الهوية']            || ''),
+      parentNodeId:String(r['رقم عقدة الأب']         || ''),
+      status:      String(r['الحالة']                || ''),
+      date:        formatDate(r['تاريخ الطلب']),
+      notes:       String(r['ملاحظات']               || ''),
+    };
+  });
+
+  return { success: true, requests: result, total: result.length };
+}
+
+/* ═══ قبول طلب تسجيل ═══════════════════════════════════════════════════ */
+
+function approveRequest(body) {
+  var requestId = String(body.requestId || '').trim();
+  if (!requestId) return { success: false, message: 'رقم الطلب مطلوب' };
+
+  var found = findRow('طلبات التسجيل', 0, requestId);
+  if (!found) return { success: false, message: 'الطلب غير موجود' };
+
+  var req     = rowToObject(found.headers, found.rowData);
+  var reqSheet = getSheet('طلبات التسجيل');
+
+  // تحديث حالة الطلب
+  var statusCol = found.headers.indexOf('الحالة') + 1;
+  reqSheet.getRange(found.rowIndex, statusCol).setValue('مقبول');
+
+  // البحث عن رقم عضو محجوز مسبقاً (أضافه الأب في جدول الأبناء)
+  var preAssignedId = '';
+  var reqNid = String(req['رقم الهوية'] || '').trim();
+  if (reqNid) {
+    var childRecs = sheetToObjects('الأبناء');
+    for (var ci = 0; ci < childRecs.length; ci++) {
+      if (String(childRecs[ci]['رقم الهوية'] || '').trim() === reqNid) {
+        var candidate = String(childRecs[ci]['رقم عضو الابن'] || '');
+        if (candidate) { preAssignedId = candidate; break; }
+      }
+    }
+  }
+
+  // إنشاء حساب العضو — استخدم الرقم المحجوز إن وُجد وإلا ولّد جديداً
+  var memberId = preAssignedId || generateId('M');
+  var tempPass = generateTempPassword();
+  var today    = formatDate(new Date());
+
+  // استخدم كلمة المرور المشفرة من الطلب إن وُجدت، وإلا ولّد كلمة مؤقتة
+  var presetHash  = String(req['كلمة المرور المشفرة'] || '');
+  var hasPreset   = presetHash !== '';
+  var passHash    = hasPreset ? presetHash : hashPassword(tempPass);
+  var tempHash    = hasPreset ? '' : hashPassword(tempPass);
+  var tempExpiry  = hasPreset ? '' : formatDate(new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000));
+
+  var memberSheet = getSheet('الأعضاء');
+  var memberHeaders = memberSheet.getDataRange().getValues()[0];
+  var colMap = {
+    'رقم العضو':           memberId,
+    'الاسم الأول':         String(req['الاسم الأول']        || ''),
+    'اسم الأب':            String(req['اسم الأب']           || ''),
+    'اسم الجد':            String(req['اسم الجد']           || ''),
+    'الفخذ':               String(req['الفخذ']              || ''),
+    'الجيل':               String(req['الجيل']              || ''),
+    'رقم الجوال':          String(req['رقم الجوال']         || ''),
+    'البريد الإلكتروني':   String(req['البريد الإلكتروني']  || ''),
+    'تاريخ الميلاد':       String(req['تاريخ الميلاد']      || ''),
+    'العمر':               '',
+    'المدينة':             String(req['المدينة']            || ''),
+    'المهنة':              String(req['المهنة']             || ''),
+    'كلمة المرور':         passHash,
+    'كلمة المرور المؤقتة': tempHash,
+    'انتهاء المؤقتة':      tempExpiry,
+    'الدور':               'عضو',
+    'حالة الحساب':         'نشط',
+    'تاريخ التسجيل':       today,
+    'رقم الهوية':          String(req['رقم الهوية']         || ''),
+    'حي/ميت':              String(req['حي/ميت']             || 'حي'),
+  };
+
+  // إذا أرسل العضو رقم عقدة الأب أثناء التسجيل → ربطه بالشجرة تلقائياً
+  var parentNodeId = String(req['رقم عقدة الأب'] || '');
+  var autoNodeId   = '';
+  var newRow = memberHeaders.map(function(h) {
+    return colMap[h] !== undefined ? colMap[h] : '';
+  });
+
+  memberSheet.appendRow(newRow);
+  formatLastRow(memberSheet);
+
+  // ربط تلقائي بالشجرة
+  try {
+    var treeSheet2 = getSheet('الشجرة العائلية');
+    var existing2  = sheetToObjects('الشجرة العائلية');
+    var tHeaders2  = treeSheet2.getDataRange().getValues()[0];
+
+    // هل توجد عقدة مسبقة لهذا العضو (أضافه الأب مسبقاً)؟
+    var existingNode = existing2.find(function(n) { return String(n['رقم العضو'] || '') === memberId; });
+
+    if (existingNode) {
+      // العقدة موجودة مسبقاً — فقط احفظ رقم العقدة
+      autoNodeId = String(existingNode['رقم العقدة'] || '');
+    } else if (parentNodeId) {
+      // أنشئ عقدة جديدة إذا اختار العضو أباه أثناء التسجيل
+      var parentNode = existing2.find(function(n) { return String(n['رقم العقدة']) === parentNodeId; });
+      if (parentNode) {
+        var pName = String(parentNode['اسم العضو'] || '');
+        var gen   = Number(parentNode['مستوى الجيل'] || 1) + 1;
+        var path  = String(parentNode['المسار'] || pName) + ' ← ' + colMap['الاسم الأول'];
+        autoNodeId = generateId('N');
+        var tColMap = {
+          'رقم العقدة':  autoNodeId,
+          'رقم العضو':   memberId,
+          'اسم العضو':   colMap['الاسم الأول'],
+          'رقم الأب':    parentNodeId,
+          'اسم الأب':    pName,
+          'مستوى الجيل': gen,
+          'المسار':      path,
+          'حي/ميت':      'حي',
+        };
+        var tRow = tHeaders2.map(function(h) { return tColMap[h] !== undefined ? tColMap[h] : ''; });
+        treeSheet2.appendRow(tRow);
+        formatLastRow(treeSheet2);
+        linkChildRecordToMember(memberId, colMap['الاسم الأول'], String(parentNode['رقم العضو'] || ''), colMap['رقم الهوية']);
+        syncFatherChildrenToTree(memberId, autoNodeId, colMap['الاسم الأول'], Number(parentNode['مستوى الجيل'] || 1) + 1, path);
+      }
+    }
+  } catch(e) { Logger.log('tree link error: ' + e.message); }
+
+  // معادلة العمر
+  var lastRow      = memberSheet.getLastRow();
+  var bdayColIdx   = memberHeaders.indexOf('تاريخ الميلاد');
+  var ageColIdx    = memberHeaders.indexOf('العمر');
+  if (bdayColIdx > -1 && ageColIdx > -1) {
+    var ageLetter = columnToLetter(bdayColIdx + 1);
+    memberSheet.getRange(lastRow, ageColIdx + 1).setFormula(
+      '=IFERROR(IF(' + ageLetter + lastRow + '="","",INT((TODAY()-' + ageLetter + lastRow + ')/365.25)),"")'
+    );
+  }
+
+  return {
+    success:      true,
+    memberId:     memberId,
+    nodeId:       autoNodeId || null,
+    tempPassword: hasPreset ? null : tempPass,
+    message:      hasPreset
+      ? 'تم قبول الطلب وإنشاء الحساب' + (autoNodeId ? ' وربطه بالشجرة تلقائياً' : '')
+      : 'تم قبول الطلب وإنشاء الحساب. كلمة المرور المؤقتة: ' + tempPass
+  };
+}
+
+/* ═══ رفض طلب تسجيل ════════════════════════════════════════════════════ */
+
+function rejectRequest(body) {
+  var requestId = String(body.requestId || '').trim();
+  var notes     = String(body.notes     || '').trim();
+
+  if (!requestId) return { success: false, message: 'رقم الطلب مطلوب' };
+
+  var found = findRow('طلبات التسجيل', 0, requestId);
+  if (!found) return { success: false, message: 'الطلب غير موجود' };
+
+  var sheet     = getSheet('طلبات التسجيل');
+  var headers   = found.headers;
+  var statusCol = headers.indexOf('الحالة')    + 1;
+  var notesCol  = headers.indexOf('ملاحظات')   + 1;
+
+  sheet.getRange(found.rowIndex, statusCol).setValue('مرفوض');
+  if (notes && notesCol > 0) {
+    sheet.getRange(found.rowIndex, notesCol).setValue(notes);
+  }
+
+  return { success: true, message: 'تم رفض الطلب' };
+}
+
+/* ═══ جلب جميع الأعضاء ═════════════════════════════════════════════════ */
+
+function getAllMembers(body) {
+  var members = sheetToObjects('الأعضاء');
+  var result  = members.map(function(m) {
+    return buildUserObject(m);
+  });
+  return { success: true, members: result, total: result.length };
+}
+
+/* ═══ تفعيل / تعطيل حساب عضو ══════════════════════════════════════════ */
+
+function toggleMemberStatus(body) {
+  var memberId = String(body.memberId || '').trim();
+  if (!memberId) return { success: false, message: 'رقم العضو مطلوب' };
+
+  var found = findRow('الأعضاء', 0, memberId);
+  if (!found) return { success: false, message: 'العضو غير موجود' };
+
+  var sheet     = getSheet('الأعضاء');
+  var headers   = found.headers;
+  var statusCol = headers.indexOf('حالة الحساب') + 1;
+  var current   = String(found.rowData[statusCol - 1] || 'نشط');
+  var newStatus = current === 'نشط' ? 'موقوف' : 'نشط';
+
+  sheet.getRange(found.rowIndex, statusCol).setValue(newStatus);
+
+  return {
+    success:   true,
+    newStatus: newStatus,
+    message:   'تم تغيير حالة الحساب إلى: ' + newStatus
+  };
+}
+
+/* ═══ إضافة عضو مباشرة (المدير فقط) ══════════════════════════════════════ */
+
+function addMember(body) {
+  var firstName    = normalizeInput(body.firstName    || '');
+  var rawPhone     = body.phone                       || '';
+  var nationalId   = normalizeInput(body.nationalId   || '');
+  var parentNodeId = normalizeInput(body.parentNodeId || '');
+  var tempPassword = normalizeInput(body.tempPassword || '');
+  var role         = normalizeInput(body.role         || 'عضو');
+  var aliveStatus  = normalizeInput(body.aliveStatus  || 'حي');
+  var isDeceased   = aliveStatus === 'متوفى';
+
+  if (!firstName)                 return { success: false, message: 'الاسم الأول مطلوب' };
+  if (!isDeceased && !nationalId) return { success: false, message: 'رقم الهوية مطلوب' };
+  if (!isDeceased && !rawPhone)   return { success: false, message: 'رقم الجوال مطلوب' };
+  if (!isDeceased && (!tempPassword || tempPassword.length < 6))
+    return { success: false, message: 'كلمة المرور المؤقتة يجب أن تكون 6 أحرف على الأقل' };
+
+  // تحقق من تفرد رقم الهوية والجوال (للأحياء فقط — المتوفى لا يُدخَل في الأعضاء)
+  var phone = '';
+  if (!isDeceased) {
+    var members = sheetToObjects('الأعضاء');
+    var dupNId  = members.some(function(m) { return String(m['رقم الهوية'] || '').trim() === nationalId; });
+    if (dupNId) return { success: false, message: 'رقم الهوية مسجّل مسبقاً' };
+    phone = normalizePhone(normalizeInput(rawPhone));
+    if (findRowByPhone(phone)) return { success: false, message: 'رقم الجوال مسجّل مسبقاً' };
+  }
+
+  // جلب بيانات الأب من الشجرة أو من سجل الأبناء
+  var generation          = '';
+  var parentNode          = null;
+  var fatherName          = normalizeInput(body.fatherName         || '');
+  var parentChildRecordId = normalizeInput(body.parentChildRecordId|| '');
+  var treeNodes           = parentNodeId ? sheetToObjects('الشجرة العائلية') : [];
+
+  if (parentNodeId && parentChildRecordId) {
+    // الأب سجل ابن (غير مسجل كعضو) — نُنشئ له عقدة في الشجرة أولاً
+    var childRecs = sheetToObjects('الأبناء');
+    var childRec  = null;
+    for (var ci = 0; ci < childRecs.length; ci++) {
+      if (String(childRecs[ci]['رقم السجل']) === parentChildRecordId) { childRec = childRecs[ci]; break; }
+    }
+    if (childRec) {
+      if (!fatherName) fatherName = String(childRec['الاسم'] || '');
+      var grandParentMemberId = String(childRec['رقم العضو الأب'] || '');
+      var grandParentNode     = null;
+      for (var gpi = 0; gpi < treeNodes.length; gpi++) {
+        if (String(treeNodes[gpi]['رقم العضو']) === grandParentMemberId) { grandParentNode = treeNodes[gpi]; break; }
+      }
+      if (grandParentNode) {
+        var crGen    = Number(grandParentNode['مستوى الجيل'] || 1) + 1;
+        var crNodeId = generateId('N');
+        var crPath   = String(grandParentNode['المسار'] || grandParentNode['اسم العضو'] || '') + ' ← ' + fatherName;
+        var crSheet  = getSheet('الشجرة العائلية');
+        var crHdrs   = crSheet.getDataRange().getValues()[0];
+        var crMap    = {
+          'رقم العقدة':  crNodeId, 'رقم العضو':   '', 'اسم العضو':   fatherName,
+          'رقم الأب':    String(grandParentNode['رقم العقدة']), 'اسم الأب': String(grandParentNode['اسم العضو'] || ''),
+          'مستوى الجيل': crGen, 'المسار': crPath, 'حي/ميت': String(childRec['حي/ميت'] || 'حي'),
+        };
+        crSheet.appendRow(crHdrs.map(function(h) { return crMap[h] !== undefined ? crMap[h] : ''; }));
+        formatLastRow(crSheet);
+        parentNodeId = crNodeId;
+        parentNode   = crMap;
+        generation   = String(crGen + 1);
+      }
+    }
+  } else if (parentNodeId) {
+    for (var ti = 0; ti < treeNodes.length; ti++) {
+      if (String(treeNodes[ti]['رقم العقدة']) === parentNodeId) { parentNode = treeNodes[ti]; break; }
+    }
+    if (parentNode) {
+      if (!fatherName) fatherName = String(parentNode['اسم العضو'] || '');
+      generation = String(Number(parentNode['مستوى الجيل'] || 1) + 1);
+    }
+  }
+
+  // ── متوفى: عقدة في الشجرة فقط — لا سجل في جدول الأعضاء ─────────────
+  if (isDeceased) {
+    var dSheet   = getSheet('الشجرة العائلية');
+    var dHdrs    = dSheet.getDataRange().getValues()[0];
+    var dPName   = parentNode ? String(parentNode['اسم العضو'] || '') : (fatherName || '');
+    var dGen     = parentNode ? (Number(parentNode['مستوى الجيل'] || 1) + 1) : 1;
+    var dPath    = parentNode ? (String(parentNode['المسار'] || dPName) + ' ← ' + firstName) : firstName;
+    var dNodeId  = generateId('N');
+    var dColMap  = {
+      'رقم العقدة':  dNodeId, 'رقم العضو': '', 'اسم العضو': firstName,
+      'رقم الأب':    parentNodeId || '', 'اسم الأب': dPName,
+      'مستوى الجيل': dGen, 'المسار': dPath, 'حي/ميت': 'متوفى',
+    };
+    dSheet.appendRow(dHdrs.map(function(h) { return dColMap[h] !== undefined ? dColMap[h] : ''; }));
+    formatLastRow(dSheet);
+    return { success: true, nodeId: dNodeId, message: 'تم إضافة ' + firstName + ' إلى الشجرة العائلية' };
+  }
+
+  var memberId   = generateId('M');
+  var today      = formatDate(new Date());
+  var passHash   = isDeceased ? '' : hashPassword(tempPassword);
+  var tempExpiry = isDeceased ? '' : formatDate(new Date(new Date().getTime() + 30 * 24 * 60 * 60 * 1000));
+
+  var memberSheet   = getSheet('الأعضاء');
+  var memberHeaders = memberSheet.getDataRange().getValues()[0];
+
+  var colMap = {
+    'رقم العضو':           memberId,
+    'الاسم الأول':         firstName,
+    'اسم الأب':            fatherName,
+    'اسم الجد':            normalizeInput(body.grandfatherName || ''),
+    'الفخذ':               normalizeInput(body.branch          || ''),
+    'الجيل':               generation,
+    'رقم الجوال':          phone,
+    'البريد الإلكتروني':   normalizeInput(body.email           || ''),
+    'تاريخ الميلاد':       normalizeInput(body.birthDate        || ''),
+    'العمر':               '',
+    'المدينة':             normalizeInput(body.city             || ''),
+    'المهنة':              normalizeInput(body.job              || ''),
+    'كلمة المرور':         passHash,
+    'كلمة المرور المؤقتة': passHash,
+    'انتهاء المؤقتة':      tempExpiry,
+    'الدور':               role,
+    'حالة الحساب':         isDeceased ? 'موقوف' : 'نشط',
+    'تاريخ التسجيل':       today,
+    'رقم الهوية':          nationalId,
+    'حي/ميت':              aliveStatus,
+    'الحالة الاجتماعية':   isDeceased ? '' : normalizeInput(body.maritalStatus || ''),
+    'الحي':                normalizeInput(body.neighborhood  || ''),
+  };
+
+  var newRow = memberHeaders.map(function(h) {
+    return colMap[h] !== undefined ? colMap[h] : '';
+  });
+
+  // اكتب في أول صف فارغ حسب العمود A (تجنباً للصفوف المنسقة الفارغة)
+  var colAVals = memberSheet.getRange(1, 1, memberSheet.getMaxRows(), 1).getValues();
+  var targetRow = 2;
+  for (var ri = colAVals.length - 1; ri >= 1; ri--) {
+    if (String(colAVals[ri][0]).trim() !== '') { targetRow = ri + 2; break; }
+  }
+  memberSheet.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
+  formatLastRow(memberSheet);
+
+  // كتابة الحالة الاجتماعية صراحةً لتجاوز أي تحقق بيانات في الجدول
+  if (!isDeceased) {
+    var msColIdx = memberHeaders.indexOf('الحالة الاجتماعية');
+    if (msColIdx > -1) {
+      var msRange = memberSheet.getRange(targetRow, msColIdx + 1);
+      msRange.clearDataValidations();
+      msRange.setValue(normalizeInput(body.maritalStatus || ''));
+    }
+  }
+
+  var bdayColIdx = memberHeaders.indexOf('تاريخ الميلاد');
+  var ageColIdx  = memberHeaders.indexOf('العمر');
+  if (bdayColIdx > -1 && ageColIdx > -1) {
+    var ageLetter = columnToLetter(bdayColIdx + 1);
+    memberSheet.getRange(targetRow, ageColIdx + 1).setFormula(
+      '=IFERROR(IF(' + ageLetter + targetRow + '="","",INT((TODAY()-' + ageLetter + targetRow + ')/365.25)),"")'
+    );
+  }
+
+  // ربط تلقائي بالشجرة
+  var autoNodeId = '';
+  if (parentNodeId && parentNode) {
+    try {
+      var treeSheet = getSheet('الشجرة العائلية');
+      var tHeaders  = treeSheet.getDataRange().getValues()[0];
+      var pName     = String(parentNode['اسم العضو'] || '');
+      var gen       = Number(parentNode['مستوى الجيل'] || 1) + 1;
+      var path      = String(parentNode['المسار'] || pName) + ' ← ' + firstName;
+      autoNodeId    = generateId('N');
+      var tColMap   = {
+        'رقم العقدة':  autoNodeId,
+        'رقم العضو':   memberId,
+        'اسم العضو':   firstName,
+        'رقم الأب':    parentNodeId,
+        'اسم الأب':    pName,
+        'مستوى الجيل': gen,
+        'المسار':      path,
+        'حي/ميت':      normalizeInput(body.aliveStatus || 'حي'),
+      };
+      var tRow = tHeaders.map(function(h) { return tColMap[h] !== undefined ? tColMap[h] : ''; });
+      treeSheet.appendRow(tRow);
+      formatLastRow(treeSheet);
+      linkChildRecordToMember(memberId, firstName, String(parentNode['رقم العضو'] || ''), nationalId);
+    } catch(e) { Logger.log('خطأ ربط الشجرة: ' + e.message); }
+  }
+
+  return {
+    success:  true,
+    memberId: memberId,
+    nodeId:   autoNodeId || null,
+    message:  'تم إضافة العضو بنجاح' + (autoNodeId ? ' وربطه بالشجرة' : ''),
+  };
+}
+
+/* ═══ تنظيف الصفوف الفارغة من جدول الأعضاء (تُشغَّل مرة واحدة فقط) ══════ */
+
+function cleanEmptyMemberRows() {
+  var sheet = getSheet('الأعضاء');
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2) { Logger.log('لا توجد صفوف للتنظيف'); return; }
+
+  var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var toDelete = [];
+
+  for (var i = data.length - 1; i >= 0; i--) {
+    var isEmpty = data[i].every(function(cell) { return String(cell).trim() === ''; });
+    if (isEmpty) toDelete.push(i + 2); // +2 because row 1 is header, array is 0-indexed
+  }
+
+  Logger.log('صفوف فارغة للحذف: ' + toDelete.length);
+  toDelete.forEach(function(rowNum) { sheet.deleteRow(rowNum); });
+  Logger.log('تم الحذف. آخر صف الآن: ' + sheet.getLastRow());
+}
+
+/* ═══ عداد المتصلين (تقريبي عبر وقت آخر تسجيل دخول) ═══════════════════ */
+
+function getOnlineUsers(body) {
+  // في Apps Script لا يوجد جلسات حقيقية
+  // نعيد عدد الأعضاء النشطين كمؤشر
+  var members = sheetToObjects('الأعضاء');
+  var active  = members.filter(function(m) {
+    return m['حالة الحساب'] !== 'موقوف';
+  }).length;
+
+  return { success: true, onlineCount: active };
+}

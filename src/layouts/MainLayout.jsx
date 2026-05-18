@@ -25,7 +25,7 @@ export default function MainLayout() {
   const handleLogout = () => {
     localStorage.removeItem('user')
     sessionStorage.removeItem('adminUnlocked')
-    window.location.href = '/'
+    window.location.href = import.meta.env.BASE_URL
   }
 
   const adminUnlocked = sessionStorage.getItem('adminUnlocked') === '1'
