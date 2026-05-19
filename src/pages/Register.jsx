@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import PasswordInput from '../components/PasswordInput'
+import { normalizeDigits } from '../utils/normalizeInput'
 
 const JOBS = ['موظف', 'طالب', 'متقاعد', 'رجل أعمال', 'أخرى']
 
@@ -52,7 +53,13 @@ export default function Register() {
       ))
     : []
 
-  const set = e => setForm(p => ({ ...p, [e.target.name]: e.target.value }))
+  const NUMERIC_FIELDS = ['phone', 'nationalId']
+  const set = e => {
+    const val = NUMERIC_FIELDS.includes(e.target.name)
+      ? normalizeDigits(e.target.value)
+      : e.target.value
+    setForm(p => ({ ...p, [e.target.name]: val }))
+  }
 
   const handleParentChange = (nodeId) => {
     setSelParent(nodeId)

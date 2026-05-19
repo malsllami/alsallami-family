@@ -2,13 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
-
-// تحويل الأرقام العربية إلى إنجليزية على مستوى الواجهة
-function normalizeInput(str) {
-  return String(str || '').trim()
-    .replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
-    .replace(/[۰۱۲۳۴۵۶۷۸۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
-}
+import { normalizeDigits } from '../utils/normalizeInput'
 
 export default function Login() {
   const { login }   = useAuth()
@@ -27,8 +21,8 @@ export default function Login() {
         method: 'POST',
         body: JSON.stringify({
           action:   'login',
-          phone:    normalizeInput(phone),
-          password: normalizeInput(password),
+          phone:    normalizeDigits(phone).trim(),
+          password: password.trim(),
         }),
       })
       const result = await response.json()
@@ -103,7 +97,7 @@ export default function Login() {
             type="text"
             inputMode="numeric"
             value={phone}
-            onChange={e => setPhone(e.target.value)}
+            onChange={e => setPhone(normalizeDigits(e.target.value))}
             placeholder="رقم الجوال"
             className="form-input"
           />

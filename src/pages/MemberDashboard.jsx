@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import PasswordInput from '../components/PasswordInput'
+import { normalizeDigits } from '../utils/normalizeInput'
 import MiniTree from '../components/MiniTree'
 import TreeNavigator from '../components/TreeNavigator'
 
@@ -545,7 +546,7 @@ export default function MemberDashboard() {
               <div>
                 <label className="font-nav text-xs text-gray-500 mb-1.5 block">رقم الهوية</label>
                 <input type="text" inputMode="numeric" maxLength={10} value={idDraft.nationalId}
-                  onChange={e => setIdDraft(p => ({ ...p, nationalId: e.target.value }))}
+                  onChange={e => setIdDraft(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))}
                   className="form-input" placeholder="10 أرقام" />
               </div>
               <div>
@@ -641,7 +642,7 @@ export default function MemberDashboard() {
               ].map(({ key, label, type }) => (
                 <div key={key}>
                   <label className="font-nav text-xs text-gray-500 mb-1.5 block">{label}</label>
-                  <input type={type} value={draft[key]} onChange={e => setDraft(p => ({ ...p, [key]: e.target.value }))} className="form-input" />
+                  <input type={type} value={draft[key]} onChange={e => setDraft(p => ({ ...p, [key]: key === 'phone' ? normalizeDigits(e.target.value) : e.target.value }))} className="form-input" />
                 </div>
               ))}
               <div>
@@ -701,7 +702,7 @@ export default function MemberDashboard() {
                     <input type="text" inputMode="numeric" maxLength={10}
                       placeholder="رقم الهوية (اختياري)"
                       value={childDraft.nationalId}
-                      onChange={e => setChildDraft(p => ({ ...p, nationalId: e.target.value }))}
+                      onChange={e => setChildDraft(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))}
                       className="form-input" />
                     <div>
                       <label className="font-nav text-xs text-gray-500 mb-1.5 block">الحالة الصحية</label>
@@ -765,7 +766,7 @@ export default function MemberDashboard() {
                 <input type="text" inputMode="numeric" maxLength={10}
                   placeholder="رقم الهوية (اختياري)"
                   value={newChild.nationalId}
-                  onChange={e => setNewChild(p => ({ ...p, nationalId: e.target.value }))}
+                  onChange={e => setNewChild(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))}
                   className="form-input" />
                 <div>
                   <label className="font-nav text-xs text-gray-500 mb-1.5 block">الحالة الصحية</label>
