@@ -153,7 +153,7 @@ function CircleNode({ n, active, onClick }) {
   const pal   = genPalette(depth)
 
   const fill     = active ? 'rgba(198,161,107,0.32)' : pal.fill
-  const textFill = active ? GOLD_FULL                : pal.text
+  const textFill = active ? GOLD_FULL                : 'rgba(255,255,255,0.95)'
   const stroke   = active ? GOLD_FULL                : pal.stroke
   const strokeW  = active ? 2.8 : 1.8
   const dash     = isMO ? '5,3' : 'none'
