@@ -427,10 +427,10 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
             <div className="divide-y divide-white/[0.06]">
               <PR label="الحال" value={node.alive ? 'حي' : 'متوفى'} color={node.alive ? '#4ade80' : '#9ca3af'} />
               {!isWifeDaughter && <>
-                {node.marital && <PR label="الحالة الاجتماعية" value={mapMarital(node.marital)} />}
-                {node.job      && <PR label="المهنة"  value={node.job}      />}
-                {node.location && <PR label="المدينة" value={node.location} color="#a78bfa" />}
-                {isLoggedIn && node.phone && <PR label="الجوال" value={node.phone} />}
+                <PR label="الحالة الاجتماعية" value={node.marital ? mapMarital(node.marital) : '—'} />
+                <PR label="المهنة"  value={node.job      || '—'} />
+                <PR label="المدينة" value={node.location || '—'} color={node.location ? '#a78bfa' : undefined} />
+                {isLoggedIn && <PR label="الجوال" value={node.phone || '—'} />}
               </>}
             </div>
           </>

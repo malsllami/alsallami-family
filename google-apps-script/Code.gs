@@ -12,7 +12,7 @@ var READ_ONLY_ACTIONS = {
   'getFamilyTree': true, 'getAdminStats': true, 'getPendingRequests': true,
   'getTreeRequests': true, 'getAllMembers': true, 'getOnlineUsers': true,
   'getFunds': true, 'getFundMembers': true, 'getArticles': true,
-  'getMemberData': true, 'verifyViewerCode': true,
+  'getMemberData': true, 'verifyViewerCode': true, 'getSettings': true,
 };
 
 function trackApiCall(action) {
@@ -107,6 +107,19 @@ function doPost(e) {
     if (action === 'createArticle')      return respond(createArticle(body));
     if (action === 'updateArticle')      return respond(updateArticle(body));
     if (action === 'deleteArticle')      return respond(deleteArticle(body));
+
+    // ── الإعدادات العامة ──────────────────────────────────────────────────
+    if (action === 'getSettings') {
+      var sheet = getSheet('الإعدادات');
+      var sData = sheet.getDataRange().getValues();
+      var sResult = {};
+      for (var si = 1; si < sData.length; si++) {
+        var sKey = String(sData[si][0] || '').trim();
+        var sVal = String(sData[si][1] || '').trim();
+        if (sKey) sResult[sKey] = sVal;
+      }
+      return respond({ success: true, settings: sResult });
+    }
 
     return respond({ success: false, message: 'إجراء غير معروف: ' + action });
 

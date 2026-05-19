@@ -80,12 +80,17 @@ export default function Articles() {
   const [saving,     setSaving]     = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [expanded,   setExpanded]   = useState(null)
+  const [siteMapUrl, setSiteMapUrl] = useState('')
 
-  /* ── تحميل المقالات ── */
+  /* ── تحميل المقالات والإعدادات ── */
   const loadArticles = useCallback(async () => {
     try {
-      const data = await callApi({ action: 'getArticles' })
-      if (data.success) setArticles(data.articles)
+      const [artData, settData] = await Promise.all([
+        callApi({ action: 'getArticles' }),
+        callApi({ action: 'getSettings' }),
+      ])
+      if (artData.success) setArticles(artData.articles)
+      if (settData.success) setSiteMapUrl(settData.settings?.['رابط الخريطة الرئيسية'] || '')
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
@@ -186,6 +191,27 @@ export default function Articles() {
           </button>
         )}
       </div>
+
+      {/* ══ خريطة المنطقة الرئيسية (من الإعدادات) ══ */}
+      {siteMapUrl && siteMapUrl !== 'https://maps.google.com' && siteMapUrl !== featuredArticle?.mapUrl && (
+        <div className="rounded-[32px] overflow-hidden"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+          <div className="px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>
+              📍 خريطة وادي حلي — قرية حدبة السلالمة
+            </p>
+          </div>
+          <div style={{ height: 400, position: 'relative', background: 'rgba(0,0,0,0.4)' }}>
+            <iframe
+              title="خريطة وادي حلي"
+              src={siteMapUrl}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+          </div>
+        </div>
+      )}
 
       {/* ══ رسالة فارغة ══ */}
       {articles.length === 0 && (
