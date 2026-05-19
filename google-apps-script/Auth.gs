@@ -49,6 +49,22 @@ function login(body) {
   if (!found) found = findRow('الأعضاء', 0, identifier);
 
   if (!found) {
+    // فحص إن كان الجوال موجوداً في طلب مرفوض
+    try {
+      var reqsAll = sheetToObjects('طلبات التسجيل');
+      for (var rci = 0; rci < reqsAll.length; rci++) {
+        var rc = reqsAll[rci];
+        if (String(rc['الحالة'] || '') === 'مرفوض' &&
+            normalizePhone(String(rc['رقم الجوال'] || '')) === normalizePhone(identifier)) {
+          return {
+            success:  false,
+            rejected: true,
+            reason:   String(rc['ملاحظات'] || ''),
+            message:  'تم رفض طلب تسجيلك',
+          };
+        }
+      }
+    } catch(_) {}
     return { success: false, message: 'بيانات الدخول غير صحيحة' };
   }
 

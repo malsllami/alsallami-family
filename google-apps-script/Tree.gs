@@ -51,9 +51,10 @@ function getFamilyTree(body) {
       path:       String(n['المسار']       || ''),
       gender:     'male',
       alive:      n['حي/ميت'] === 'حي' || n['حي/ميت'] === true,
-      marital:    'married',
+      marital:    '',
       job:        '',
       location:   '',
+      phone:      '',
       wives:      nodeWives,
       children:   [],
     };
@@ -65,8 +66,10 @@ function getFamilyTree(body) {
     if (!node.memberId) return;
     var member = membersAll.find(function(m) { return String(m['رقم العضو']) === node.memberId; });
     if (!member) return;
-    if (member['المهنة'])  node.job      = String(member['المهنة']);
-    if (member['المدينة']) node.location = String(member['المدينة']);
+    if (member['المهنة'])            node.job     = String(member['المهنة']);
+    if (member['المدينة'])           node.location = String(member['المدينة']);
+    if (member['الحالة الاجتماعية']) node.marital  = String(member['الحالة الاجتماعية']);
+    if (member['رقم الجوال'])        node.phone    = String(member['رقم الجوال']);
   });
 
   // ربط عقد الشجرة بآبائهم
@@ -480,6 +483,28 @@ function updateTreeNode(body) {
   if (status === 'حي' || status === 'متوفى') {
     var aliveCol = found.headers.indexOf('حي/ميت') + 1;
     if (aliveCol > 0) sheet.getRange(found.rowIndex, aliveCol).setValue(status);
+  }
+
+  // تحديث بيانات العضو في جدول الأعضاء (الجوال + الحالة الاجتماعية + المهنة)
+  var memberId = String(found.rowData[found.headers.indexOf('رقم العضو')] || '').trim();
+  if (memberId && (body.phone !== undefined || body.marital !== undefined || body.job !== undefined)) {
+    var mFound = findRow('الأعضاء', 0, memberId);
+    if (mFound) {
+      var mSheet = getSheet('الأعضاء');
+      var mHdrs  = mFound.headers;
+      if (body.phone !== undefined) {
+        var phoneCol = mHdrs.indexOf('رقم الجوال') + 1;
+        if (phoneCol > 0) mSheet.getRange(mFound.rowIndex, phoneCol).setValue(String(body.phone || '').trim());
+      }
+      if (body.marital !== undefined) {
+        var maritalCol = mHdrs.indexOf('الحالة الاجتماعية') + 1;
+        if (maritalCol > 0) mSheet.getRange(mFound.rowIndex, maritalCol).setValue(String(body.marital || '').trim());
+      }
+      if (body.job !== undefined) {
+        var jobCol = mHdrs.indexOf('المهنة') + 1;
+        if (jobCol > 0) mSheet.getRange(mFound.rowIndex, jobCol).setValue(String(body.job || '').trim());
+      }
+    }
   }
 
   return { success: true, message: 'تم تحديث بيانات العقدة' };

@@ -86,6 +86,11 @@ export default function AdminDashboard() {
   const [regRequestsLoading, setRegRequestsLoading] = useState(true)
   const [regActionLoading,   setRegActionLoading]   = useState(null)
   const [regResult,          setRegResult]          = useState(null)
+  const [editingReqId,       setEditingReqId]       = useState(null)
+  const [editFields,         setEditFields]         = useState({})
+  const [editLoading,        setEditLoading]        = useState(false)
+  const [rejectingReqId,     setRejectingReqId]     = useState(null)
+  const [rejectReason,       setRejectReason]       = useState('')
 
   const [treeRequests,        setTreeRequests]        = useState([])
   const [notFoundPanel,       setNotFoundPanel]       = useState(null)   // requestId الذي فُتح لوحة الموقع
@@ -148,7 +153,7 @@ export default function AdminDashboard() {
         const data = await res.json()
         if (data.success)
           setStats(prev => ({ ...prev, onlineUsers: data.onlineUsers }))
-      } catch (_) { /* ignore network errors */ }
+      } catch { /* ignore network errors */ }
     }, 60_000)
     return () => clearInterval(id)
   }, [])
@@ -201,6 +206,72 @@ export default function AdminDashboard() {
     finally { setRegActionLoading(null) }
   }
 
+  /* تعديل بيانات طلب معلق قبل الموافقة */
+  const handleStartEdit = (req) => {
+    setEditingReqId(req.requestId)
+    setEditFields({
+      'الاسم الأول':   req.name        || '',
+      'اسم الأب':      req.fatherName  || '',
+      'اسم الجد':      req.grandName   || '',
+      'رقم الجوال':    req.phone       || '',
+      'رقم الهوية':    req.nationalId  || '',
+      'الفخذ':         req.branch      || '',
+      'المهنة':        req.job         || '',
+      'تاريخ الميلاد': req.birthDate   || '',
+      'المدينة':       req.city        || '',
+    })
+  }
+  const handleSaveEdit = async (requestId) => {
+    try {
+      setEditLoading(true)
+      const res = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'updatePendingRequest', requestId, ...editFields }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setRegRequests(prev => prev.map(r => r.requestId !== requestId ? r : {
+          ...r,
+          name:       editFields['الاسم الأول'],
+          fatherName: editFields['اسم الأب'],
+          grandName:  editFields['اسم الجد'],
+          phone:      editFields['رقم الجوال'],
+          nationalId: editFields['رقم الهوية'],
+          branch:     editFields['الفخذ'],
+          job:        editFields['المهنة'],
+          birthDate:  editFields['تاريخ الميلاد'],
+          city:       editFields['المدينة'],
+        }))
+        setEditingReqId(null)
+        setEditFields({})
+      } else {
+        setRegResult({ success: false, message: result.message || 'حدث خطأ' })
+      }
+    } catch { setRegResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
+    finally { setEditLoading(false) }
+  }
+
+  /* رفض طلب مع إدخال سبب */
+  const handleConfirmReject = async (requestId) => {
+    try {
+      setRegActionLoading(requestId + 'rejectRequest')
+      const res = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'rejectRequest', requestId, notes: rejectReason }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setRegRequests(prev => prev.filter(r => r.requestId !== requestId))
+        setRegResult({ success: true, message: result.message })
+        setRejectingReqId(null)
+        setRejectReason('')
+      } else {
+        setRegResult({ success: false, message: result.message || 'حدث خطأ' })
+      }
+    } catch { setRegResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
+    finally { setRegActionLoading(null) }
+  }
+
   /* تحميل عقد الشجرة للاستخدام في اختيار الأب عند إضافة عضو */
   useEffect(() => {
     const load = async () => {
@@ -210,7 +281,7 @@ export default function AdminDashboard() {
         })
         const data = await res.json()
         if (data.success && data.tree?.length) setAmFlatTree(buildFlatTree(data.tree))
-      } catch (_) { /* ignore network errors */ }
+      } catch { /* ignore network errors */ }
     }
     load()
   }, [])
@@ -226,7 +297,7 @@ export default function AdminDashboard() {
         })
         const d = await r.json()
         if (d.success && d.tree?.length > 0) setAdminTreeData(d.tree[0])
-      } catch (_) { /* ignore network errors */ }
+      } catch { /* ignore network errors */ }
       setAdminTreeLoading(false)
     }
     load()
@@ -329,11 +400,8 @@ export default function AdminDashboard() {
   /* إضافة عضو مباشرة */
   const handleAddMember = async () => {
     const isDeceased = amData.aliveStatus === 'متوفى'
-    if (!amData.firstName)   return setAmResult({ success: false, message: 'الاسم الأول مطلوب' })
-    if (!isDeceased && !amData.nationalId)  return setAmResult({ success: false, message: 'رقم الهوية مطلوب' })
-    if (!isDeceased && !amData.phone)
-      return setAmResult({ success: false, message: 'رقم الجوال مطلوب' })
-    if (!isDeceased && (!amData.tempPassword || amData.tempPassword.length < 6))
+    if (!amData.firstName) return setAmResult({ success: false, message: 'الاسم الأول مطلوب' })
+    if (!isDeceased && amData.tempPassword && amData.tempPassword.length < 6)
       return setAmResult({ success: false, message: 'كلمة المرور المؤقتة يجب أن تكون 6 أحرف على الأقل' })
     const jobFinal   = amData.job === 'أخرى' ? amData.jobOther : amData.job
     const parentNode = amFlatTree.find(n => n.id === amData.parentNodeId)
@@ -370,7 +438,7 @@ export default function AdminDashboard() {
           })
           const td = await tr.json()
           if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
-        } catch (_) { /* ignore network errors */ }
+        } catch { /* ignore network errors */ }
       }
     } catch { setAmResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
     finally  { setAmLoading(false) }
@@ -1043,45 +1111,120 @@ export default function AdminDashboard() {
           <div className="space-y-3">
             {regRequests.map(req => (
               <div key={req.requestId}
-                className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                className="rounded-2xl p-5 space-y-4"
                 style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(99,102,241,0.12)' }}>
 
-                <div className="flex-1 min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-bold text-sm text-white">
-                      {[req.name, req.fatherName, req.grandName].filter(Boolean).join(' ')}
+                {/* ── معلومات الطلب + أزرار العرض العادي ── */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-bold text-sm text-white">
+                        {[req.name, req.fatherName, req.grandName].filter(Boolean).join(' ')}
+                      </p>
+                      <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                        style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.22)' }}>
+                        #{req.requestId}
+                      </span>
+                      {req.branch && (
+                        <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.2)' }}>
+                          {req.branch}
+                        </span>
+                      )}
+                    </div>
+                    <p className="font-nav text-xs text-gray-400">
+                      الجوال: <span className="text-white">{req.phone}</span>
+                      {req.nationalId && <> &nbsp;|&nbsp; الهوية: <span className="text-white">{req.nationalId}</span></>}
                     </p>
-                    <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
-                      style={{ background: 'rgba(99,102,241,0.12)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.22)' }}>
-                      #{req.requestId}
-                    </span>
+                    {req.job && <p className="font-nav text-xs text-gray-500">المهنة: {req.job}</p>}
+                    <p className="font-nav text-[10px] text-gray-600">تاريخ الطلب: {req.date}</p>
                   </div>
-                  <p className="font-nav text-xs text-gray-400">
-                    الجوال: <span className="text-white">{req.phone}</span>
-                    {req.email && <> &nbsp;|&nbsp; البريد: <span className="text-white">{req.email}</span></>}
-                  </p>
-                  {req.birthDate && (
-                    <p className="font-nav text-xs text-gray-500">تاريخ الميلاد: {req.birthDate}</p>
+
+                  {/* الأزرار — تظهر فقط في وضع العرض العادي */}
+                  {editingReqId !== req.requestId && rejectingReqId !== req.requestId && (
+                    <div className="flex gap-2 flex-shrink-0 flex-wrap">
+                      <button
+                        onClick={() => handleRegAction(req.requestId, 'approveRequest')}
+                        disabled={!!regActionLoading}
+                        className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                        style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
+                        {regActionLoading === req.requestId + 'approveRequest' ? '...' : 'قبول'}
+                      </button>
+                      <button
+                        onClick={() => handleStartEdit(req)}
+                        disabled={!!regActionLoading}
+                        className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
+                        style={{ background: 'rgba(198,161,107,0.08)', border: '1px solid rgba(198,161,107,0.22)', color: 'var(--gold-main)' }}>
+                        تعديل
+                      </button>
+                      <button
+                        onClick={() => { setRejectingReqId(req.requestId); setRejectReason('') }}
+                        disabled={!!regActionLoading}
+                        className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
+                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
+                        رفض
+                      </button>
+                    </div>
                   )}
-                  <p className="font-nav text-[10px] text-gray-600">تاريخ الطلب: {req.date}</p>
                 </div>
 
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => handleRegAction(req.requestId, 'approveRequest')}
-                    disabled={!!regActionLoading}
-                    className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
-                    style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
-                    {regActionLoading === req.requestId + 'approveRequest' ? '...' : 'قبول'}
-                  </button>
-                  <button
-                    onClick={() => handleRegAction(req.requestId, 'rejectRequest')}
-                    disabled={!!regActionLoading}
-                    className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
-                    style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
-                    {regActionLoading === req.requestId + 'rejectRequest' ? '...' : 'رفض'}
-                  </button>
-                </div>
+                {/* ── وضع التعديل المباشر ── */}
+                {editingReqId === req.requestId && (
+                  <div className="space-y-3 pt-1 border-t border-white/[0.06]">
+                    <p className="font-nav text-xs" style={{ color: 'rgba(198,161,107,0.8)' }}>تعديل البيانات قبل الموافقة</p>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                      {[
+                        ['الاسم الأول','الاسم الأول','text'],
+                        ['اسم الأب','اسم الأب','text'],
+                        ['اسم الجد','اسم الجد','text'],
+                        ['رقم الجوال','الجوال','numeric'],
+                        ['رقم الهوية','الهوية','numeric'],
+                        ['المدينة','المدينة','text'],
+                      ].map(([field, ph, mode]) => (
+                        <input key={field} className="form-input text-xs" placeholder={ph}
+                          inputMode={mode} value={editFields[field] || ''}
+                          onChange={e => setEditFields(p => ({ ...p, [field]: e.target.value }))} />
+                      ))}
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSaveEdit(req.requestId)} disabled={editLoading}
+                        className="flex-1 font-nav text-xs py-2.5 rounded-xl font-bold transition-all"
+                        style={{ background: 'rgba(198,161,107,0.14)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }}>
+                        {editLoading ? 'جاري الحفظ...' : 'حفظ التعديل'}
+                      </button>
+                      <button onClick={() => { setEditingReqId(null); setEditFields({}) }}
+                        className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* ── وضع الرفض مع سبب ── */}
+                {rejectingReqId === req.requestId && (
+                  <div className="space-y-3 pt-1 border-t border-white/[0.06]">
+                    <p className="font-nav text-xs" style={{ color: '#f87171' }}>سبب الرفض — سيظهر للمتقدم عند محاولة تسجيل الدخول</p>
+                    <textarea
+                      className="form-input w-full resize-none font-nav text-sm"
+                      rows={3} style={{ direction: 'rtl' }}
+                      placeholder="مثال: الأخ الكريم، نعتذر — الاشتراك مقتصر على أبناء قبيلة السلامي فخذ العفاريت"
+                      value={rejectReason}
+                      onChange={e => setRejectReason(e.target.value)} />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleConfirmReject(req.requestId)} disabled={!!regActionLoading}
+                        className="flex-1 font-nav text-xs py-2.5 rounded-xl font-bold transition-all"
+                        style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                        {regActionLoading === req.requestId + 'rejectRequest' ? 'جاري الرفض...' : 'تأكيد الرفض'}
+                      </button>
+                      <button onClick={() => { setRejectingReqId(null); setRejectReason('') }}
+                        className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
+                        إلغاء
+                      </button>
+                    </div>
+                  </div>
+                )}
 
               </div>
             ))}
@@ -1268,37 +1411,36 @@ export default function AdminDashboard() {
 
         <div style={{ display: openSec.addMember ? 'block' : 'none' }}>
 
-        {/* البيانات الأساسية */}
-        {amData.aliveStatus !== 'متوفى' ? (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <AmField label="رقم الهوية *">
+        {/* الاسم الأول — دائماً */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <AmField label="الاسم الأول *">
+            <input className="form-input"
+              placeholder={amData.aliveStatus === 'متوفى' ? 'اسم المتوفى' : 'محمد'}
+              value={amData.firstName}
+              onChange={e => setAmData(p => ({ ...p, firstName: e.target.value }))} />
+          </AmField>
+          <div className="flex items-end pb-1">
+            <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(156,163,175,0.6)' }}>
+              {amData.aliveStatus === 'متوفى'
+                ? <>سيُضاف للشجرة فقط<br/>بدون حساب تسجيل دخول</>
+                : <>بيانات التواصل اختيارية<br/>تُكمَّل عند تسجيل العضو في الموقع</>}
+            </p>
+          </div>
+        </div>
+
+        {/* رقم الهوية ورقم الجوال — للأحياء، اختيارية */}
+        {amData.aliveStatus !== 'متوفى' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <AmField label="رقم الهوية (اختياري)">
               <input className="form-input" placeholder="10 أرقام" inputMode="numeric" maxLength={10}
                 value={amData.nationalId}
                 onChange={e => setAmData(p => ({ ...p, nationalId: e.target.value }))} />
             </AmField>
-            <AmField label="الاسم الأول *">
-              <input className="form-input" placeholder="محمد"
-                value={amData.firstName}
-                onChange={e => setAmData(p => ({ ...p, firstName: e.target.value }))} />
-            </AmField>
-            <AmField label="رقم الجوال *">
+            <AmField label="رقم الجوال (اختياري)">
               <input className="form-input" placeholder="05xxxxxxxx" inputMode="numeric"
                 value={amData.phone}
                 onChange={e => setAmData(p => ({ ...p, phone: e.target.value }))} />
             </AmField>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <AmField label="الاسم الأول *">
-              <input className="form-input" placeholder="اسم المتوفى"
-                value={amData.firstName}
-                onChange={e => setAmData(p => ({ ...p, firstName: e.target.value }))} />
-            </AmField>
-            <div className="flex items-end pb-1">
-              <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(156,163,175,0.7)' }}>
-                سيُضاف للشجرة العائلية فقط<br/>بدون حساب تسجيل دخول
-              </p>
-            </div>
           </div>
         )}
 
@@ -1343,7 +1485,7 @@ export default function AdminDashboard() {
         {/* البيانات التفصيلية — للأحياء فقط */}
         {amData.aliveStatus !== 'متوفى' && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-            <AmField label="كلمة المرور المؤقتة *">
+            <AmField label="كلمة المرور المؤقتة (اختياري)">
               <PasswordInput className="form-input" placeholder="6 أحرف على الأقل"
                 value={amData.tempPassword}
                 onChange={e => setAmData(p => ({ ...p, tempPassword: e.target.value }))} />

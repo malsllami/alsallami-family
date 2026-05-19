@@ -69,8 +69,9 @@ function doPost(e) {
     // ── الإدارة ───────────────────────────────────────────────────────────
     if (action === 'getAdminStats')      return respond(getAdminStats(body));
     if (action === 'getPendingRequests') return respond(getPendingRequests(body));
-    if (action === 'approveRequest')     return respond(approveRequest(body));
-    if (action === 'rejectRequest')      return respond(rejectRequest(body));
+    if (action === 'approveRequest')          return respond(approveRequest(body));
+    if (action === 'rejectRequest')           return respond(rejectRequest(body));
+    if (action === 'updatePendingRequest')    return respond(updatePendingRequest(body));
     if (action === 'getOnlineUsers')     return respond(getOnlineUsers(body));
     if (action === 'getAllMembers')       return respond(getAllMembers(body));
     if (action === 'toggleMemberStatus') return respond(toggleMemberStatus(body));

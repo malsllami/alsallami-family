@@ -210,9 +210,30 @@ function approveRequest(body) {
     var existingNode = existing2.find(function(n) { return String(n['رقم العضو'] || '') === memberId; });
 
     if (existingNode) {
-      // العقدة موجودة مسبقاً — فقط احفظ رقم العقدة
+      // العقدة موجودة مسبقاً برقم العضو — فقط احفظ رقم العقدة
       autoNodeId = String(existingNode['رقم العقدة'] || '');
     } else if (parentNodeId) {
+      // بحث عن عقدة حي غير مرتبطة تحت نفس الأب بنفس الاسم الأول
+      var reqFN = colMap['الاسم الأول'];
+      var unlinkNode = null;
+      for (var ui = 0; ui < existing2.length; ui++) {
+        var un = existing2[ui];
+        if (String(un['رقم الأب']   || '') === parentNodeId &&
+            String(un['اسم العضو'] || '').trim() === reqFN   &&
+           !String(un['رقم العضو'] || '').trim()              &&
+            String(un['حي/ميت']    || '') === 'حي') {
+          unlinkNode = un; break;
+        }
+      }
+      if (unlinkNode) {
+        // ربط العقدة الموجودة بالعضو الجديد
+        autoNodeId = String(unlinkNode['رقم العقدة'] || '');
+        var linkRow = findRow('الشجرة العائلية', 0, autoNodeId);
+        if (linkRow) {
+          var memCol = linkRow.headers.indexOf('رقم العضو') + 1;
+          if (memCol > 0) treeSheet2.getRange(linkRow.rowIndex, memCol).setValue(memberId);
+        }
+      } else {
       // أنشئ عقدة جديدة إذا اختار العضو أباه أثناء التسجيل
       var parentNode = existing2.find(function(n) { return String(n['رقم العقدة']) === parentNodeId; });
       if (parentNode) {
@@ -236,6 +257,7 @@ function approveRequest(body) {
         linkChildRecordToMember(memberId, colMap['الاسم الأول'], String(parentNode['رقم العضو'] || ''), colMap['رقم الهوية']);
         syncFatherChildrenToTree(memberId, autoNodeId, colMap['الاسم الأول'], Number(parentNode['مستوى الجيل'] || 1) + 1, path);
       }
+      } // end else (create new node)
     }
   } catch(e) { Logger.log('tree link error: ' + e.message); }
 
@@ -259,6 +281,35 @@ function approveRequest(body) {
       ? 'تم قبول الطلب وإنشاء الحساب' + (autoNodeId ? ' وربطه بالشجرة تلقائياً' : '')
       : 'تم قبول الطلب وإنشاء الحساب. كلمة المرور المؤقتة: ' + tempPass
   };
+}
+
+/* ═══ تعديل طلب تسجيل معلق (قبل الموافقة) ══════════════════════════════ */
+
+function updatePendingRequest(body) {
+  var requestId = String(body.requestId || '').trim();
+  if (!requestId) return { success: false, message: 'رقم الطلب مطلوب' };
+
+  var found = findRow('طلبات التسجيل', 0, requestId);
+  if (!found) return { success: false, message: 'الطلب غير موجود' };
+
+  var req = rowToObject(found.headers, found.rowData);
+  if (String(req['الحالة'] || '') !== 'معلق') {
+    return { success: false, message: 'لا يمكن تعديل طلب غير معلق' };
+  }
+
+  var sheet   = getSheet('طلبات التسجيل');
+  var headers = found.headers;
+  var rowIdx  = found.rowIndex;
+
+  var editable = ['الاسم الأول', 'اسم الأب', 'اسم الجد', 'رقم الجوال', 'رقم الهوية', 'الفخذ', 'المهنة', 'تاريخ الميلاد', 'المدينة'];
+  editable.forEach(function(field) {
+    if (body[field] !== undefined && body[field] !== null) {
+      var col = headers.indexOf(field) + 1;
+      if (col > 0) sheet.getRange(rowIdx, col).setValue(normalizeInput(String(body[field])));
+    }
+  });
+
+  return { success: true, message: 'تم تحديث بيانات الطلب' };
 }
 
 /* ═══ رفض طلب تسجيل ════════════════════════════════════════════════════ */
@@ -331,21 +382,24 @@ function addMember(body) {
   var aliveStatus  = normalizeInput(body.aliveStatus  || 'حي');
   var isDeceased   = aliveStatus === 'متوفى';
 
-  if (!firstName)                 return { success: false, message: 'الاسم الأول مطلوب' };
-  if (!isDeceased && !nationalId) return { success: false, message: 'رقم الهوية مطلوب' };
-  if (!isDeceased && !rawPhone)   return { success: false, message: 'رقم الجوال مطلوب' };
-  if (!isDeceased && (!tempPassword || tempPassword.length < 6))
-    return { success: false, message: 'كلمة المرور المؤقتة يجب أن تكون 6 أحرف على الأقل' };
+  if (!firstName) return { success: false, message: 'الاسم الأول مطلوب' };
 
-  // تحقق من تفرد رقم الهوية والجوال (للأحياء فقط — المتوفى لا يُدخَل في الأعضاء)
+  // تحقق من تفرد رقم الهوية والجوال — فقط إذا أُدخلا
   var phone = '';
   if (!isDeceased) {
-    var members = sheetToObjects('الأعضاء');
-    var dupNId  = members.some(function(m) { return String(m['رقم الهوية'] || '').trim() === nationalId; });
-    if (dupNId) return { success: false, message: 'رقم الهوية مسجّل مسبقاً' };
-    phone = normalizePhone(normalizeInput(rawPhone));
-    if (findRowByPhone(phone)) return { success: false, message: 'رقم الجوال مسجّل مسبقاً' };
+    if (nationalId) {
+      var members = sheetToObjects('الأعضاء');
+      var dupNId  = members.some(function(m) { return String(m['رقم الهوية'] || '').trim() === nationalId; });
+      if (dupNId) return { success: false, message: 'رقم الهوية مسجّل مسبقاً' };
+    }
+    if (rawPhone) {
+      phone = normalizePhone(normalizeInput(rawPhone));
+      if (findRowByPhone(phone)) return { success: false, message: 'رقم الجوال مسجّل مسبقاً' };
+    }
   }
+
+  // بيانات الاتصال مكتملة؟ (هوية + جوال + كلمة مرور)
+  var hasContactInfo = !isDeceased && rawPhone && nationalId && tempPassword && tempPassword.length >= 6;
 
   // جلب بيانات الأب من الشجرة أو من سجل الأبناء
   var generation          = '';
@@ -396,8 +450,8 @@ function addMember(body) {
     }
   }
 
-  // ── متوفى: عقدة في الشجرة فقط — لا سجل في جدول الأعضاء ─────────────
-  if (isDeceased) {
+  // ── شجرة فقط: متوفى أو حي بدون بيانات تواصل كاملة ─────────────────
+  if (isDeceased || !hasContactInfo) {
     var dSheet   = getSheet('الشجرة العائلية');
     var dHdrs    = dSheet.getDataRange().getValues()[0];
     var dPName   = parentNode ? String(parentNode['اسم العضو'] || '') : (fatherName || '');
@@ -407,11 +461,14 @@ function addMember(body) {
     var dColMap  = {
       'رقم العقدة':  dNodeId, 'رقم العضو': '', 'اسم العضو': firstName,
       'رقم الأب':    parentNodeId || '', 'اسم الأب': dPName,
-      'مستوى الجيل': dGen, 'المسار': dPath, 'حي/ميت': 'متوفى',
+      'مستوى الجيل': dGen, 'المسار': dPath, 'حي/ميت': aliveStatus,
     };
     dSheet.appendRow(dHdrs.map(function(h) { return dColMap[h] !== undefined ? dColMap[h] : ''; }));
     formatLastRow(dSheet);
-    return { success: true, nodeId: dNodeId, message: 'تم إضافة ' + firstName + ' إلى الشجرة العائلية' };
+    var dMsg = isDeceased
+      ? 'تم إضافة ' + firstName + ' إلى الشجرة العائلية'
+      : 'تم إضافة ' + firstName + ' إلى الشجرة. سيُربط بحسابه تلقائياً عند تسجيله في الموقع';
+    return { success: true, nodeId: dNodeId, message: dMsg };
   }
 
   var memberId   = generateId('M');

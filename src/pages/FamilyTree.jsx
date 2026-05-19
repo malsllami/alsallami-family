@@ -15,8 +15,7 @@ const FALLBACK = {
 }
 
 /* ════ ثوابت التصميم ════════════════════════════════════════════════════════ */
-const MR    = 34
-const FR    = 28
+const MR    = 34   // وحدة التخطيط الأفقي
 const WR    = 22
 const DR    = 5
 const V_GAP = 155
@@ -26,12 +25,18 @@ const WDG   = 12
 const WCG   = 8
 const WWG   = 8
 
+/* نصف قطر العقدة حسب العمق — الأجداد أكبر، الأحفاد أصغر */
+function nodeR(depth) {
+  if (depth === 0) return 44
+  if (depth === 1) return 39
+  if (depth === 2) return 36
+  return Math.max(30, 36 - (depth - 2))
+}
+
 const GOLD    = 'rgba(198,161,107,0.72)'
 const WIFE_LC = 'rgba(251,113,133,0.28)'
 const BAR_H     = 60   // ارتفاع شريط الأدوات
 
-const JOBS = { student:'طالب', employee:'موظف', retired:'متقاعد', business:'رجل أعمال' }
-const calcAge   = (by, alive) => alive ? new Date().getFullYear() - by : null
 const firstName = str => (str || '').split(' ')[0]
 
 /* لوحة ألوان الأجيال — حدود ملونة على خلفية موحدة داكنة */
@@ -52,10 +57,6 @@ function flatByDepth(node, targetDepth, currentDepth) {
   if (currentDepth === targetDepth) return [node]
   return (node.children || []).flatMap(c => flatByDepth(c, targetDepth, currentDepth + 1))
 }
-function treeMaxDepth(node, d) {
-  if (!(node.children?.length)) return d
-  return Math.max(...node.children.map(c => treeMaxDepth(c, d + 1)))
-}
 function findNodeById(node, id) {
   if (node.id === id) return node
   for (const c of (node.children || [])) {
@@ -71,6 +72,18 @@ function updateNodeInTree(node, nodeId, updates) {
 function updateWifeInTree(node, wifeId, updates) {
   const wives = (node.wives || []).map(w => w.id === wifeId ? { ...w, ...updates } : w)
   return { ...node, wives, children: (node.children || []).map(c => updateWifeInTree(c, wifeId, updates)) }
+}
+// يُبقي من الشجرة فقط المسار الواصل إلى targetId + كامل فرعه
+function pruneToPath(node, targetId) {
+  if (node.id === targetId) return node
+  const kept = (node.children || []).map(c => pruneToPath(c, targetId)).filter(Boolean)
+  if (!kept.length) return null
+  return { ...node, children: kept }
+}
+// يقطع الشجرة عند maxDepth (يُزيل الأبناء تحت الحد)
+function shallowTree(node, maxDepth, depth = 0) {
+  if (depth >= maxDepth) return { ...node, children: [] }
+  return { ...node, children: (node.children || []).map(c => shallowTree(c, maxDepth, depth + 1)) }
 }
 
 /* ════ وظائف التخطيط ══════════════════════════════════════════════════════ */
@@ -96,7 +109,7 @@ function sw(node, pub, showWives) {
 function buildNodes(node, x0, depth, pub, showWives) {
   const ch  = visKids(node, pub)
   const cy  = PAD + MR + depth * V_GAP
-  const r   = node.gender === 'female' ? FR : MR
+  const r   = nodeR(depth)
   if (!ch.length) return [{ ...node, cx: x0 + MR, cy, r, depth }]
   const childOut = []
   let x = x0
@@ -225,14 +238,24 @@ function MarriageDiamond({ cx, cy }) {
 }
 
 /* ════ نافذة التفاصيل ════════════════════════════════════════════════════ */
-function Popup({ node, onClose, isAdmin, onUpdateNode }) {
-  const [editing,   setEditing]   = useState(false)
-  const [editName,  setEditName]  = useState(node.name)
-  const [editAlive, setEditAlive] = useState(node.alive)
-  const [saving,    setSaving]    = useState(false)
+function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
+  const mapMarital = (m) => {
+    if (m === 'married') return 'متزوج'
+    if (m === 'single')  return 'أعزب'
+    return m || ''
+  }
+
+  const [editing,     setEditing]     = useState(false)
+  const [editName,    setEditName]    = useState(node.name)
+  const [editAlive,   setEditAlive]   = useState(node.alive)
+  const [editPhone,   setEditPhone]   = useState(node.phone || '')
+  const [editMarital, setEditMarital] = useState(mapMarital(node.marital))
+  const [editJob,     setEditJob]     = useState(node.job || '')
+  const [saving,      setSaving]      = useState(false)
 
   const isWifeDaughter = node.isWife || node.isDaughter || node.isSon
-  const a = isWifeDaughter ? null : calcAge(node.birthYear, node.alive)
+  const isLoggedIn     = !!user
+  const isFemaleColor  = isWifeDaughter || node.gender === 'female'
 
   const lineage = node.isWife
     ? (node.husbandName ? `زوجة ${firstName(node.husbandName)}` : 'زوجة')
@@ -241,6 +264,15 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
     : node.isSon
     ? (node.fatherName  ? `ابن ${firstName(node.fatherName)}`    : 'ابن')
     : null
+
+  const cancelEdit = () => {
+    setEditing(false)
+    setEditName(node.name)
+    setEditAlive(node.alive)
+    setEditPhone(node.phone || '')
+    setEditMarital(mapMarital(node.marital))
+    setEditJob(node.job || '')
+  }
 
   const handleSave = async () => {
     setSaving(true)
@@ -257,14 +289,20 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
           }) })
         } else {
           await fetch(API, { method: 'POST', body: JSON.stringify({
-            action: 'updateTreeNode', nodeId: node.id, name: editName.trim(), status: editAlive ? 'حي' : 'متوفى',
+            action:  'updateTreeNode',
+            nodeId:  node.id,
+            name:    editName.trim(),
+            status:  editAlive ? 'حي' : 'متوفى',
+            phone:   editPhone.trim(),
+            marital: editMarital,
+            job:     editJob.trim(),
           }) })
         }
       } catch { /* network error — local state still updated */ }
     }
     const updates = isWifeDaughter
       ? { alive: editAlive }
-      : { name: editName.trim(), alive: editAlive }
+      : { name: editName.trim(), alive: editAlive, phone: editPhone.trim(), marital: editMarital, job: editJob.trim() }
     onUpdateNode(node.id, updates)
     setSaving(false)
     onClose()
@@ -273,7 +311,7 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-[300px] rounded-[26px] p-6 z-10"
+      <div className="relative w-full max-w-[320px] rounded-[26px] p-6 z-10"
         onClick={e => e.stopPropagation()}
         style={{ background: 'rgba(20,28,38,0.98)', border: '1px solid rgba(255,255,255,0.11)', backdropFilter: 'blur(24px)', boxShadow: '0 32px 80px rgba(0,0,0,0.7)' }}>
 
@@ -289,7 +327,7 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
             </button>
           )}
           {isAdmin && editing && (
-            <button onClick={() => { setEditing(false); setEditName(node.name); setEditAlive(node.alive) }}
+            <button onClick={cancelEdit}
               className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }}>
               إلغاء
@@ -299,22 +337,21 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
 
         {/* ── وضع التعديل ── */}
         {editing ? (
-          <div className="space-y-4">
-            <p className="font-nav text-xs text-center mb-1" style={{ color: 'rgba(255,255,255,0.35)' }}>
+          <div className="space-y-3">
+            <p className="font-nav text-xs text-center mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
               تعديل بيانات {node.isWife ? 'الزوجة' : node.isDaughter ? 'الابنة' : node.isSon ? 'الابن' : 'العقدة'}
             </p>
 
-            {/* حقل الاسم — للعقد العادية فقط */}
+            {/* الاسم — للعقد الرئيسية فقط */}
             {!isWifeDaughter && (
-              <div>
-                <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.4)' }}>الاسم</label>
+              <EF label="الاسم">
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
                   className="form-input w-full" style={{ direction: 'rtl' }} />
-              </div>
+              </EF>
             )}
 
-            <div>
-              <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.4)' }}>الحال</label>
+            {/* حي / متوفى */}
+            <EF label="الحال">
               <div className="flex gap-2">
                 <button onClick={() => setEditAlive(true)} className="flex-1 font-nav text-sm py-2 rounded-xl transition-all"
                   style={{ background: editAlive ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${editAlive ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`, color: editAlive ? '#4ade80' : 'rgba(255,255,255,0.4)' }}>
@@ -325,7 +362,29 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
                   متوفى
                 </button>
               </div>
-            </div>
+            </EF>
+
+            {/* الحالة الاجتماعية + المهنة + الجوال — للعقد الرئيسية فقط */}
+            {!isWifeDaughter && <>
+              <EF label="الحالة الاجتماعية">
+                <select value={editMarital} onChange={e => setEditMarital(e.target.value)}
+                  className="form-input w-full" style={{ direction: 'rtl' }}>
+                  <option value="">— اختر —</option>
+                  <option value="متزوج">متزوج</option>
+                  <option value="أعزب">أعزب</option>
+                  <option value="مطلق">مطلق</option>
+                  <option value="أرمل">أرمل</option>
+                </select>
+              </EF>
+              <EF label="المهنة">
+                <input type="text" value={editJob} onChange={e => setEditJob(e.target.value)}
+                  className="form-input w-full" style={{ direction: 'rtl' }} placeholder="مثال: موظف، طالب..." />
+              </EF>
+              <EF label="رقم الجوال">
+                <input type="text" inputMode="numeric" value={editPhone} onChange={e => setEditPhone(e.target.value)}
+                  className="form-input w-full" style={{ direction: 'ltr', textAlign: 'right' }} placeholder="05xxxxxxxx" />
+              </EF>
+            </>}
 
             <button onClick={handleSave} disabled={saving || (!isWifeDaughter && !editName.trim())}
               className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all disabled:opacity-50"
@@ -338,9 +397,9 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
             {/* ── وضع العرض ── */}
             <div className="flex justify-center mb-4">
               <div className="w-14 h-14 rounded-full flex items-center justify-center"
-                style={{ background: (isWifeDaughter || node.gender === 'female') ? 'rgba(244,63,94,0.1)' : 'rgba(59,130,246,0.1)', border: `2px solid ${GOLD}` }}>
+                style={{ background: isFemaleColor ? 'rgba(244,63,94,0.1)' : 'rgba(59,130,246,0.1)', border: `2px solid ${GOLD}` }}>
                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                  stroke={(isWifeDaughter || node.gender === 'female') ? '#fb7185' : '#60a5fa'}
+                  stroke={isFemaleColor ? '#fb7185' : '#60a5fa'}
                   strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a6 6 0 0 1 12 0v2" />
                 </svg>
@@ -351,20 +410,25 @@ function Popup({ node, onClose, isAdmin, onUpdateNode }) {
               <p className="text-center font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.38)' }}>{lineage}</p>
             )}
             <div className="divide-y divide-white/[0.06]">
-              {a !== null && <PR label="العمر" value={`${a} سنة`} />}
               <PR label="الحال" value={node.alive ? 'حي' : 'متوفى'} color={node.alive ? '#4ade80' : '#9ca3af'} />
               {!isWifeDaughter && <>
-                <PR label="الحالة الاجتماعية" value={node.marital === 'married' ? 'متزوج' : 'أعزب'} />
-                {node.job && <PR label="العمل" value={JOBS[node.job] || node.job} />}
-                {node.location && <PR label="المنطقة" value={node.location} color="#a78bfa" />}
-                {node.marriedOut && <PR label="ملاحظة" value="متزوجة خارج القبيلة" color="#a78bfa" />}
-                {node.generation > 0 && <PR label="الجيل" value={`${node.generation}`} />}
-                {node.path && <PR label="المسار" value={node.path} />}
+                {node.marital && <PR label="الحالة الاجتماعية" value={mapMarital(node.marital)} />}
+                {node.job      && <PR label="المهنة"  value={node.job}      />}
+                {node.location && <PR label="المدينة" value={node.location} color="#a78bfa" />}
+                {isLoggedIn && node.phone && <PR label="الجوال" value={node.phone} />}
               </>}
             </div>
           </>
         )}
       </div>
+    </div>
+  )
+}
+function EF({ label, children }) {
+  return (
+    <div>
+      <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</label>
+      {children}
     </div>
   )
 }
@@ -387,12 +451,12 @@ export default function FamilyTree({ viewerMode = false }) {
   const [loading,    setLoading]   = useState(!!import.meta.env.VITE_API_URL)
   const pub = true
   const [branch,     setBranch]    = useState(null)
-  const [genLevel,   setGenLevel]  = useState(2)
   const [sel,        setSel]       = useState(null)
   const [tx,         setTx]        = useState({ x: 0, y: 0, s: 0.5 })
   const [isDragging, setDrag]      = useState(false)
   const showWives = false
   const isAdmin   = !viewerMode && user?.roles?.includes('admin')
+  const initDone  = useRef(false)
 
   /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
   useEffect(() => {
@@ -410,18 +474,18 @@ export default function FamilyTree({ viewerMode = false }) {
   }, [])
 
   /* ── بناء الشجرة ── */
-  const maxGen = useMemo(() => treeMaxDepth(treeRoot, 0), [treeRoot])
-
+  // عند اختيار فخذ: أبقِ إبراهيم→أحمد→الفخذ المختار وأزل الفخوذ الأخرى
   const effectiveRoot = useMemo(() => {
     if (!branch) return treeRoot
-    const b = findNodeById(treeRoot, branch)
-    return b || treeRoot
+    return pruneToPath(treeRoot, branch) || treeRoot
   }, [branch, treeRoot])
 
   const { nodes, lines, wives, wLines, svgW, svgH } = useMemo(() => {
-    const nl              = buildNodes(effectiveRoot, PAD, 0, !showWives, showWives)
+    // بدون فخذ: اعرض أول 3 مستويات فقط (إبراهيم→أحمد→الفخوذ)
+    const renderRoot      = branch ? effectiveRoot : shallowTree(effectiveRoot, 2)
+    const nl              = buildNodes(renderRoot, PAD, 0, !showWives, showWives)
     const byId            = Object.fromEntries(nl.map(n => [n.id, n]))
-    const ll              = buildLines(effectiveRoot, byId, !showWives)
+    const ll              = buildLines(renderRoot, byId, !showWives)
     const { wives, wLines } = buildWivesData(nl, showWives)
     const allX            = [...nl.map(n => n.cx + n.r), ...wives.map(w => w.cx + WR)]
     const allY            = nl.map(n => n.cy + n.r)
@@ -430,7 +494,7 @@ export default function FamilyTree({ viewerMode = false }) {
       svgW: Math.max(0, ...allX) + PAD,
       svgH: Math.max(0, ...allY) + PAD,
     }
-  }, [effectiveRoot, showWives])
+  }, [effectiveRoot, showWives, branch])
 
   /* ── موقع العضو الحالي في الشجرة ── */
   const myNode = useMemo(() => {
@@ -454,14 +518,12 @@ export default function FamilyTree({ viewerMode = false }) {
   }
 
 
+  // الفخوذ دائماً المستوى 2 (أحفاد أحمد المباشرون)
   const branches = useMemo(() => {
-    const nodesAtLevel = genLevel <= maxGen
-      ? flatByDepth(treeRoot, genLevel, 0)
-      : []
-    return nodesAtLevel
-      .filter(c => !pub || c.gender === 'male')
+    return flatByDepth(treeRoot, 2, 0)
+      .filter(c => c.gender === 'male')
       .map(c => ({ id: c.id, name: c.name }))
-  }, [treeRoot, pub, genLevel, maxGen])
+  }, [treeRoot])
 
   /* ══════════════════ Pan / Zoom ══════════════════ */
   const svgRef  = useRef(null)
@@ -480,7 +542,7 @@ export default function FamilyTree({ viewerMode = false }) {
     })
   }, [setTx])
 
-  /* ملاءمة الشجرة للشاشة */
+  /* ملاءمة الشجرة للشاشة (يُستخدم عبر الزر فقط) */
   const fitToScreen = useCallback(() => {
     const vw  = window.innerWidth
     const vh  = window.innerHeight
@@ -494,7 +556,27 @@ export default function FamilyTree({ viewerMode = false }) {
     })
   }, [svgW, svgH, setTx])
 
-  useEffect(() => { const id = requestAnimationFrame(fitToScreen); return () => cancelAnimationFrame(id) }, [fitToScreen])
+  /* العرض الافتراضي: زووم ثابت يُظهر إبراهيم أعلى الشاشة */
+  const defaultView = useCallback(() => {
+    const vw = window.innerWidth
+    const s  = 0.65
+    const rootTopInSvg = PAD + MR - nodeR(0)   // الحافة العليا لعقدة إبراهيم
+    setTx({ s, x: vw / 2 - (svgW / 2) * s, y: BAR_H + 20 - rootTopInSvg * s })
+  }, [svgW])
+
+  // عند أول تحميل للبيانات الحقيقية
+  useEffect(() => {
+    if (svgW > 0 && !initDone.current) {
+      initDone.current = true
+      requestAnimationFrame(defaultView)
+    }
+  }, [svgW, defaultView])
+
+  // عند تغيير الفخذ: أعد التمركز
+  useEffect(() => {
+    if (initDone.current) requestAnimationFrame(defaultView)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [branch])
 
   useEffect(() => {
     const prev = { overflow: document.body.style.overflow, touchAction: document.body.style.touchAction }
@@ -584,12 +666,12 @@ export default function FamilyTree({ viewerMode = false }) {
 
   /* ════════════════ الواجهة ════════════════ */
   return (
-    <div style={{ width: '100vw', height: '100svh', background: '#080d14', overflow: 'hidden', position: 'relative', touchAction: 'none' }}>
+    <div style={{ width: '100vw', height: '100svh', background: '#0f1c2e', overflow: 'hidden', position: 'relative', touchAction: 'none' }}>
 
       {/* ── شريط الأدوات العلوي ── */}
       <div style={{
         position: 'absolute', top: 0, left: 0, right: 0, height: BAR_H,
-        background: 'rgba(8,13,20,0.92)',
+        background: 'rgba(15,28,46,0.92)',
         backdropFilter: 'blur(16px)',
         borderBottom: '1px solid rgba(255,255,255,0.07)',
         display: 'flex', alignItems: 'center',
@@ -620,23 +702,6 @@ export default function FamilyTree({ viewerMode = false }) {
         {/* أدوات التحكم */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
 
-          {/* اختيار مستوى الجيل */}
-          <select
-            value={genLevel}
-            onChange={e => { setGenLevel(Number(e.target.value)); setBranch(null); setSel(null) }}
-            className="font-nav text-sm rounded-xl px-3 py-1.5 outline-none cursor-pointer"
-            style={{
-              background: 'rgba(255,255,255,0.06)',
-              border: '1px solid rgba(255,255,255,0.1)',
-              color: 'rgba(255,255,255,0.65)',
-              maxWidth: 'clamp(68px, 20vw, 100px)',
-            }}
-          >
-            {Array.from({ length: maxGen }, (_, i) => i + 1).map(g => (
-              <option key={g} value={g} style={{ background: '#1a2533' }}>الجيل {g}</option>
-            ))}
-          </select>
-
           {/* فلتر الفخذ */}
           <select
             value={branch || ''}
@@ -646,12 +711,12 @@ export default function FamilyTree({ viewerMode = false }) {
               background: 'rgba(255,255,255,0.06)',
               border: `1px solid ${branch ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`,
               color: branch ? '#60a5fa' : 'rgba(255,255,255,0.65)',
-              maxWidth: 'clamp(80px, 24vw, 130px)',
+              maxWidth: 'clamp(100px, 30vw, 160px)',
             }}
           >
-            <option value="" style={{ background: '#1a2533' }}>🌳 الكل</option>
+            <option value="" style={{ background: '#1a2533' }}>🌳 إبراهيم + الفخوذ</option>
             {branches.map(b => (
-              <option key={b.id} value={b.id} style={{ background: '#1a2533' }}>{b.name}</option>
+              <option key={b.id} value={b.id} style={{ background: '#1a2533' }}>فخذ {b.name}</option>
             ))}
           </select>
 
@@ -767,7 +832,7 @@ export default function FamilyTree({ viewerMode = false }) {
       {/* ── مفتاح الألوان (يسار سفل) ── */}
       <div style={{
         position: 'absolute', bottom: 24, left: 20, zIndex: 50,
-        background: 'rgba(8,13,20,0.82)',
+        background: 'rgba(15,28,46,0.82)',
         border: '1px solid rgba(255,255,255,0.07)',
         borderRadius: 16, padding: '10px 14px',
         backdropFilter: 'blur(12px)',
@@ -790,7 +855,7 @@ export default function FamilyTree({ viewerMode = false }) {
       )}
 
       {/* ── نافذة التفاصيل ── */}
-      {sel && <Popup node={sel} onClose={() => setSel(null)} isAdmin={isAdmin} onUpdateNode={handleUpdateNode} />}
+      {sel && <Popup key={sel.id} node={sel} onClose={() => setSel(null)} isAdmin={isAdmin} user={user} onUpdateNode={handleUpdateNode} />}
     </div>
   )
 }

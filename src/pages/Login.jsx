@@ -9,12 +9,16 @@ export default function Login() {
   const navigate    = useNavigate()
   const [phone,    setPhone]    = useState('')
   const [password, setPassword] = useState('')
-  const [loading,  setLoading]  = useState(false)
-  const [error,    setError]    = useState('')
+  const [loading,        setLoading]        = useState(false)
+  const [error,          setError]          = useState('')
+  const [isRejected,     setIsRejected]     = useState(false)
+  const [rejectedReason, setRejectedReason] = useState('')
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+    setIsRejected(false)
+    setRejectedReason('')
     try {
       setLoading(true)
       const response = await fetch(import.meta.env.VITE_API_URL, {
@@ -32,6 +36,9 @@ export default function Login() {
         localStorage.setItem('user', JSON.stringify(userData))
         login(userData)
         navigate('/member-dashboard')
+      } else if (result.rejected) {
+        setIsRejected(true)
+        setRejectedReason(result.reason || '')
       } else {
         setError(result.message || 'بيانات الدخول غير صحيحة')
       }
@@ -85,6 +92,28 @@ export default function Login() {
 
         {/* النموذج */}
         <form onSubmit={handleSubmit} className="mt-10 space-y-5">
+
+          {isRejected && (
+            <div className="font-nav text-sm rounded-2xl overflow-hidden"
+              style={{ border: '1px solid rgba(251,146,60,0.45)', background: 'rgba(251,146,60,0.08)' }}>
+              <div className="flex items-center gap-2 px-4 py-2.5"
+                style={{ background: 'rgba(251,146,60,0.15)', borderBottom: '1px solid rgba(251,146,60,0.25)' }}>
+                <span style={{ fontSize: 18 }}>⚠️</span>
+                <span className="font-bold" style={{ color: '#fb923c' }}>تم رفض طلب التسجيل</span>
+              </div>
+              <div className="px-4 py-3 space-y-2" style={{ color: '#fed7aa' }}>
+                {rejectedReason && (
+                  <p style={{ color: '#fdba74' }}>
+                    <span className="font-bold">السبب: </span>{rejectedReason}
+                  </p>
+                )}
+                <p style={{ color: 'rgba(253,186,116,0.80)', fontSize: 12 }}>
+                  نعتذر منك أيها الكريم — العضوية مقتصرة على أبناء قبيلة السلامي فخذ العفاريت.
+                  إن كنت منهم وتعتقد أن هذا القرار خاطئ، يُرجى التواصل مع الإدارة.
+                </p>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="font-nav text-sm text-center py-2.5 px-4 rounded-2xl"

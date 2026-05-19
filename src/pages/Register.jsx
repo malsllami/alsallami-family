@@ -130,9 +130,24 @@ export default function Register() {
             WebkitMaskComposite:'xor', maskComposite:'exclude', padding:1, pointerEvents:'none' }} />
         )}
 
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <h1 className="text-4xl font-bold text-[var(--gold-main)]">طلب عضوية جديدة</h1>
           <p className="mt-3 font-nav text-sm text-gray-400">سيتم مراجعة طلبك واعتماده من الإدارة</p>
+        </div>
+
+        {/* تنبيه الانتساب القبلي */}
+        <div className="mb-6 rounded-2xl overflow-hidden font-nav text-sm"
+          style={{ border: '1px solid rgba(251,146,60,0.40)', background: 'rgba(251,146,60,0.07)' }}>
+          <div className="flex items-center gap-2 px-4 py-2.5"
+            style={{ background: 'rgba(251,146,60,0.14)', borderBottom: '1px solid rgba(251,146,60,0.22)' }}>
+            <span style={{ fontSize: 17 }}>⚠️</span>
+            <span className="font-bold" style={{ color: '#fb923c' }}>تنبيه مهم قبل التسجيل</span>
+          </div>
+          <p className="px-4 py-3 leading-relaxed" style={{ color: 'rgba(253,186,116,0.85)' }}>
+            نُرحّب بكم أيها الكرام — غير أننا نعتذر بأدب شديد عن قبول طلبات من خارج
+            {' '}<span className="font-bold" style={{ color: '#fdba74' }}>قبيلة السلامي فخذ العفاريت</span>.
+            {' '}العضوية مقتصرة حصراً على أبناء هذا الفخذ الكريم، وذلك حفاظاً على دقة السجل العائلي.
+          </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
