@@ -208,7 +208,19 @@ export default function Articles() {
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
             />
+            <div style={{
+              position: 'absolute', bottom: 12, left: 12,
+              background: 'rgba(8,13,20,0.85)', border: '1px solid rgba(198,161,107,0.3)',
+              borderRadius: 14, backdropFilter: 'blur(8px)',
+            }}>
+              <a href={siteMapUrl} target="_blank" rel="noopener noreferrer"
+                className="font-nav text-xs px-4 py-2 flex items-center gap-1.5"
+                style={{ color: 'var(--gold-main)', textDecoration: 'none' }}>
+                🗺️ فتح الخريطة
+              </a>
+            </div>
           </div>
         </div>
       )}

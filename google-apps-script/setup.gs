@@ -36,7 +36,7 @@ function getSheetDefs() {
       headers: [
         'رقم العضو', 'الاسم الأول', 'اسم الأب', 'اسم الجد',
         'الفخذ', 'الجيل', 'رقم الجوال', 'البريد الإلكتروني',
-        'تاريخ الميلاد', 'العمر', 'المدينة', 'المهنة',
+        'تاريخ الميلاد', 'العمر', 'المدينة', 'المهنة', 'الحالة الاجتماعية',
         'كلمة المرور', 'كلمة المرور المؤقتة', 'انتهاء المؤقتة',
         'الدور', 'حالة الحساب', 'تاريخ التسجيل',
         'رقم الهوية', 'حي/ميت'
@@ -44,7 +44,7 @@ function getSheetDefs() {
       widths: [
         120, 160, 150, 150,
         160, 120, 140, 210,
-        140,  80, 140, 150,
+        140,  80, 140, 150, 140,
         220, 220, 170,
         100, 130, 160,
         140, 100
@@ -738,6 +738,67 @@ function fixAdminPassword() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   إضافة عمود الحالة الاجتماعية للجدول الموجود (ترقية للجداول القديمة)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function addMaritalStatusColumn() {
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName('الأعضاء');
+  if (!sheet) {
+    Browser.msgBox('❌ خطأ', 'جدول الأعضاء غير موجود.', Browser.Buttons.OK);
+    return;
+  }
+
+  var headers = sheet.getDataRange().getValues()[0];
+
+  // تحقق إذا كان العمود موجوداً مسبقاً
+  if (headers.indexOf('الحالة الاجتماعية') > -1) {
+    Browser.msgBox('✅ موجود مسبقاً', 'عمود "الحالة الاجتماعية" موجود بالفعل في جدول الأعضاء.', Browser.Buttons.OK);
+    return;
+  }
+
+  // أضف العمود بعد 'المهنة'
+  var jobIdx = headers.indexOf('المهنة');
+  if (jobIdx === -1) {
+    Browser.msgBox('❌ خطأ', 'لم يُعثر على عمود "المهنة" في جدول الأعضاء.', Browser.Buttons.OK);
+    return;
+  }
+
+  var insertCol = jobIdx + 2; // موضع الإدراج (بعد المهنة)
+  sheet.insertColumnAfter(jobIdx + 1);
+
+  // ترويسة العمود الجديد
+  var hCell = sheet.getRange(1, insertCol);
+  hCell.setValue('الحالة الاجتماعية');
+  hCell.setBackground(CLR.members);
+  hCell.setFontColor('#FFFFFF');
+  hCell.setFontWeight('bold');
+  hCell.setFontSize(14);
+  hCell.setHorizontalAlignment('center');
+  hCell.setVerticalAlignment('middle');
+  hCell.setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+
+  // عرض العمود
+  sheet.setColumnWidth(insertCol, 140);
+
+  // تنسيق خلايا البيانات
+  var lastRow = Math.max(sheet.getLastRow(), 2);
+  var dRange  = sheet.getRange(2, insertCol, lastRow - 1, 1);
+  dRange.setHorizontalAlignment('center');
+  dRange.setVerticalAlignment('middle');
+  dRange.setFontSize(12);
+  dRange.setWrap(true);
+
+  SpreadsheetApp.flush();
+  Browser.msgBox(
+    '✅ تم بنجاح',
+    'تم إضافة عمود "الحالة الاجتماعية" في جدول الأعضاء.\n' +
+    'الآن بيانات الأعضاء الجدد ستُحفظ بشكل صحيح.',
+    Browser.Buttons.OK
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    القائمة المخصصة
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -754,6 +815,8 @@ function onOpen() {
     .addSeparator()
     .addItem('🔍  تشخيص تسجيل الدخول',                 'debugLogin')
     .addItem('🔑  إصلاح كلمة مرور المدير',              'fixAdminPassword')
+    .addSeparator()
+    .addItem('🔧  إضافة عمود الحالة الاجتماعية',        'addMaritalStatusColumn')
     .addToUi();
 }
 
