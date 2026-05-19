@@ -149,19 +149,11 @@ export default function App() {
             <div className="mt-5 flex items-center gap-4 justify-center lg:justify-start">
               <span className="h-px flex-1 max-w-[60px] bg-gradient-to-l from-[var(--gold-main)] to-transparent opacity-60" />
               <span
+                className="font-black"
                 style={{
                   fontFamily: 'var(--font-heading)',
                   fontSize: 'clamp(1.4rem, 3vw, 2rem)',
-                  fontWeight: '900',
-                  color: 'rgba(220,178,100,0.92)',
-                  letterSpacing: '0.1em',
-                  textShadow: [
-                    '0 1px 0 rgba(255,230,140,0.35)',
-                    '0 2px 6px rgba(0,0,0,0.95)',
-                    '1px 2px 4px rgba(0,0,0,0.85)',
-                    '-1px -1px 2px rgba(0,0,0,0.6)',
-                    '0 0 28px rgba(198,161,107,0.45)',
-                  ].join(', '),
+                  color: 'var(--gold-main)',
                 }}
               >
                 فخذ العفاريت
