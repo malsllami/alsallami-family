@@ -26,25 +26,24 @@ const WDG   = 12
 const WCG   = 8
 const WWG   = 8
 
-const GOLD      = 'rgba(198,161,107,0.72)'
-const GOLD_FULL = 'rgba(198,161,107,1)'
-const WIFE_LC   = 'rgba(251,113,133,0.28)'
+const GOLD    = 'rgba(198,161,107,0.72)'
+const WIFE_LC = 'rgba(251,113,133,0.28)'
 const BAR_H     = 60   // ارتفاع شريط الأدوات
 
 const JOBS = { student:'طالب', employee:'موظف', retired:'متقاعد', business:'رجل أعمال' }
 const calcAge   = (by, alive) => alive ? new Date().getFullYear() - by : null
 const firstName = str => (str || '').split(' ')[0]
 
-/* لوحة ألوان الأجيال — كل جيل له لون داخل مختلف مع نص واضح */
+/* لوحة ألوان الأجيال — حدود ملونة على خلفية موحدة داكنة */
 const GEN_PALETTE = [
-  { fill: 'rgba(198,161,107,0.30)', text: '#fde9a8', stroke: 'rgba(198,161,107,0.85)', line: 'rgba(198,161,107,0.40)' },
-  { fill: 'rgba(20,184,166,0.25)',  text: '#99f6e4', stroke: 'rgba(20,184,166,0.80)',  line: 'rgba(20,184,166,0.35)'  },
-  { fill: 'rgba(99,102,241,0.28)',  text: '#c7d2fe', stroke: 'rgba(99,102,241,0.80)',  line: 'rgba(99,102,241,0.35)'  },
-  { fill: 'rgba(168,85,247,0.28)',  text: '#e9d5ff', stroke: 'rgba(168,85,247,0.80)',  line: 'rgba(168,85,247,0.35)'  },
-  { fill: 'rgba(234,179,8,0.28)',   text: '#fef08a', stroke: 'rgba(234,179,8,0.80)',   line: 'rgba(234,179,8,0.35)'   },
-  { fill: 'rgba(16,185,129,0.28)',  text: '#a7f3d0', stroke: 'rgba(16,185,129,0.80)',  line: 'rgba(16,185,129,0.35)'  },
-  { fill: 'rgba(249,115,22,0.28)',  text: '#fed7aa', stroke: 'rgba(249,115,22,0.80)',  line: 'rgba(249,115,22,0.35)'  },
-  { fill: 'rgba(236,72,153,0.28)',  text: '#fbcfe8', stroke: 'rgba(236,72,153,0.80)',  line: 'rgba(236,72,153,0.35)'  },
+  { stroke: '#C6A16B', line: 'rgba(198,161,107,0.40)', glow: 'drop-shadow(0 0 8px rgba(198,161,107,0.70))' },
+  { stroke: '#00c896', line: 'rgba(0,200,150,0.35)',   glow: 'drop-shadow(0 0 8px rgba(0,200,150,0.35))'   },
+  { stroke: '#818cf8', line: 'rgba(99,102,241,0.35)',  glow: 'drop-shadow(0 0 7px rgba(99,102,241,0.45))'  },
+  { stroke: '#c084fc', line: 'rgba(168,85,247,0.35)',  glow: 'drop-shadow(0 0 7px rgba(168,85,247,0.45))'  },
+  { stroke: '#eab308', line: 'rgba(234,179,8,0.35)',   glow: 'drop-shadow(0 0 7px rgba(234,179,8,0.42))'   },
+  { stroke: '#34d399', line: 'rgba(16,185,129,0.35)',  glow: 'drop-shadow(0 0 8px rgba(0,200,150,0.35))'   },
+  { stroke: '#fb923c', line: 'rgba(249,115,22,0.35)',  glow: 'drop-shadow(0 0 6px rgba(249,115,22,0.34))'  },
+  { stroke: '#f472b6', line: 'rgba(236,72,153,0.35)',  glow: 'drop-shadow(0 0 7px rgba(236,72,153,0.45))'  },
 ]
 const genPalette = (depth) => GEN_PALETTE[depth % GEN_PALETTE.length]
 
@@ -149,33 +148,51 @@ function buildWivesData(nodes, showWives) {
 /* ════ مكونات SVG ══════════════════════════════════════════════════════════ */
 function CircleNode({ n, active, onClick }) {
   const { cx, cy, r, alive, marriedOut, name, depth = 0 } = n
-  const isMO  = !!marriedOut
-  const pal   = genPalette(depth)
+  const [hov, setHov] = useState(false)
+  const isMO = !!marriedOut
+  const pal  = genPalette(depth)
 
-  const fill     = active ? 'rgba(198,161,107,0.32)' : pal.fill
-  const textFill = active ? GOLD_FULL                : 'rgba(255,255,255,0.95)'
-  const stroke   = active ? GOLD_FULL                : pal.stroke
-  const strokeW  = active ? 2.8 : 1.8
-  const dash     = isMO ? '5,3' : 'none'
+  // تخفيف التوهج مع العمق: الجذر أوضح، الأحفاد أهدأ
+  const dimOp      = depth === 0 ? 1.0 : depth === 1 ? 0.85 : 0.70
+  const strokeColor = active ? '#C6A16B' : pal.stroke
+  const strokeW     = active ? 2.5 : hov ? 2.3 : 2.0
+  const strokeOp    = active ? 1.0 : hov ? Math.min(dimOp + 0.15, 1.0) : dimOp
+  const glowFilter  = active
+    ? 'drop-shadow(0 0 10px rgba(198,161,107,0.85))'
+    : pal.glow
 
   return (
-    <g onClick={onClick} style={{ cursor: 'pointer' }}>
+    <g
+      onClick={onClick}
+      onMouseEnter={() => setHov(true)}
+      onMouseLeave={() => setHov(false)}
+      style={{
+        cursor: 'pointer',
+        transformBox: 'fill-box',
+        transformOrigin: 'center',
+        transform: hov ? 'scale(1.05)' : 'scale(1)',
+        transition: 'transform .25s ease',
+      }}
+    >
       {alive && (
         <circle cx={cx} cy={cy} r={r + 5}
-          fill="none" stroke="rgba(74,222,128,0.18)" strokeWidth={6}
+          fill="none" stroke="#00c896" strokeWidth={6} strokeOpacity={0.22}
           style={{ filter: 'blur(6px)' }} />
       )}
       <circle cx={cx} cy={cy} r={r}
-        fill={fill} stroke={stroke}
-        strokeWidth={strokeW} strokeDasharray={dash}
-        style={{ filter: active ? `drop-shadow(0 0 8px ${pal.stroke})` : `drop-shadow(0 0 3px ${pal.stroke})` }}
+        fill="#18222d"
+        stroke={strokeColor}
+        strokeWidth={strokeW}
+        strokeDasharray={isMO ? '5,3' : 'none'}
+        strokeOpacity={strokeOp}
+        style={{ filter: glowFilter }}
       />
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-        fill={textFill}
-        fontSize={isMO ? 11 : 12}
-        fontWeight={active ? '700' : '600'}
-        fontFamily="Cairo,Tajawal,system-ui,sans-serif"
-        style={{ userSelect: 'none', pointerEvents: 'none' }}>
+        fill="#ffffff"
+        fontSize={15}
+        fontWeight="700"
+        fontFamily="Cairo,sans-serif"
+        style={{ userSelect: 'none', pointerEvents: 'none', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.45))' }}>
         {firstName(name)}
       </text>
     </g>
@@ -678,7 +695,7 @@ export default function FamilyTree({ viewerMode = false }) {
           {/* خطوط الأب–الأبناء */}
           {lines.map((l, i) => (
             <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-              stroke={genPalette(l.d ?? 0).line} strokeWidth={1.6} />
+              stroke={genPalette(l.d ?? 0).line} strokeWidth={1.2} opacity={0.65} />
           ))}
 
           {/* خطوط وحدة الزواج */}
