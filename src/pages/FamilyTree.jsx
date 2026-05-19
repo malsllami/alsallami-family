@@ -246,13 +246,14 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     return m || ''
   }
 
-  const [editing,     setEditing]     = useState(false)
-  const [editName,    setEditName]    = useState(node.name)
-  const [editAlive,   setEditAlive]   = useState(node.alive)
-  const [editPhone,   setEditPhone]   = useState(node.phone || '')
-  const [editMarital, setEditMarital] = useState(mapMarital(node.marital))
-  const [editJob,     setEditJob]     = useState(node.job || '')
-  const [saving,      setSaving]      = useState(false)
+  const [editing,      setEditing]      = useState(false)
+  const [editName,     setEditName]     = useState(node.name)
+  const [editAlive,    setEditAlive]    = useState(node.alive)
+  const [editPhone,    setEditPhone]    = useState(node.phone || '')
+  const [editMarital,  setEditMarital]  = useState(mapMarital(node.marital))
+  const [editJob,      setEditJob]      = useState(node.job || '')
+  const [editLocation, setEditLocation] = useState(node.location || '')
+  const [saving,       setSaving]       = useState(false)
 
   const isWifeDaughter = node.isWife || node.isDaughter || node.isSon
   const isLoggedIn     = !!user
@@ -273,6 +274,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     setEditPhone(node.phone || '')
     setEditMarital(mapMarital(node.marital))
     setEditJob(node.job || '')
+    setEditLocation(node.location || '')
   }
 
   const handleSave = async () => {
@@ -290,20 +292,21 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
           }) })
         } else {
           await fetch(API, { method: 'POST', body: JSON.stringify({
-            action:  'updateTreeNode',
-            nodeId:  node.id,
-            name:    editName.trim(),
-            status:  editAlive ? 'حي' : 'متوفى',
-            phone:   editPhone.trim(),
-            marital: editMarital,
-            job:     editJob.trim(),
+            action:   'updateTreeNode',
+            nodeId:   node.id,
+            name:     editName.trim(),
+            status:   editAlive ? 'حي' : 'متوفى',
+            phone:    editPhone.trim(),
+            marital:  editMarital,
+            job:      editJob,
+            location: editLocation.trim(),
           }) })
         }
       } catch { /* network error — local state still updated */ }
     }
     const updates = isWifeDaughter
       ? { alive: editAlive }
-      : { name: editName.trim(), alive: editAlive, phone: editPhone.trim(), marital: editMarital, job: editJob.trim() }
+      : { name: editName.trim(), alive: editAlive, phone: editPhone.trim(), marital: editMarital, job: editJob, location: editLocation.trim() }
     onUpdateNode(node.id, updates)
     setSaving(false)
     onClose()
@@ -365,7 +368,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               </div>
             </EF>
 
-            {/* الحالة الاجتماعية + المهنة + الجوال — للعقد الرئيسية فقط */}
+            {/* الحالة الاجتماعية + المهنة + المدينة + الجوال — للعقد الرئيسية فقط */}
             {!isWifeDaughter && <>
               <EF label="الحالة الاجتماعية">
                 <select value={editMarital} onChange={e => setEditMarital(e.target.value)}
@@ -378,8 +381,19 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                 </select>
               </EF>
               <EF label="المهنة">
-                <input type="text" value={editJob} onChange={e => setEditJob(e.target.value)}
-                  className="form-input w-full" style={{ direction: 'rtl' }} placeholder="مثال: موظف، طالب..." />
+                <select value={editJob} onChange={e => setEditJob(e.target.value)}
+                  className="form-input w-full" style={{ direction: 'rtl' }}>
+                  <option value="">— اختر —</option>
+                  <option value="موظف">موظف</option>
+                  <option value="طالب">طالب</option>
+                  <option value="رجل أعمال">رجل أعمال</option>
+                  <option value="متقاعد">متقاعد</option>
+                  <option value="عاطل">عاطل</option>
+                </select>
+              </EF>
+              <EF label="المدينة">
+                <input type="text" value={editLocation} onChange={e => setEditLocation(e.target.value)}
+                  className="form-input w-full" style={{ direction: 'rtl' }} placeholder="مثال: الرياض، جدة..." />
               </EF>
               <EF label="رقم الجوال">
                 <input type="text" inputMode="numeric" value={editPhone} onChange={e => setEditPhone(e.target.value)}
@@ -563,7 +577,7 @@ export default function FamilyTree({ viewerMode = false }) {
     const s  = 0.65
     const rootTopInSvg = PAD + MR - nodeR(0)   // الحافة العليا لعقدة إبراهيم
     setTx({ s, x: vw / 2 - (svgW / 2) * s, y: BAR_H + 20 - rootTopInSvg * s })
-  }, [svgW])
+  }, [svgW, setTx])
 
   // عند أول تحميل للبيانات الحقيقية
   useEffect(() => {

@@ -485,9 +485,9 @@ function updateTreeNode(body) {
     if (aliveCol > 0) sheet.getRange(found.rowIndex, aliveCol).setValue(status);
   }
 
-  // تحديث بيانات العضو في جدول الأعضاء (الجوال + الحالة الاجتماعية + المهنة)
+  // تحديث بيانات العضو في جدول الأعضاء (الجوال + الحالة الاجتماعية + المهنة + المدينة)
   var memberId = String(found.rowData[found.headers.indexOf('رقم العضو')] || '').trim();
-  if (memberId && (body.phone !== undefined || body.marital !== undefined || body.job !== undefined)) {
+  if (memberId && (body.phone !== undefined || body.marital !== undefined || body.job !== undefined || body.location !== undefined)) {
     var mFound = findRow('الأعضاء', 0, memberId);
     if (mFound) {
       var mSheet = getSheet('الأعضاء');
@@ -503,6 +503,10 @@ function updateTreeNode(body) {
       if (body.job !== undefined) {
         var jobCol = mHdrs.indexOf('المهنة') + 1;
         if (jobCol > 0) mSheet.getRange(mFound.rowIndex, jobCol).setValue(String(body.job || '').trim());
+      }
+      if (body.location !== undefined) {
+        var locationCol = mHdrs.indexOf('المدينة') + 1;
+        if (locationCol > 0) mSheet.getRange(mFound.rowIndex, locationCol).setValue(String(body.location || '').trim());
       }
     }
   }
