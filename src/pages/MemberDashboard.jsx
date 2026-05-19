@@ -661,85 +661,10 @@ export default function MemberDashboard() {
         </Card>
       </div>
 
-      {/* الصف الثاني: الزوجات + الأبناء */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* الصف الثاني: الأبناء */}
+      <div className="grid grid-cols-1 gap-5">
 
-        {/* 🌸 الزوجات */}
-        <Card t={T.rose} title="الزوجات" icon={
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={T.rose.accent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-          </svg>
-        } action={!dataLoading && (
-          <button onClick={() => { setShowAddWife(v => !v); setEditingWifeId(null) }}
-            className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-            style={{ border: `1px solid ${showAddWife ? T.rose.border : 'rgba(255,255,255,0.1)'}`, color: showAddWife ? T.rose.accent : 'rgba(255,255,255,0.4)', background: showAddWife ? T.rose.soft : 'transparent' }}>
-            {showAddWife ? 'إلغاء' : '+ إضافة'}
-          </button>
-        )}>
-          {dataLoading ? <Skeleton lines={2} /> : (
-            <>
-              {!visibleWives.length ? (
-                <p className="font-nav text-sm text-gray-600 py-1">لا توجد زوجات مسجلة</p>
-              ) : visibleWives.map((w) => (
-                editingWifeId === w.id ? (
-                  /* وضع التعديل */
-                  <div key={w.id} className="py-3 border-b border-white/[0.05] last:border-0 space-y-2">
-                    <input type="text" value={wifeDraft.name} placeholder="اسم الزوجة"
-                      onChange={e => setWifeDraft(p => ({ ...p, name: e.target.value }))} className="form-input" />
-                    <select value={wifeDraft.status}
-                      onChange={e => setWifeDraft(p => ({ ...p, status: e.target.value }))} className="form-input">
-                      <option value="مستمرة">مستمرة</option>
-                      <option value="منفصلة">منفصلة</option>
-                    </select>
-                    <div className="flex items-center gap-2">
-                      <span className="font-nav text-xs text-gray-500">الحالة:</span>
-                      <AliveToggle alive={wifeDraft.alive} onChange={v => setWifeDraft(p => ({ ...p, alive: v }))} />
-                    </div>
-                    <InlineEditButtons t={T.rose} onSave={handleUpdateWife} onCancel={() => setEditingWifeId(null)} loading={wifeEditLoad} />
-                  </div>
-                ) : (
-                  /* وضع العرض */
-                  <div key={w.id} className="flex items-center justify-between py-2.5 border-b border-white/[0.05] last:border-0">
-                    <div>
-                      <p className="font-nav text-sm text-white/85">{w.name}</p>
-                      {w.alive === false && (
-                        <span className="font-nav text-[10px] px-1.5 py-0.5 rounded-full mt-0.5 inline-block"
-                          style={{ background: 'rgba(239,68,68,0.08)', color: '#f87171' }}>متوفى</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-nav text-[11px] px-2 py-1 rounded-full"
-                        style={{ background: w.status === 'منفصلة' ? 'rgba(251,146,60,0.1)' : T.rose.soft, color: w.status === 'منفصلة' ? '#fb923c' : T.rose.accent }}>
-                        {w.status || 'مستمرة'}
-                      </span>
-                      <SmallBtn t={T.rose} onClick={() => startEditWife(w)} label="تعديل" />
-                      <SmallBtn t={T.rose} onClick={() => handleRemoveWife(w.id)} label="حذف" danger />
-                    </div>
-                  </div>
-                )
-              ))}
-
-              {/* نموذج إضافة زوجة */}
-              <SlidePanel open={showAddWife}>
-                <input type="text" placeholder="اسم الزوجة" value={wifeName}
-                  onChange={e => setWifeName(e.target.value)} className="form-input" />
-                <select value={wifeStatus} onChange={e => setWifeStatus(e.target.value)} className="form-input">
-                  <option value="مستمرة">مستمرة</option>
-                  <option value="منفصلة">منفصلة</option>
-                </select>
-                <div className="flex items-center gap-2">
-                  <span className="font-nav text-xs text-gray-500">الحالة الصحية:</span>
-                  <AliveToggle alive={wifeAddAlive} onChange={setWifeAddAlive} />
-                </div>
-                <button onClick={handleAddWife} disabled={wifeLoading}
-                  className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-                  style={{ background: T.rose.soft, border: `1px solid ${T.rose.border}`, color: T.rose.accent }}>
-                  {wifeLoading ? 'جاري الإضافة...' : 'إضافة زوجة'}
-                </button>
-              </SlidePanel>
-            </>
-          )}
-        </Card>
+        {/* 🌸 الزوجات — مخفية */}
 
         {/* 🌿 الأبناء */}
         <Card t={T.emerald} title="الأبناء" icon={
@@ -758,9 +683,9 @@ export default function MemberDashboard() {
         )}>
           {dataLoading ? <Skeleton lines={3} /> : (
             <>
-              {!(m.children?.length) ? (
+              {!(m.children?.filter(c => c.gender !== 'أنثى').length) ? (
                 <p className="font-nav text-sm text-gray-600 py-1">لا يوجد أبناء مسجلون</p>
-              ) : m.children.map((c, i) => (
+              ) : m.children.filter(c => c.gender !== 'أنثى').map((c, i) => (
                 editingChildId === c.id ? (
                   /* وضع التعديل */
                   <div key={c.id} className="py-3 border-b border-white/[0.05] last:border-0 space-y-2">
@@ -768,11 +693,6 @@ export default function MemberDashboard() {
                       onChange={e => setChildDraft(p => ({ ...p, name: e.target.value }))} className="form-input" />
                     <input type="date" value={childDraft.birthDate}
                       onChange={e => setChildDraft(p => ({ ...p, birthDate: e.target.value }))} className="form-input" />
-                    <select value={childDraft.gender}
-                      onChange={e => setChildDraft(p => ({ ...p, gender: e.target.value }))} className="form-input">
-                      <option value="ذكر">ذكر</option>
-                      <option value="أنثى">أنثى</option>
-                    </select>
                     <select value={childDraft.job}
                       onChange={e => setChildDraft(p => ({ ...p, job: e.target.value }))} className="form-input">
                       <option value="">— المهنة / الحالة —</option>
@@ -824,10 +744,6 @@ export default function MemberDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-nav text-[11px] px-2 py-1 rounded-full"
-                        style={{ background: c.gender === 'أنثى' ? 'rgba(244,63,94,0.12)' : T.emerald.soft, color: c.gender === 'أنثى' ? '#fb7185' : T.emerald.accent }}>
-                        {c.gender || 'ذكر'}
-                      </span>
                       <SmallBtn t={T.emerald} onClick={() => startEditChild(c)} label="تعديل" />
                       <SmallBtn t={T.emerald} onClick={() => handleRemoveChild(c.id)} label="حذف" danger />
                     </div>
@@ -841,11 +757,6 @@ export default function MemberDashboard() {
                   onChange={e => setNewChild(p => ({ ...p, name: e.target.value }))} className="form-input" />
                 <input type="date" value={newChild.birthDate}
                   onChange={e => setNewChild(p => ({ ...p, birthDate: e.target.value }))} className="form-input" />
-                <select value={newChild.gender}
-                  onChange={e => setNewChild(p => ({ ...p, gender: e.target.value }))} className="form-input">
-                  <option value="ذكر">ذكر</option>
-                  <option value="أنثى">أنثى</option>
-                </select>
                 <select value={newChild.job}
                   onChange={e => setNewChild(p => ({ ...p, job: e.target.value }))} className="form-input">
                   <option value="">— المهنة / الحالة —</option>
@@ -874,7 +785,7 @@ export default function MemberDashboard() {
                 <button onClick={handleAddChild} disabled={childLoading}
                   className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
                   style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
-                  {childLoading ? 'جاري الإضافة...' : 'إضافة ابن / بنت'}
+                  {childLoading ? 'جاري الإضافة...' : 'إضافة ابن'}
                 </button>
               </SlidePanel>
             </>

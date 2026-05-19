@@ -90,6 +90,7 @@ const SERVICES = [
 export default function App() {
   const navigate = useNavigate()
   const heroRef  = useRef(null)
+  const user     = JSON.parse(localStorage.getItem('user') || 'null')
 
   const [logoOffset, setLogoOffset] = useState({ x: 0, y: 0 })
   const [stats,      setStats]      = useState(null)
@@ -150,10 +151,17 @@ export default function App() {
               <span
                 style={{
                   fontFamily: 'var(--font-heading)',
-                  fontSize: 'clamp(1.3rem, 3vw, 1.9rem)',
-                  color: 'var(--gold-main)',
-                  letterSpacing: '0.06em',
-                  textShadow: '0 0 24px rgba(198,161,107,0.35)',
+                  fontSize: 'clamp(1.4rem, 3vw, 2rem)',
+                  fontWeight: '900',
+                  color: 'rgba(220,178,100,0.92)',
+                  letterSpacing: '0.1em',
+                  textShadow: [
+                    '0 1px 0 rgba(255,230,140,0.35)',
+                    '0 2px 6px rgba(0,0,0,0.95)',
+                    '1px 2px 4px rgba(0,0,0,0.85)',
+                    '-1px -1px 2px rgba(0,0,0,0.6)',
+                    '0 0 28px rgba(198,161,107,0.45)',
+                  ].join(', '),
                 }}
               >
                 فخذ العفاريت
@@ -176,10 +184,12 @@ export default function App() {
                 className="btn-primary font-nav bg-[var(--gold-main)] text-black px-10 py-[14px] rounded-2xl text-lg font-bold">
                 استعراض شجرة العائلة
               </button>
-              <button onClick={() => navigate('/register')}
-                className="btn-outline font-nav border-2 border-[var(--gold-main)] text-[var(--gold-main)] px-10 py-[13px] rounded-2xl text-lg font-bold hover:bg-[var(--gold-main)] hover:text-black">
-                انضم إلى العائلة
-              </button>
+              {!user && (
+                <button onClick={() => navigate('/register')}
+                  className="btn-outline font-nav border-2 border-[var(--gold-main)] text-[var(--gold-main)] px-10 py-[13px] rounded-2xl text-lg font-bold hover:bg-[var(--gold-main)] hover:text-black">
+                  انضم إلى العائلة
+                </button>
+              )}
             </div>
           </div>
 
@@ -215,7 +225,7 @@ export default function App() {
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {SERVICES.map(s => (
+          {SERVICES.filter(s => !(user && s.path === '/register')).map(s => (
             <button key={s.path} onClick={() => navigate(s.path)}
               className="group text-right rounded-[24px] p-5 flex flex-col gap-3 transition-all duration-300"
               style={{

@@ -31,12 +31,12 @@ export default function MainLayout() {
   const adminUnlocked = sessionStorage.getItem('adminUnlocked') === '1'
 
   const navItems = [
-    { name: 'الرئيسية',    path: '/'               },
-    { name: 'شجرة العائلة', path: '/family-tree'    },
-    { name: 'المقالات',    path: '/articles'        },
-    { name: 'الصناديق',    path: '/funds'           },
-    ...(user                         ? [{ name: 'لوحة العضو',  path: '/member-dashboard' }] : []),
-    ...(user?.roles?.includes('admin') ? [{ name: 'لوحة المدير', path: '/admin-dashboard', adminLock: !adminUnlocked }] : []),
+    { name: 'الرئيسية', path: '/'        },
+    { name: 'المقالات', path: '/articles' },
+    { name: 'الصناديق', path: '/funds'   },
+    ...(user                             ? [{ name: 'شجرة العائلة', path: '/family-tree'    }] : []),
+    ...(user                             ? [{ name: 'لوحة العضو',   path: '/member-dashboard' }] : []),
+    ...(user?.roles?.includes('admin')   ? [{ name: 'لوحة المدير',  path: '/admin-dashboard', adminLock: !adminUnlocked }] : []),
   ]
 
   const active = (path) => location.pathname === path

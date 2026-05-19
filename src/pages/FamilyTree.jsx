@@ -355,13 +355,13 @@ export default function FamilyTree({ viewerMode = false }) {
   /* ── حالة الشجرة ── */
   const [treeRoot,   setTreeRoot]  = useState(FALLBACK)
   const [loading,    setLoading]   = useState(!!import.meta.env.VITE_API_URL)
-  const [pub,        setPub]       = useState(!viewerMode)
+  const pub = true
   const [branch,     setBranch]    = useState(null)
   const [genLevel,   setGenLevel]  = useState(2)
   const [sel,        setSel]       = useState(null)
   const [tx,         setTx]        = useState({ x: 0, y: 0, s: 0.5 })
   const [isDragging, setDrag]      = useState(false)
-  const showWives = !pub && (!!user || viewerMode)
+  const showWives = false
   const isAdmin   = !viewerMode && user?.roles?.includes('admin')
 
   /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
@@ -642,22 +642,7 @@ export default function FamilyTree({ viewerMode = false }) {
             </button>
           )}
 
-          {/* زر تبديل العرض — الأعضاء فقط */}
-          {!viewerMode && user && (
-            <button
-              onClick={() => { setPub(v => !v); setSel(null); setBranch(null) }}
-              className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
-              style={{
-                background: pub ? 'transparent' : 'rgba(198,161,107,0.12)',
-                border: `1px solid ${pub ? 'rgba(255,255,255,0.1)' : 'rgba(198,161,107,0.3)'}`,
-                color: pub ? 'rgba(255,255,255,0.45)' : 'var(--gold-main)',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              <span className="hidden sm:inline">{pub ? '👁 كامل' : '🌐 عام'}</span>
-              <span className="sm:hidden">{pub ? '👁' : '🌐'}</span>
-            </button>
-          )}
+          {/* زر تبديل العرض — معطّل (شجرة ذكور دائماً) */}
         </div>
       </div>
 
