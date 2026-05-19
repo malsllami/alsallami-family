@@ -28,13 +28,25 @@ const WWG   = 8
 
 const GOLD      = 'rgba(198,161,107,0.72)'
 const GOLD_FULL = 'rgba(198,161,107,1)'
-const LINE_C    = 'rgba(198,161,107,0.28)'
 const WIFE_LC   = 'rgba(251,113,133,0.28)'
 const BAR_H     = 60   // ارتفاع شريط الأدوات
 
 const JOBS = { student:'طالب', employee:'موظف', retired:'متقاعد', business:'رجل أعمال' }
 const calcAge   = (by, alive) => alive ? new Date().getFullYear() - by : null
 const firstName = str => (str || '').split(' ')[0]
+
+/* لوحة ألوان الأجيال — كل جيل له لون داخل مختلف مع نص واضح */
+const GEN_PALETTE = [
+  { fill: 'rgba(198,161,107,0.30)', text: '#fde9a8', stroke: 'rgba(198,161,107,0.85)', line: 'rgba(198,161,107,0.40)' },
+  { fill: 'rgba(20,184,166,0.25)',  text: '#99f6e4', stroke: 'rgba(20,184,166,0.80)',  line: 'rgba(20,184,166,0.35)'  },
+  { fill: 'rgba(99,102,241,0.28)',  text: '#c7d2fe', stroke: 'rgba(99,102,241,0.80)',  line: 'rgba(99,102,241,0.35)'  },
+  { fill: 'rgba(168,85,247,0.28)',  text: '#e9d5ff', stroke: 'rgba(168,85,247,0.80)',  line: 'rgba(168,85,247,0.35)'  },
+  { fill: 'rgba(234,179,8,0.28)',   text: '#fef08a', stroke: 'rgba(234,179,8,0.80)',   line: 'rgba(234,179,8,0.35)'   },
+  { fill: 'rgba(16,185,129,0.28)',  text: '#a7f3d0', stroke: 'rgba(16,185,129,0.80)',  line: 'rgba(16,185,129,0.35)'  },
+  { fill: 'rgba(249,115,22,0.28)',  text: '#fed7aa', stroke: 'rgba(249,115,22,0.80)',  line: 'rgba(249,115,22,0.35)'  },
+  { fill: 'rgba(236,72,153,0.28)',  text: '#fbcfe8', stroke: 'rgba(236,72,153,0.80)',  line: 'rgba(236,72,153,0.35)'  },
+]
+const genPalette = (depth) => GEN_PALETTE[depth % GEN_PALETTE.length]
 
 /* ════ وظائف مساعدة للشجرة ═════════════════════════════════════════════════ */
 function flatByDepth(node, targetDepth, currentDepth) {
@@ -86,7 +98,7 @@ function buildNodes(node, x0, depth, pub, showWives) {
   const ch  = visKids(node, pub)
   const cy  = PAD + MR + depth * V_GAP
   const r   = node.gender === 'female' ? FR : MR
-  if (!ch.length) return [{ ...node, cx: x0 + MR, cy, r }]
+  if (!ch.length) return [{ ...node, cx: x0 + MR, cy, r, depth }]
   const childOut = []
   let x = x0
   for (const c of ch) {
@@ -95,22 +107,23 @@ function buildNodes(node, x0, depth, pub, showWives) {
   }
   const firstCX = childOut.find(n => n.id === ch[0].id).cx
   const lastCX  = childOut.find(n => n.id === ch[ch.length - 1].id).cx
-  return [{ ...node, cx: Math.round((firstCX + lastCX) / 2), cy, r }, ...childOut]
+  return [{ ...node, cx: Math.round((firstCX + lastCX) / 2), cy, r, depth }, ...childOut]
 }
 function buildLines(node, byId, pub) {
   const ch = visKids(node, pub)
   if (!ch.length) return []
   const p   = byId[node.id], pR = p.r ?? MR
+  const d   = p.depth ?? 0
   const fc  = byId[ch[0].id], cR = fc.r ?? MR
   const midY = p.cy + pR + (fc.cy - cR - p.cy - pR) / 2
   const childXs = ch.map(c => byId[c.id].cx)
   const segs = [
-    { x1: p.cx, y1: p.cy + pR,             x2: p.cx,              y2: midY },
-    { x1: Math.min(p.cx, ...childXs), y1: midY, x2: Math.max(p.cx, ...childXs), y2: midY },
+    { x1: p.cx, y1: p.cy + pR,                                   x2: p.cx,                                  y2: midY, d },
+    { x1: Math.min(p.cx, ...childXs), y1: midY, x2: Math.max(p.cx, ...childXs), y2: midY, d },
   ]
   for (const c of ch) {
     const cp = byId[c.id], cpR = cp.r ?? MR
-    segs.push({ x1: cp.cx, y1: midY, x2: cp.cx, y2: cp.cy - cpR })
+    segs.push({ x1: cp.cx, y1: midY, x2: cp.cx, y2: cp.cy - cpR, d })
     segs.push(...buildLines(c, byId, pub))
   }
   return segs
@@ -135,33 +148,33 @@ function buildWivesData(nodes, showWives) {
 
 /* ════ مكونات SVG ══════════════════════════════════════════════════════════ */
 function CircleNode({ n, active, onClick }) {
-  const { cx, cy, r, gender, alive, marriedOut, name } = n
-  const isMO = !!marriedOut
-  let fill, textFill, dash, strokeW
-  if (isMO) {
-    fill = 'rgba(139,92,246,0.15)'; textFill = '#c4b5fd'; dash = '5,3'; strokeW = active ? 2.5 : 1.8
-  } else if (gender === 'female') {
-    fill = 'rgba(244,63,94,0.13)';  textFill = '#fda4af'; dash = 'none'; strokeW = active ? 2.5 : 1.8
-  } else {
-    fill     = active ? 'rgba(198,161,107,0.18)' : 'rgba(59,130,246,0.13)'
-    textFill = active ? 'var(--gold-main)' : 'rgba(255,255,255,0.92)'
-    dash = 'none'; strokeW = active ? 2.5 : 1.8
-  }
+  const { cx, cy, r, alive, marriedOut, name, depth = 0 } = n
+  const isMO  = !!marriedOut
+  const pal   = genPalette(depth)
+
+  const fill     = active ? 'rgba(198,161,107,0.32)' : pal.fill
+  const textFill = active ? GOLD_FULL                : pal.text
+  const stroke   = active ? GOLD_FULL                : pal.stroke
+  const strokeW  = active ? 2.8 : 1.8
+  const dash     = isMO ? '5,3' : 'none'
+
   return (
     <g onClick={onClick} style={{ cursor: 'pointer' }}>
       {alive && (
-        <circle cx={cx} cy={cy} r={r + 4}
-          fill="none" stroke="rgba(74,222,128,0.2)" strokeWidth={5}
-          style={{ filter: 'blur(5px)' }} />
+        <circle cx={cx} cy={cy} r={r + 5}
+          fill="none" stroke="rgba(74,222,128,0.18)" strokeWidth={6}
+          style={{ filter: 'blur(6px)' }} />
       )}
       <circle cx={cx} cy={cy} r={r}
-        fill={fill} stroke={active ? GOLD_FULL : GOLD}
+        fill={fill} stroke={stroke}
         strokeWidth={strokeW} strokeDasharray={dash}
-        style={{ filter: active ? 'drop-shadow(0 0 7px rgba(198,161,107,0.55))' : undefined }}
+        style={{ filter: active ? `drop-shadow(0 0 8px ${pal.stroke})` : `drop-shadow(0 0 3px ${pal.stroke})` }}
       />
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-        fill={textFill} fontSize={isMO ? 11 : 12} fontWeight={active ? '600' : '500'}
-        fontFamily="Tajawal,system-ui,sans-serif"
+        fill={textFill}
+        fontSize={isMO ? 11 : 12}
+        fontWeight={active ? '700' : '600'}
+        fontFamily="Cairo,Tajawal,system-ui,sans-serif"
         style={{ userSelect: 'none', pointerEvents: 'none' }}>
         {firstName(name)}
       </text>
@@ -665,7 +678,7 @@ export default function FamilyTree({ viewerMode = false }) {
           {/* خطوط الأب–الأبناء */}
           {lines.map((l, i) => (
             <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-              stroke={LINE_C} strokeWidth={1.6} />
+              stroke={genPalette(l.d ?? 0).line} strokeWidth={1.6} />
           ))}
 
           {/* خطوط وحدة الزواج */}
