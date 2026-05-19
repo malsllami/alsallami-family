@@ -187,21 +187,22 @@ function CircleNode({ n, active, onClick }) {
         transition: 'transform .25s ease',
       }}
     >
+      {/* حلقة الحياة — أوضح وأكثر صلابة */}
       {alive && (
         <circle cx={cx} cy={cy} r={r + 5}
-          fill="none" stroke="#00c896" strokeWidth={6} strokeOpacity={0.22}
-          style={{ filter: 'blur(6px)' }} />
+          fill="none" stroke="#00c896" strokeWidth={5} strokeOpacity={0.40}
+          style={{ filter: 'blur(3px)' }} />
       )}
       <circle cx={cx} cy={cy} r={r}
         fill="#18222d"
         stroke={strokeColor}
         strokeWidth={strokeW}
-        strokeDasharray={isMO ? '5,3' : 'none'}
+        strokeDasharray={alive ? 'none' : '5,3'}
         strokeOpacity={strokeOp}
         style={{ filter: glowFilter }}
       />
       <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-        fill="#ffffff"
+        fill={alive ? '#ffffff' : 'rgba(255,255,255,0.52)'}
         fontSize={15}
         fontWeight="700"
         fontFamily="Cairo,sans-serif"
@@ -476,13 +477,13 @@ export default function FamilyTree({ viewerMode = false }) {
   /* ── بناء الشجرة ── */
   // عند اختيار فخذ: أبقِ إبراهيم→أحمد→الفخذ المختار وأزل الفخوذ الأخرى
   const effectiveRoot = useMemo(() => {
-    if (!branch) return treeRoot
+    if (!branch || branch === 'all') return treeRoot
     return pruneToPath(treeRoot, branch) || treeRoot
   }, [branch, treeRoot])
 
   const { nodes, lines, wives, wLines, svgW, svgH } = useMemo(() => {
-    // بدون فخذ: اعرض أول 3 مستويات فقط (إبراهيم→أحمد→الفخوذ)
-    const renderRoot      = branch ? effectiveRoot : shallowTree(effectiveRoot, 2)
+    // بدون فخذ: اعرض أول 3 مستويات فقط (إبراهيم→أحمد→الفخوذ) — الكل: كامل الشجرة
+    const renderRoot      = !branch ? shallowTree(effectiveRoot, 2) : effectiveRoot
     const nl              = buildNodes(renderRoot, PAD, 0, !showWives, showWives)
     const byId            = Object.fromEntries(nl.map(n => [n.id, n]))
     const ll              = buildLines(renderRoot, byId, !showWives)
@@ -574,7 +575,10 @@ export default function FamilyTree({ viewerMode = false }) {
 
   // عند تغيير الفخذ: أعد التمركز
   useEffect(() => {
-    if (initDone.current) requestAnimationFrame(defaultView)
+    if (initDone.current) {
+      if (branch === 'all') requestAnimationFrame(fitToScreen)
+      else requestAnimationFrame(defaultView)
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branch])
 
@@ -715,6 +719,7 @@ export default function FamilyTree({ viewerMode = false }) {
             }}
           >
             <option value="" style={{ background: '#1a2533' }}>🌳 إبراهيم + الفخوذ</option>
+            <option value="all" style={{ background: '#1a2533' }}>🌐 الكل</option>
             {branches.map(b => (
               <option key={b.id} value={b.id} style={{ background: '#1a2533' }}>فخذ {b.name}</option>
             ))}
@@ -844,7 +849,8 @@ export default function FamilyTree({ viewerMode = false }) {
           <LegendDot fill="rgba(139,92,246,0.15)" stroke={GOLD} dash label="متزوجة خارجاً" />
           <LegendDot fill="rgba(244,63,94,0.12)"  stroke={GOLD} dash label="زوجة ◆" />
         </>}
-        <LegendDot fill="rgba(59,130,246,0.1)"  stroke={GOLD} alive label="توهج = حي" />
+        <LegendDot fill="rgba(59,130,246,0.1)"  stroke={GOLD} alive label="حي" />
+        <LegendDot fill="rgba(59,130,246,0.05)" stroke="rgba(198,161,107,0.45)" dash label="متوفى" />
       </div>
 
       {/* ── loading ── */}
