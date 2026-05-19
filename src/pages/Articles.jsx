@@ -80,17 +80,12 @@ export default function Articles() {
   const [saving,     setSaving]     = useState(false)
   const [deletingId, setDeletingId] = useState(null)
   const [expanded,   setExpanded]   = useState(null)
-  const [siteMapUrl, setSiteMapUrl] = useState('')
 
-  /* ── تحميل المقالات والإعدادات ── */
+  /* ── تحميل المقالات ── */
   const loadArticles = useCallback(async () => {
     try {
-      const [artData, settData] = await Promise.all([
-        callApi({ action: 'getArticles' }),
-        callApi({ action: 'getSettings' }),
-      ])
-      if (artData.success) setArticles(artData.articles)
-      if (settData.success) setSiteMapUrl(settData.settings?.['رابط الخريطة الرئيسية'] || '')
+      const data = await callApi({ action: 'getArticles' })
+      if (data.success) setArticles(data.articles)
     } catch { /* ignore */ }
     finally { setLoading(false) }
   }, [])
@@ -191,39 +186,6 @@ export default function Articles() {
           </button>
         )}
       </div>
-
-      {/* ══ خريطة المنطقة الرئيسية (من الإعدادات) ══ */}
-      {siteMapUrl && siteMapUrl !== 'https://maps.google.com' && siteMapUrl !== featuredArticle?.mapUrl && (
-        <div className="rounded-[32px] overflow-hidden"
-          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
-          <div className="px-6 py-5" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>
-              📍 خريطة وادي حلي — قرية حدبة السلالمة
-            </p>
-          </div>
-          <div style={{ height: 400, position: 'relative', background: 'rgba(0,0,0,0.4)' }}>
-            <iframe
-              title="خريطة وادي حلي"
-              src={siteMapUrl}
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              allowFullScreen
-            />
-            <div style={{
-              position: 'absolute', bottom: 12, left: 12,
-              background: 'rgba(8,13,20,0.85)', border: '1px solid rgba(198,161,107,0.3)',
-              borderRadius: 14, backdropFilter: 'blur(8px)',
-            }}>
-              <a href={siteMapUrl} target="_blank" rel="noopener noreferrer"
-                className="font-nav text-xs px-4 py-2 flex items-center gap-1.5"
-                style={{ color: 'var(--gold-main)', textDecoration: 'none' }}>
-                🗺️ فتح الخريطة
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ══ رسالة فارغة ══ */}
       {articles.length === 0 && (

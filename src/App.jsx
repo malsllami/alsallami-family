@@ -2,6 +2,9 @@ import logo from './assets/logo.png'
 import { useNavigate } from 'react-router-dom'
 import { useRef, useState, useCallback, useEffect } from 'react'
 
+const MAP_EMBED = 'https://maps.google.com/maps?q=18.759126,41.4451226&z=17&output=embed'
+const MAP_LINK  = 'https://maps.app.goo.gl/ZJK3h6mLLRwnuHAk6'
+
 /* ── icons ────────────────────────────────────────────────────────────────── */
 const TreeIcon = () => (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
@@ -94,6 +97,7 @@ export default function App() {
 
   const [logoOffset, setLogoOffset] = useState({ x: 0, y: 0 })
   const [stats,      setStats]      = useState(null)
+  const [mapOpen,    setMapOpen]    = useState(false)
 
   /* parallax */
   const handleMouseMove = useCallback((e) => {
@@ -253,6 +257,55 @@ export default function App() {
         </div>
       </section>
 
+      {/* ══════════════ بطاقة الخريطة ══════════════ */}
+      <section className="px-8 lg:px-20 pb-16">
+        <button
+          onClick={() => setMapOpen(true)}
+          className="w-full text-right rounded-[32px] overflow-hidden transition-all duration-300 group"
+          style={{
+            background: 'rgba(255,255,255,0.03)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.2)',
+          }}
+          onMouseEnter={e => e.currentTarget.style.boxShadow = '0 8px 40px rgba(198,161,107,0.15)'}
+          onMouseLeave={e => e.currentTarget.style.boxShadow = '0 4px 24px rgba(0,0,0,0.2)'}
+        >
+          {/* الرأس */}
+          <div className="px-6 py-4 flex items-center justify-between"
+            style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xl">📍</span>
+              <div className="text-right">
+                <p className="font-nav text-sm font-bold" style={{ color: 'var(--gold-main)' }}>
+                  قرية حدبة السلالمة — وادي حلي
+                </p>
+                <p className="font-nav text-xs text-gray-500 mt-0.5">محافظة القنفذة، المنطقة الجنوبية</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 font-nav text-xs transition-transform duration-300 group-hover:translate-x-[-4px]"
+              style={{ color: 'var(--gold-main)' }}>
+              <span>عرض الخريطة كاملة</span>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+              </svg>
+            </div>
+          </div>
+
+          {/* الخريطة المصغرة */}
+          <div style={{ height: 220, position: 'relative', pointerEvents: 'none' }}>
+            <iframe
+              title="موقع قرية حدبة السلالمة"
+              src={MAP_EMBED}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+            />
+            {/* غطاء شفاف يمنع تفاعل الـ iframe ويجعل الضغط يذهب للبطاقة */}
+            <div style={{ position: 'absolute', inset: 0 }} />
+          </div>
+        </button>
+      </section>
+
       {/* ══════════════ إحصائيات حقيقية ══════════════ */}
       <section className="px-8 lg:px-20 pb-16">
         <div className="rounded-[32px] p-8 lg:p-12"
@@ -335,6 +388,54 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* ══════════════ مودال الخريطة الكاملة ══════════════ */}
+      {mapOpen && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col"
+          style={{ background: 'rgba(5,10,16,0.97)', backdropFilter: 'blur(12px)' }}
+        >
+          {/* شريط العنوان */}
+          <div className="flex items-center justify-between px-6 py-4 flex-shrink-0"
+            style={{ borderBottom: '1px solid rgba(198,161,107,0.18)', background: 'rgba(15,22,32,0.98)' }}>
+            <div className="flex items-center gap-3">
+              <span className="text-xl">📍</span>
+              <div>
+                <p className="font-nav text-sm font-bold" style={{ color: 'var(--gold-main)' }}>
+                  قرية حدبة السلالمة — وادي حلي
+                </p>
+                <p className="font-nav text-xs text-gray-500">محافظة القنفذة، المنطقة الجنوبية</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <a href={MAP_LINK} target="_blank" rel="noopener noreferrer"
+                className="font-nav text-xs px-4 py-2 rounded-xl transition-all duration-200"
+                style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }}>
+                فتح في خرائط Google
+              </a>
+              <button onClick={() => setMapOpen(false)}
+                className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/5 transition-colors"
+                style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2.2">
+                  <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* الخريطة */}
+          <div className="flex-1">
+            <iframe
+              title="خريطة قرية حدبة السلالمة"
+              src={MAP_EMBED}
+              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   )
