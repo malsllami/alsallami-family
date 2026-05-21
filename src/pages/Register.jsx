@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import PasswordInput from '../components/PasswordInput'
+import TreeNavigator from '../components/TreeNavigator'
 import { normalizeDigits } from '../utils/normalizeInput'
 
 const JOBS = ['موظف', 'طالب', 'متقاعد', 'رجل أعمال', 'أخرى']
@@ -16,19 +17,24 @@ function flattenTree(node, list = []) {
   return list
 }
 
+function getBranchName(nodeId, nodes) {
+  const node = nodes.find(n => n.id === nodeId)
+  if (!node) return ''
+  if ((node.generation || 0) === 3) return node.name
+  if (!node.parentId) return node.name
+  return getBranchName(node.parentId, nodes)
+}
+
 export default function Register() {
   const [form,    setForm]    = useState(INITIAL)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState('')
   const [error,   setError]   = useState('')
 
-  // شجرة الاختيار
-  const [treeNodes,   setTreeNodes]   = useState([])
-  const [branches,    setBranches]    = useState([])  // الفخوذ الخمسة (مستوى 3)
-  const [selBranch,   setSelBranch]   = useState('')  // ID الفخذ المختار
-  const [selParent,   setSelParent]   = useState('')  // ID الأب المختار
-  const [parentLabel, setParentLabel] = useState('')  // مسار الأب للعرض
-  const [noParent,    setNoParent]    = useState(false)
+  const [treeRoot,  setTreeRoot]  = useState(null)
+  const [flatNodes, setFlatNodes] = useState([])
+  const [ancestor,  setAncestor]  = useState(null)
+  const [noParent,  setNoParent]  = useState(false)
 
   useEffect(() => {
     const API = import.meta.env.VITE_API_URL
@@ -38,20 +44,11 @@ export default function Register() {
       .then(d => {
         if (!d.success || !d.tree?.length) return
         const root = d.tree[0]
-        const all  = flattenTree(root)
-        setTreeNodes(all)
-        // الفخوذ = أبناء أحمد (مستوى الجيل 3)
-        const br = all.filter(n => n.generation === 3)
-        setBranches(br)
+        setTreeRoot(root)
+        setFlatNodes(flattenTree(root))
       })
       .catch(() => {})
   }, [])
-
-  const nodesInBranch = selBranch
-    ? treeNodes.filter(n => n.id !== selBranch && (n.path || '').includes(
-        treeNodes.find(b => b.id === selBranch)?.name || '___'
-      ))
-    : []
 
   const NUMERIC_FIELDS = ['phone', 'nationalId']
   const set = e => {
@@ -59,12 +56,6 @@ export default function Register() {
       ? normalizeDigits(e.target.value)
       : e.target.value
     setForm(p => ({ ...p, [e.target.name]: val }))
-  }
-
-  const handleParentChange = (nodeId) => {
-    setSelParent(nodeId)
-    const node = treeNodes.find(n => n.id === nodeId)
-    setParentLabel(node ? node.path || node.name : '')
   }
 
   const handleSubmit = async (e) => {
@@ -80,35 +71,34 @@ export default function Register() {
     if (form.password !== form.confirmPassword)          { setError('كلمة المرور وتأكيدها غير متطابقتين'); return }
     if (form.job === 'أخرى' && !form.jobOther.trim())   { setError('يرجى تحديد المهنة'); return }
 
-    const jobFinal      = form.job === 'أخرى' ? form.jobOther.trim() : form.job
-    const selBranchNode = treeNodes.find(n => n.id === selBranch)
-    const selParentNode = treeNodes.find(n => n.id === selParent)
+    const jobFinal   = form.job === 'أخرى' ? form.jobOther.trim() : form.job
+    const parentNode = ancestor ? flatNodes.find(n => n.id === ancestor.parentId) : null
+    const grandNode  = parentNode ? flatNodes.find(n => n.id === parentNode.parentId) : null
+    const branchName = ancestor ? getBranchName(ancestor.parentId, flatNodes) : ''
 
     try {
       setLoading(true)
       const res = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
         body: JSON.stringify({
-          action:        'register',
-          firstName:     form.firstName.trim(),
-          fatherName:    selParentNode?.name || '',
-          grandfatherName: selParentNode
-            ? (treeNodes.find(n => n.id === selParentNode.parentId)?.name || '')
-            : '',
-          phone:         form.phone.trim(),
-          nationalId:    form.nationalId.trim(),
-          birthDate:     form.birthDate,
-          job:           jobFinal,
-          branch:        selBranchNode?.name || '',
-          parentNodeId:  selParent || '',
-          password:      form.password,
+          action:          'register',
+          firstName:       form.firstName.trim(),
+          fatherName:      ancestor?.parentName || '',
+          grandfatherName: grandNode?.name      || '',
+          phone:           form.phone.trim(),
+          nationalId:      form.nationalId.trim(),
+          birthDate:       form.birthDate,
+          job:             jobFinal,
+          branch:          branchName,
+          parentNodeId:    ancestor?.parentId   || '',
+          password:        form.password,
         }),
       })
       const result = await res.json()
       if (result.success) {
         setSuccess(result.message)
         setForm(INITIAL)
-        setSelBranch(''); setSelParent(''); setParentLabel(''); setNoParent(false)
+        setAncestor(null); setNoParent(false)
       } else setError(result.message || 'حدث خطأ')
     } catch {
       setError('تعذّر الاتصال بالخادم')
@@ -161,43 +151,31 @@ export default function Register() {
               onChange={set} className="form-input" placeholder="اسمك الأول فقط — مثال: محمد" />
           </F>
 
-          {/* ── اختيار الفخذ ── */}
-          {branches.length > 0 && (
+          {/* ── سلسلة الانتساب بالشجرة ── */}
+          {treeRoot && (
             <div className="rounded-2xl p-4 space-y-3"
               style={{ background:'rgba(198,161,107,0.06)', border:'1px solid rgba(198,161,107,0.18)' }}>
-              <p className="font-nav text-sm" style={{ color:'var(--gold-main)' }}>سلسلة الانتساب (اختياري)</p>
 
-              <F label="اختر فخذك">
-                <select value={selBranch}
-                  onChange={e => { setSelBranch(e.target.value); setSelParent(''); setParentLabel('') }}
-                  className="form-input">
-                  <option value="">— اختر الفخذ —</option>
-                  {branches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </F>
+              <p className="font-nav text-sm font-semibold" style={{ color:'var(--gold-main)' }}>
+                {noParent ? '🔸 أبوك غير موجود في الشجرة حالياً' : '🌳 سلسلة الانتساب — اختر جيلاً بعد جيل'}
+              </p>
 
-              {selBranch && !noParent && (
-                <F label="اختر أباك من الشجرة">
-                  <select value={selParent} onChange={e => handleParentChange(e.target.value)} className="form-input">
-                    <option value="">— اختر الأب —</option>
-                    {/* الفخذ نفسه كخيار */}
-                    {(() => {
-                      const br = treeNodes.find(n => n.id === selBranch)
-                      return br ? <option key={br.id} value={br.id}>{br.path || br.name}</option> : null
-                    })()}
-                    {nodesInBranch.map(n => <option key={n.id} value={n.id}>{n.path || n.name}</option>)}
-                  </select>
-                </F>
+              {!noParent && (
+                <TreeNavigator
+                  treeData={treeRoot}
+                  onSelect={sel => setAncestor(sel)}
+                  selected={ancestor}
+                />
               )}
 
-              {selParent && parentLabel && (
-                <div className="font-nav text-xs px-3 py-2 rounded-xl"
-                  style={{ background:'rgba(74,222,128,0.08)', border:'1px solid rgba(74,222,128,0.2)', color:'#4ade80' }}>
-                  السلسلة: {parentLabel} ← {form.firstName || '...'}
-                </div>
+              {noParent && (
+                <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  سيتحقق المدير من موقعك في الشجرة ويضيفك يدوياً بعد الاعتماد.
+                </p>
               )}
 
-              <button type="button" onClick={() => { setNoParent(v => !v); setSelParent(''); setParentLabel('') }}
+              <button type="button"
+                onClick={() => { setNoParent(v => !v); setAncestor(null) }}
                 className="font-nav text-xs"
                 style={{ color: noParent ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
                 {noParent ? '↩ عودة للاختيار' : 'أبي غير موجود في الشجرة'}

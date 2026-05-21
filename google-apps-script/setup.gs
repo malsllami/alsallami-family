@@ -49,8 +49,6 @@ function getSheetDefs() {
         100, 130, 160,
         140, 100
       ],
-      ageColName:    'تاريخ الميلاد',
-      ageTargetName: 'العمر',
     },
 
     /* ─── 2. طلبات التسجيل ───────────────────────────────────────────────── */
@@ -391,20 +389,13 @@ function buildSheet_(ss, def) {
     }
   }
 
-  /* معادلة العمر — بحث بالاسم لا بالموضع */
-  if (def.ageColName && def.ageTargetName) {
-    var ageColIdx    = def.headers.indexOf(def.ageColName)    + 1;
-    var ageTargetIdx = def.headers.indexOf(def.ageTargetName) + 1;
-    if (ageColIdx > 0 && ageTargetIdx > 0) {
-      var ageLetter = columnToLetter_(ageColIdx);
-      for (var row = 2; row <= ROWS_INIT; row++) {
-        sheet.getRange(row, ageTargetIdx).setFormula(
-          '=IFERROR(IF(' + ageLetter + row + '="","",INT((TODAY()-' + ageLetter + row + ')/365.25)),"")'
-        );
-      }
-      sheet.getRange(1, ageTargetIdx)
+  /* عمود العمر — يُكتب كرقم ثابت عند الإضافة، لا كمعادلة */
+  if (def.headers) {
+    var ageTargetIdx2 = def.headers.indexOf('العمر') + 1;
+    if (ageTargetIdx2 > 0) {
+      sheet.getRange(1, ageTargetIdx2)
            .setBackground('#1a5c1a')
-           .setNote('يُحسب تلقائياً — لا تعدّله يدوياً');
+           .setNote('يُحسب تلقائياً عند إضافة العضو — رقم ثابت لا تعدّله');
     }
   }
 
@@ -636,19 +627,6 @@ function initializeAllData() {
       sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
     }
     if (def.isSettings) { addDefaultSettings_(sheet); }
-    if (def.ageColName && def.ageTargetName) {
-      var headers      = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-      var ageColIdx    = headers.indexOf(def.ageColName)    + 1;
-      var ageTargetIdx = headers.indexOf(def.ageTargetName) + 1;
-      if (ageColIdx > 0 && ageTargetIdx > 0) {
-        var ageLetter = columnToLetter_(ageColIdx);
-        for (var r = 2; r <= 500; r++) {
-          sheet.getRange(r, ageTargetIdx).setFormula(
-            '=IFERROR(IF(' + ageLetter + r + '="","",INT((TODAY()-' + ageLetter + r + ')/365.25)),"")'
-          );
-        }
-      }
-    }
   });
 
   SpreadsheetApp.flush();
@@ -738,6 +716,76 @@ function fixAdminPassword() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   تنظيف جدول الأعضاء — يزيل معادلات العمر ويرتب الأعضاء في الأعلى
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function cleanMembersSheet() {
+  var ui = SpreadsheetApp.getUi();
+  var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var sheet = ss.getSheetByName('الأعضاء');
+  if (!sheet) { ui.alert('❌ خطأ', 'جدول الأعضاء غير موجود.', ui.ButtonSet.OK); return; }
+
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var ageIdx  = headers.indexOf('العمر');
+  var bdayIdx = headers.indexOf('تاريخ الميلاد');
+
+  // اجمع الصفوف التي فيها بيانات فعلية (عمود رقم العضو غير فارغ)
+  var memberRows = [];
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0] || '').trim() !== '') {
+      memberRows.push(data[i]);
+    }
+  }
+
+  if (memberRows.length === 0) {
+    ui.alert('⚠️ لا توجد بيانات', 'لم يُعثر على أعضاء في الجدول.', ui.ButtonSet.OK);
+    return;
+  }
+
+  // امسح كل بيانات الجدول (غير الترويسة)
+  var lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    sheet.getRange(2, 1, lastRow - 1, headers.length).clearContent();
+  }
+
+  // اكتب الأعضاء بدءاً من الصف 2
+  var today = new Date();
+  for (var r = 0; r < memberRows.length; r++) {
+    var row = memberRows[r];
+
+    // احسب العمر كرقم ثابت
+    if (ageIdx > -1 && bdayIdx > -1) {
+      var bdayVal = row[bdayIdx];
+      if (bdayVal) {
+        try {
+          var bDate = (bdayVal instanceof Date) ? bdayVal : new Date(String(bdayVal));
+          if (!isNaN(bDate.getTime())) {
+            var calcAge = Math.floor((today - bDate) / (365.25 * 24 * 60 * 60 * 1000));
+            if (calcAge >= 0 && calcAge < 150) row[ageIdx] = calcAge;
+          }
+        } catch(_) {}
+      }
+    }
+
+    // صحّح تنسيق تاريخ الميلاد إن كان Date object
+    if (bdayIdx > -1 && row[bdayIdx] instanceof Date) {
+      row[bdayIdx] = Utilities.formatDate(row[bdayIdx], 'Asia/Riyadh', 'yyyy-MM-dd');
+    }
+
+    sheet.getRange(r + 2, 1, 1, row.length).setValues([row]);
+    formatLastRow(sheet);
+  }
+
+  SpreadsheetApp.flush();
+  ui.alert(
+    '✅ تم التنظيف',
+    'تم:\n• نقل ' + memberRows.length + ' عضو إلى أعلى الجدول\n• إزالة معادلات العمر واستبدالها بأرقام ثابتة\n• تصحيح تنسيق تاريخ الميلاد',
+    ui.ButtonSet.OK
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    إضافة عمود الحالة الاجتماعية للجدول الموجود (ترقية للجداول القديمة)
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -817,6 +865,7 @@ function onOpen() {
     .addItem('🔑  إصلاح كلمة مرور المدير',              'fixAdminPassword')
     .addSeparator()
     .addItem('🔧  إضافة عمود الحالة الاجتماعية',        'addMaritalStatusColumn')
+    .addItem('🧹  تنظيف جدول الأعضاء (ترتيب + إصلاح العمر والتاريخ)', 'cleanMembersSheet')
     .addToUi();
 }
 

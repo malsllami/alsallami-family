@@ -167,6 +167,19 @@ function approveRequest(body) {
 
   var memberSheet = getSheet('الأعضاء');
   var memberHeaders = memberSheet.getDataRange().getValues()[0];
+  // احسب العمر من تاريخ الميلاد كرقم ثابت
+  var reqBday  = req['تاريخ الميلاد'];
+  var reqAge   = '';
+  if (reqBday) {
+    try {
+      var bDate = (reqBday instanceof Date) ? reqBday : new Date(String(reqBday));
+      if (!isNaN(bDate.getTime())) {
+        var ageNum = Math.floor((new Date() - bDate) / (365.25 * 24 * 60 * 60 * 1000));
+        if (ageNum >= 0 && ageNum < 150) reqAge = ageNum;
+      }
+    } catch(_) {}
+  }
+
   var colMap = {
     'رقم العضو':           memberId,
     'الاسم الأول':         String(req['الاسم الأول']        || ''),
@@ -176,8 +189,8 @@ function approveRequest(body) {
     'الجيل':               String(req['الجيل']              || ''),
     'رقم الجوال':          String(req['رقم الجوال']         || ''),
     'البريد الإلكتروني':   String(req['البريد الإلكتروني']  || ''),
-    'تاريخ الميلاد':       String(req['تاريخ الميلاد']      || ''),
-    'العمر':               '',
+    'تاريخ الميلاد':       formatDate(req['تاريخ الميلاد']),
+    'العمر':               reqAge,
     'المدينة':             String(req['المدينة']            || ''),
     'المهنة':              String(req['المهنة']             || ''),
     'كلمة المرور':         passHash,
@@ -197,7 +210,13 @@ function approveRequest(body) {
     return colMap[h] !== undefined ? colMap[h] : '';
   });
 
-  memberSheet.appendRow(newRow);
+  // اكتب في أول صف فارغ من الأعلى (تجنباً للمعادلات التي تملأ نهاية الجدول)
+  var colAVals2 = memberSheet.getRange(1, 1, memberSheet.getMaxRows(), 1).getValues();
+  var targetRow2 = 2;
+  for (var ri2 = 1; ri2 < colAVals2.length; ri2++) {
+    if (String(colAVals2[ri2][0]).trim() === '') { targetRow2 = ri2 + 1; break; }
+  }
+  memberSheet.getRange(targetRow2, 1, 1, newRow.length).setValues([newRow]);
   formatLastRow(memberSheet);
 
   // ربط تلقائي بالشجرة
@@ -261,16 +280,8 @@ function approveRequest(body) {
     }
   } catch(e) { Logger.log('tree link error: ' + e.message); }
 
-  // معادلة العمر
-  var lastRow      = memberSheet.getLastRow();
-  var bdayColIdx   = memberHeaders.indexOf('تاريخ الميلاد');
-  var ageColIdx    = memberHeaders.indexOf('العمر');
-  if (bdayColIdx > -1 && ageColIdx > -1) {
-    var ageLetter = columnToLetter(bdayColIdx + 1);
-    memberSheet.getRange(lastRow, ageColIdx + 1).setFormula(
-      '=IFERROR(IF(' + ageLetter + lastRow + '="","",INT((TODAY()-' + ageLetter + lastRow + ')/365.25)),"")'
-    );
-  }
+  // العمر مُحسوب كرقم ثابت — لا معادلة (لا تتأثر بحذف الصفوف)
+  // القيمة مُسبقاً محسوبة في reqAge ومكتوبة في colMap['العمر']
 
   return {
     success:      true,
@@ -508,11 +519,11 @@ function addMember(body) {
     return colMap[h] !== undefined ? colMap[h] : '';
   });
 
-  // اكتب في أول صف فارغ حسب العمود A (تجنباً للصفوف المنسقة الفارغة)
+  // اكتب في أول صف فارغ من الأعلى (تجنباً للمعادلات التي تملأ نهاية الجدول)
   var colAVals = memberSheet.getRange(1, 1, memberSheet.getMaxRows(), 1).getValues();
   var targetRow = 2;
-  for (var ri = colAVals.length - 1; ri >= 1; ri--) {
-    if (String(colAVals[ri][0]).trim() !== '') { targetRow = ri + 2; break; }
+  for (var ri = 1; ri < colAVals.length; ri++) {
+    if (String(colAVals[ri][0]).trim() === '') { targetRow = ri + 1; break; }
   }
   memberSheet.getRange(targetRow, 1, 1, newRow.length).setValues([newRow]);
   formatLastRow(memberSheet);
@@ -530,10 +541,16 @@ function addMember(body) {
   var bdayColIdx = memberHeaders.indexOf('تاريخ الميلاد');
   var ageColIdx  = memberHeaders.indexOf('العمر');
   if (bdayColIdx > -1 && ageColIdx > -1) {
-    var ageLetter = columnToLetter(bdayColIdx + 1);
-    memberSheet.getRange(targetRow, ageColIdx + 1).setFormula(
-      '=IFERROR(IF(' + ageLetter + targetRow + '="","",INT((TODAY()-' + ageLetter + targetRow + ')/365.25)),"")'
-    );
+    var bdayRaw = String(body.birthDate || '').trim();
+    if (bdayRaw) {
+      try {
+        var bDateAm = new Date(bdayRaw);
+        if (!isNaN(bDateAm.getTime())) {
+          var ageAm = Math.floor((new Date() - bDateAm) / (365.25 * 24 * 60 * 60 * 1000));
+          if (ageAm >= 0 && ageAm < 150) memberSheet.getRange(targetRow, ageColIdx + 1).setValue(ageAm);
+        }
+      } catch(_) {}
+    }
   }
 
   // ربط تلقائي بالشجرة
