@@ -26,12 +26,14 @@ export default function MiniTree({
   memberName,
   fatherName,
   grandfatherName,
+  ancestorPath = [],
   wives     = [],
   children  = [],
 }) {
   const L = useMemo(() => {
     const nW = wives.length
     const nC = children.length
+    const nA = ancestorPath.length
 
     const wivesW    = nW > 0 ? nW * WW + (nW - 1) * WG : 0
     const childRowW = nC > 0 ? nC * CW + (nC - 1) * CG : 0
@@ -48,10 +50,15 @@ export default function MiniTree({
 
     const svgW = Math.ceil(innerW + 2 * PAD)
 
-    const grandfatherY = PAD
-    const fatherY      = grandfatherY + AH + V
-    const memberY      = fatherY + AH + V
-    const childTopY    = memberY + MH + V
+    // Ancestors levels
+    const ancestorYs = []
+    for (let i = 0; i < nA; i++) {
+      ancestorYs.push(PAD + i * (AH + V))
+    }
+
+    const lastAncestorY = nA > 0 ? ancestorYs[nA - 1] : PAD
+    const memberY = lastAncestorY + AH + V
+    const childTopY = memberY + MH + V
 
     const mCX      = PAD + mCXl
     const mX       = mCX - MW / 2
@@ -74,11 +81,11 @@ export default function MiniTree({
 
     return {
       svgW, svgH,
-      grandfatherY, fatherY, memberY, childTopY,
+      ancestorYs, memberY, childTopY,
       mCX, mX, ancestorX,
       wivesPos, childrenPos,
     }
-  }, [wives, children])
+  }, [ancestorPath, wives, children])
 
   const branchY = L.memberY + MH + V / 2
 
@@ -91,11 +98,23 @@ export default function MiniTree({
         direction="rtl"
       >
 
-        {/* ── Vertical axis ── */}
-        <line x1={L.mCX} y1={L.grandfatherY + AH} x2={L.mCX} y2={L.fatherY}
-          stroke={LINE} strokeWidth={1.5} />
-        <line x1={L.mCX} y1={L.fatherY + AH}      x2={L.mCX} y2={L.memberY}
-          stroke={LINE} strokeWidth={1.5} />
+        {/* ── Vertical ancestor connectors ── */}
+        {L.ancestorYs.length > 1 && L.ancestorYs.map((y, i) => (
+          i < L.ancestorYs.length - 1 ? (
+            <line key={`av${i}`}
+              x1={L.mCX} y1={y + AH} x2={L.mCX} y2={L.ancestorYs[i + 1]}
+              stroke={LINE} strokeWidth={1.5}
+            />
+          ) : null
+        ))}
+
+        {/* ── Ancestor to member connector ── */}
+        {L.ancestorYs.length > 0 && (
+          <line x1={L.mCX} y1={L.ancestorYs[L.ancestorYs.length - 1] + AH}
+                x2={L.mCX} y2={L.memberY}
+            stroke={LINE} strokeWidth={1.5}
+          />
+        )}
 
         {/* ── Wife dashed connectors ── */}
         {L.wivesPos.map((w, i) => (
@@ -130,21 +149,19 @@ export default function MiniTree({
           </>
         )}
 
-        {/* ── Grandfather node ── */}
-        <rect x={L.ancestorX} y={L.grandfatherY} width={AW} height={AH} rx={10}
-          fill={BLUE.fill} stroke={BLUE.stroke} strokeWidth={1} />
-        <text x={L.mCX} y={L.grandfatherY + 12} textAnchor="middle"
-          fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>الجد</text>
-        <text x={L.mCX} y={L.grandfatherY + 26} textAnchor="middle"
-          fill={BLUE.text} fontSize={12} fontFamily={FONT}>{trunc(grandfatherName)}</text>
-
-        {/* ── Father node ── */}
-        <rect x={L.ancestorX} y={L.fatherY} width={AW} height={AH} rx={10}
-          fill={BLUE.fill} stroke={BLUE.stroke} strokeWidth={1} />
-        <text x={L.mCX} y={L.fatherY + 12} textAnchor="middle"
-          fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>الأب</text>
-        <text x={L.mCX} y={L.fatherY + 26} textAnchor="middle"
-          fill={BLUE.text} fontSize={12} fontFamily={FONT}>{trunc(fatherName)}</text>
+        {/* ── Ancestor nodes ── */}
+        {ancestorPath.map((ancestor, i) => (
+          <g key={`a${i}`}>
+            <rect x={L.ancestorX} y={L.ancestorYs[i]} width={AW} height={AH} rx={10}
+              fill={BLUE.fill} stroke={BLUE.stroke} strokeWidth={1} />
+            <text x={L.mCX} y={L.ancestorYs[i] + 12} textAnchor="middle"
+              fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>
+              الجيل {ancestor.generation}
+            </text>
+            <text x={L.mCX} y={L.ancestorYs[i] + 26} textAnchor="middle"
+              fill={BLUE.text} fontSize={12} fontFamily={FONT}>{trunc(ancestor.name)}</text>
+          </g>
+        ))}
 
         {/* ── Member node (gold) ── */}
         <rect x={L.mX} y={L.memberY} width={MW} height={MH} rx={12}

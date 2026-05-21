@@ -205,14 +205,27 @@ export default function MemberDashboard() {
       for (const c of (node.children || [])) { const r = findById(c, id); if (r) return r }
       return null
     }
+    function buildAncestorPath(node, root) {
+      const path = [{ name: node.name || node.id, id: node.id, generation: node.generation }]
+      let current = node
+      while (current.parentId) {
+        const parent = findById(root, current.parentId)
+        if (!parent) break
+        path.unshift({ name: parent.name || parent.id, id: parent.id, generation: parent.generation })
+        current = parent
+      }
+      return path
+    }
     const memberNode = findByMemberId(treeData)
     if (!memberNode) return
+    const ancestorPath = buildAncestorPath(memberNode, treeData)
     const fatherNode = memberNode.parentId ? findById(treeData, memberNode.parentId) : null
     setFamilyAncestors({
       fatherName:      memberNode.parentName || null,
       grandfatherName: fatherNode?.parentName || null,
       path:            memberNode.path       || '',
       generation:      memberNode.generation || null,
+      ancestorPath:    ancestorPath,
     })
   }, [treeData])
 
@@ -815,6 +828,7 @@ export default function MemberDashboard() {
             memberName={m.firstName}
             fatherName={familyAncestors?.fatherName || m.fatherName}
             grandfatherName={familyAncestors?.grandfatherName || m.grandfatherName}
+            ancestorPath={familyAncestors?.ancestorPath || []}
             wives={m.wives || []}
             children={m.children || []}
           />
