@@ -177,6 +177,7 @@ function register(body) {
     'رقم عقدة الأب':       parentNodeId,
     'كلمة المرور المشفرة': body.password ? hashPassword(normalizeInput(body.password)) : '',
     'حي/ميت':              'حي',
+    'الحالة الاجتماعية':   normalizeInput(body.maritalStatus || ''),
   };
   var row = headers.map(function(h) {
     return colMap[h] !== undefined ? colMap[h] : '';
@@ -303,6 +304,7 @@ function buildUserObject(member) {
     city:            String(member['المدينة']            || ''),
     job:             String(member['المهنة']             || ''),
     birthDate:       formatDate(member['تاريخ الميلاد']),
+    maritalStatus:   String(member['الحالة الاجتماعية'] || ''),
     roles:           [role === 'مدير' ? 'admin' : 'member'],
     status:          String(member['حالة الحساب']       || 'نشط'),
   };

@@ -1,28 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import PasswordInput from '../components/PasswordInput'
-import TreeNavigator from '../components/TreeNavigator'
 import { normalizeDigits } from '../utils/normalizeInput'
 
-const JOBS = ['موظف', 'طالب', 'متقاعد', 'رجل أعمال', 'أخرى']
+const JOBS           = ['موظف', 'طالب', 'متقاعد', 'رجل أعمال', 'أخرى']
+const MARITAL_STATUS = ['أعزب', 'متزوج', 'مطلق', 'أرمل']
 
 const INITIAL = {
   firstName: '', phone: '', nationalId: '', birthDate: '',
-  job: '', jobOther: '', password: '', confirmPassword: '',
-}
-
-function flattenTree(node, list = []) {
-  if (!node) return list
-  if (node.id && !node.isWife && !node.isChildRecord) list.push(node)
-  ;(node.children || []).forEach(c => flattenTree(c, list))
-  return list
-}
-
-function getBranchName(nodeId, nodes) {
-  const node = nodes.find(n => n.id === nodeId)
-  if (!node) return ''
-  if ((node.generation || 0) === 3) return node.name
-  if (!node.parentId) return node.name
-  return getBranchName(node.parentId, nodes)
+  job: '', jobOther: '', maritalStatus: '', password: '', confirmPassword: '',
 }
 
 export default function Register() {
@@ -30,25 +15,6 @@ export default function Register() {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState('')
   const [error,   setError]   = useState('')
-
-  const [treeRoot,  setTreeRoot]  = useState(null)
-  const [flatNodes, setFlatNodes] = useState([])
-  const [ancestor,  setAncestor]  = useState(null)
-  const [noParent,  setNoParent]  = useState(false)
-
-  useEffect(() => {
-    const API = import.meta.env.VITE_API_URL
-    if (!API) return
-    fetch(API, { method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }) })
-      .then(r => r.json())
-      .then(d => {
-        if (!d.success || !d.tree?.length) return
-        const root = d.tree[0]
-        setTreeRoot(root)
-        setFlatNodes(flattenTree(root))
-      })
-      .catch(() => {})
-  }, [])
 
   const NUMERIC_FIELDS = ['phone', 'nationalId']
   const set = e => {
@@ -71,34 +37,27 @@ export default function Register() {
     if (form.password !== form.confirmPassword)          { setError('كلمة المرور وتأكيدها غير متطابقتين'); return }
     if (form.job === 'أخرى' && !form.jobOther.trim())   { setError('يرجى تحديد المهنة'); return }
 
-    const jobFinal   = form.job === 'أخرى' ? form.jobOther.trim() : form.job
-    const parentNode = ancestor ? flatNodes.find(n => n.id === ancestor.parentId) : null
-    const grandNode  = parentNode ? flatNodes.find(n => n.id === parentNode.parentId) : null
-    const branchName = ancestor ? getBranchName(ancestor.parentId, flatNodes) : ''
+    const jobFinal = form.job === 'أخرى' ? form.jobOther.trim() : form.job
 
     try {
       setLoading(true)
       const res = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
         body: JSON.stringify({
-          action:          'register',
-          firstName:       form.firstName.trim(),
-          fatherName:      ancestor?.parentName || '',
-          grandfatherName: grandNode?.name      || '',
-          phone:           form.phone.trim(),
-          nationalId:      form.nationalId.trim(),
-          birthDate:       form.birthDate,
-          job:             jobFinal,
-          branch:          branchName,
-          parentNodeId:    ancestor?.parentId   || '',
-          password:        form.password,
+          action:        'register',
+          firstName:     form.firstName.trim(),
+          phone:         form.phone.trim(),
+          nationalId:    form.nationalId.trim(),
+          birthDate:     form.birthDate,
+          job:           jobFinal,
+          maritalStatus: form.maritalStatus,
+          password:      form.password,
         }),
       })
       const result = await res.json()
       if (result.success) {
         setSuccess(result.message)
         setForm(INITIAL)
-        setAncestor(null); setNoParent(false)
       } else setError(result.message || 'حدث خطأ')
     } catch {
       setError('تعذّر الاتصال بالخادم')
@@ -151,38 +110,6 @@ export default function Register() {
               onChange={set} className="form-input" placeholder="اسمك الأول فقط — مثال: محمد" />
           </F>
 
-          {/* ── سلسلة الانتساب بالشجرة ── */}
-          {treeRoot && (
-            <div className="rounded-2xl p-4 space-y-3"
-              style={{ background:'rgba(198,161,107,0.06)', border:'1px solid rgba(198,161,107,0.18)' }}>
-
-              <p className="font-nav text-sm font-semibold" style={{ color:'var(--gold-main)' }}>
-                {noParent ? '🔸 أبوك غير موجود في الشجرة حالياً' : '🌳 سلسلة الانتساب — اختر جيلاً بعد جيل'}
-              </p>
-
-              {!noParent && (
-                <TreeNavigator
-                  treeData={treeRoot}
-                  onSelect={sel => setAncestor(sel)}
-                  selected={ancestor}
-                />
-              )}
-
-              {noParent && (
-                <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                  سيتحقق المدير من موقعك في الشجرة ويضيفك يدوياً بعد الاعتماد.
-                </p>
-              )}
-
-              <button type="button"
-                onClick={() => { setNoParent(v => !v); setAncestor(null) }}
-                className="font-nav text-xs"
-                style={{ color: noParent ? '#f87171' : 'rgba(255,255,255,0.35)' }}>
-                {noParent ? '↩ عودة للاختيار' : 'أبي غير موجود في الشجرة'}
-              </button>
-            </div>
-          )}
-
           {/* جوال + هوية */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <F label="رقم الجوال *">
@@ -214,6 +141,14 @@ export default function Register() {
                 onChange={set} className="form-input" placeholder="مثال: مقاول" />
             </F>
           )}
+
+          {/* الحالة الاجتماعية */}
+          <F label="الحالة الاجتماعية">
+            <select name="maritalStatus" value={form.maritalStatus} onChange={set} className="form-input">
+              <option value="">— اختر —</option>
+              {MARITAL_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </F>
 
           {/* كلمة المرور */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

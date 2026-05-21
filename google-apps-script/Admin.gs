@@ -201,11 +201,9 @@ function approveRequest(body) {
     'تاريخ التسجيل':       today,
     'رقم الهوية':          String(req['رقم الهوية']         || ''),
     'حي/ميت':              String(req['حي/ميت']             || 'حي'),
+    'الحالة الاجتماعية':   String(req['الحالة الاجتماعية']  || ''),
   };
 
-  // إذا أرسل العضو رقم عقدة الأب أثناء التسجيل → ربطه بالشجرة تلقائياً
-  var parentNodeId = String(req['رقم عقدة الأب'] || '');
-  var autoNodeId   = '';
   var newRow = memberHeaders.map(function(h) {
     return colMap[h] !== undefined ? colMap[h] : '';
   });
@@ -219,77 +217,12 @@ function approveRequest(body) {
   memberSheet.getRange(targetRow2, 1, 1, newRow.length).setValues([newRow]);
   formatLastRow(memberSheet);
 
-  // ربط تلقائي بالشجرة
-  try {
-    var treeSheet2 = getSheet('الشجرة العائلية');
-    var existing2  = sheetToObjects('الشجرة العائلية');
-    var tHeaders2  = treeSheet2.getDataRange().getValues()[0];
-
-    // هل توجد عقدة مسبقة لهذا العضو (أضافه الأب مسبقاً)؟
-    var existingNode = existing2.find(function(n) { return String(n['رقم العضو'] || '') === memberId; });
-
-    if (existingNode) {
-      // العقدة موجودة مسبقاً برقم العضو — فقط احفظ رقم العقدة
-      autoNodeId = String(existingNode['رقم العقدة'] || '');
-    } else if (parentNodeId) {
-      // بحث عن عقدة حي غير مرتبطة تحت نفس الأب بنفس الاسم الأول
-      var reqFN = colMap['الاسم الأول'];
-      var unlinkNode = null;
-      for (var ui = 0; ui < existing2.length; ui++) {
-        var un = existing2[ui];
-        if (String(un['رقم الأب']   || '') === parentNodeId &&
-            String(un['اسم العضو'] || '').trim() === reqFN   &&
-           !String(un['رقم العضو'] || '').trim()              &&
-            String(un['حي/ميت']    || '') === 'حي') {
-          unlinkNode = un; break;
-        }
-      }
-      if (unlinkNode) {
-        // ربط العقدة الموجودة بالعضو الجديد
-        autoNodeId = String(unlinkNode['رقم العقدة'] || '');
-        var linkRow = findRow('الشجرة العائلية', 0, autoNodeId);
-        if (linkRow) {
-          var memCol = linkRow.headers.indexOf('رقم العضو') + 1;
-          if (memCol > 0) treeSheet2.getRange(linkRow.rowIndex, memCol).setValue(memberId);
-        }
-      } else {
-      // أنشئ عقدة جديدة إذا اختار العضو أباه أثناء التسجيل
-      var parentNode = existing2.find(function(n) { return String(n['رقم العقدة']) === parentNodeId; });
-      if (parentNode) {
-        var pName = String(parentNode['اسم العضو'] || '');
-        var gen   = Number(parentNode['مستوى الجيل'] || 1) + 1;
-        var path  = String(parentNode['المسار'] || pName) + ' ← ' + colMap['الاسم الأول'];
-        autoNodeId = generateId('N');
-        var tColMap = {
-          'رقم العقدة':  autoNodeId,
-          'رقم العضو':   memberId,
-          'اسم العضو':   colMap['الاسم الأول'],
-          'رقم الأب':    parentNodeId,
-          'اسم الأب':    pName,
-          'مستوى الجيل': gen,
-          'المسار':      path,
-          'حي/ميت':      'حي',
-        };
-        var tRow = tHeaders2.map(function(h) { return tColMap[h] !== undefined ? tColMap[h] : ''; });
-        treeSheet2.appendRow(tRow);
-        formatLastRow(treeSheet2);
-        linkChildRecordToMember(memberId, colMap['الاسم الأول'], String(parentNode['رقم العضو'] || ''), colMap['رقم الهوية']);
-        syncFatherChildrenToTree(memberId, autoNodeId, colMap['الاسم الأول'], Number(parentNode['مستوى الجيل'] || 1) + 1, path);
-      }
-      } // end else (create new node)
-    }
-  } catch(e) { Logger.log('tree link error: ' + e.message); }
-
-  // العمر مُحسوب كرقم ثابت — لا معادلة (لا تتأثر بحذف الصفوف)
-  // القيمة مُسبقاً محسوبة في reqAge ومكتوبة في colMap['العمر']
-
   return {
     success:      true,
     memberId:     memberId,
-    nodeId:       autoNodeId || null,
     tempPassword: hasPreset ? null : tempPass,
     message:      hasPreset
-      ? 'تم قبول الطلب وإنشاء الحساب' + (autoNodeId ? ' وربطه بالشجرة تلقائياً' : '')
+      ? 'تم قبول الطلب وإنشاء الحساب'
       : 'تم قبول الطلب وإنشاء الحساب. كلمة المرور المؤقتة: ' + tempPass
   };
 }
