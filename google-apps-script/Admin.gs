@@ -217,13 +217,57 @@ function approveRequest(body) {
   memberSheet.getRange(targetRow2, 1, 1, newRow.length).setValues([newRow]);
   formatLastRow(memberSheet);
 
+  // ربط تلقائي بالشجرة إذا كان رقم الهوية مسجل مسبقاً من قبل الأب
+  var autoNodeId   = '';
+  var autoLinked   = false;
+  var treeReason   = '';
+
+  if (preAssignedId && reqNid) {
+    try {
+      var treeSheet2 = getSheet('الشجرة العائلية');
+      var existing2  = sheetToObjects('الشجرة العائلية');
+      var tHeaders2  = treeSheet2.getDataRange().getValues()[0];
+
+      // البحث عن عقدة بنفس رقم الهوية والاسم الأول بدون رقم عضو
+      var firstName = String(colMap['الاسم الأول'] || '');
+      var existingNode = null;
+      for (var ei = 0; ei < existing2.length; ei++) {
+        var en = existing2[ei];
+        if (!String(en['رقم العضو'] || '').trim() &&
+            String(en['اسم العضو'] || '').trim() === firstName &&
+            String(en['حي/ميت'] || '') === 'حي') {
+          existingNode = en;
+          break;
+        }
+      }
+
+      if (existingNode) {
+        // ربط العقدة الموجودة بالعضو الجديد
+        autoNodeId = String(existingNode['رقم العقدة'] || '');
+        var linkRow = findRow('الشجرة العائلية', 0, autoNodeId);
+        if (linkRow) {
+          var memCol = linkRow.headers.indexOf('رقم العضو') + 1;
+          if (memCol > 0) {
+            treeSheet2.getRange(linkRow.rowIndex, memCol).setValue(memberId);
+            autoLinked = true;
+            treeReason = 'تم ربطه تلقائياً لأن والده سجله مسبقاً';
+          }
+        }
+      }
+    } catch(e) { Logger.log('خطأ ربط الشجرة: ' + e.message); }
+  }
+
   return {
     success:      true,
     memberId:     memberId,
+    nodeId:       autoNodeId || null,
+    autoLinked:   autoLinked,
     tempPassword: hasPreset ? null : tempPass,
-    message:      hasPreset
-      ? 'تم قبول الطلب وإنشاء الحساب'
-      : 'تم قبول الطلب وإنشاء الحساب. كلمة المرور المؤقتة: ' + tempPass
+    message:      autoLinked
+      ? 'تم قبول الطلب وإنشاء الحساب وربطه بالشجرة تلقائياً'
+      : (hasPreset
+          ? 'تم قبول الطلب وإنشاء الحساب'
+          : 'تم قبول الطلب وإنشاء الحساب. كلمة المرور المؤقتة: ' + tempPass)
   };
 }
 
