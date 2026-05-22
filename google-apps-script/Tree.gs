@@ -20,7 +20,7 @@ function getFamilyTree(body) {
   nodes.forEach(function(n) {
     var id       = String(n['رقم العقدة'] || '');
     var memberId = String(n['رقم العضو']  || '');
-    if (!id) return;
+    if (!id || nodeMap[id]) return;
 
     // زوجات هذا العضو
     var nodeWives = [];
@@ -92,13 +92,18 @@ function getFamilyTree(body) {
   });
 
   // إضافة الأبناء والبنات من جدول الأبناء (كلا الجنسين)
-  // يُتخطى أي سجل له عقدة فعلية في الشجرة (حتى لو كان الرقم محجوزاً مسبقاً)
+  // يُتخطى أي سجل له عقدة فعلية في الشجرة أو سجل تكراري
+  var seenChildren = {};
   Object.keys(nodeMap).forEach(function(id) {
     var node = nodeMap[id];
     if (!node.memberId) return;
     childrenAll.filter(function(c) {
       return String(c['رقم العضو الأب']) === node.memberId;
     }).forEach(function(c) {
+      var childKey = String(c['رقم العضو الأب'] || '') + '|' + String(c['الاسم'] || '') + '|' + String(c['الجنس'] || '') + '|' + String(c['رقم الهوية'] || '');
+      if (seenChildren[childKey]) return;
+      seenChildren[childKey] = true;
+
       // تخطي فقط إذا كان للابن عقدة حقيقية في الشجرة
       var preId = String(c['رقم عضو الابن'] || '');
       if (preId && memberIdsWithNodes[preId]) return;
@@ -179,7 +184,7 @@ function linkChildRecordToMember(memberId, memberName, fatherMemberId, nationalI
   var childData  = childSheet.getDataRange().getValues();
   var headers    = childData[0];
   var linkedCol  = headers.indexOf('رقم عضو الابن')  + 1;
-  if (linkedCol < 1) return;
+  if (linkedCol < 1) return '';
   var fatherCol  = headers.indexOf('رقم العضو الأب') + 1;
   var nameCol    = headers.indexOf('الاسم')           + 1;
   var nidCol     = headers.indexOf('رقم الهوية')      + 1;
@@ -189,7 +194,7 @@ function linkChildRecordToMember(memberId, memberName, fatherMemberId, nationalI
 
   for (var i = 1; i < childData.length; i++) {
     var rowLinked = String(childData[i][linkedCol - 1] || '');
-    if (rowLinked) continue; // مرتبط مسبقاً
+    var oldLinked = rowLinked;
 
     // مطابقة برقم الهوية (أدق) أو بمعرف الأب + الاسم
     var matchByNid    = nid && nidCol > 0 && String(childData[i][nidCol - 1] || '').trim() === nid;
@@ -199,9 +204,10 @@ function linkChildRecordToMember(memberId, memberName, fatherMemberId, nationalI
 
     if (matchByNid || matchByParent) {
       childSheet.getRange(i + 1, linkedCol).setValue(memberId);
-      break;
+      return oldLinked;
     }
   }
+  return '';
 }
 
 /* ═══ إرسال طلب ربط بالشجرة ═════════════════════════════════════════════ */
@@ -214,6 +220,22 @@ function submitTreeRequest(body) {
 
   if (!memberId || !parentId) {
     return { success: false, message: 'بيانات الطلب غير مكتملة' };
+  }
+
+  var memberRow = findRow('الأعضاء', 0, memberId);
+  if (!memberRow) return { success: false, message: 'العضو غير موجود' };
+  var member = rowToObject(memberRow.headers, memberRow.rowData);
+  var missing = [];
+  if (!String(member['الاسم الأول'] || '').trim()) missing.push('الاسم الأول');
+  if (!String(member['رقم الجوال'] || '').trim()) missing.push('رقم الجوال');
+  if (!String(member['رقم الهوية'] || '').trim()) missing.push('رقم الهوية');
+  if (!String(member['تاريخ الميلاد'] || '').trim()) missing.push('تاريخ الميلاد');
+  if (!String(member['المهنة'] || '').trim()) missing.push('المهنة');
+  if (!String(member['الحالة الاجتماعية'] || '').trim()) missing.push('الحالة الاجتماعية');
+  if (!String(member['اسم الأب'] || '').trim()) missing.push('اسم الأب');
+  if (!String(member['اسم الجد'] || '').trim()) missing.push('اسم الجد');
+  if (missing.length) {
+    return { success: false, message: 'اكمل بياناتك أولاً: ' + missing.join('، ') };
   }
 
   // تحقق أن العضو ليس لديه طلب معلق
@@ -405,6 +427,26 @@ function approveTreeRequest(body) {
   var existingParent = existingEntry ? String(existingEntry['رقم الأب'] || '') : null;
 
   if (!existingEntry) {
+    var mbrNid = '';
+    var mbrFound2 = findRow('الأعضاء', 0, memberId);
+    if (mbrFound2) mbrNid = String(mbrFound2.rowData[mbrFound2.headers.indexOf('رقم الهوية')] || '');
+    var oldLinkedMemberId = linkChildRecordToMember(memberId, memberName, fatherMemberId, mbrNid);
+    if (oldLinkedMemberId && oldLinkedMemberId !== memberId) {
+      var placeholderNode = existing.find(function(n) { return String(n['رقم العضو']) === oldLinkedMemberId; });
+      if (placeholderNode) {
+        var placeholderFound = findRow('الشجرة العائلية', 0, String(placeholderNode['رقم العقدة'] || ''));
+        if (placeholderFound) {
+          var setCell3 = function(colName, val) {
+            var c = placeholderFound.headers.indexOf(colName) + 1;
+            if (c > 0) treeSheet.getRange(placeholderFound.rowIndex, c).setValue(val);
+          };
+          setCell3('رقم العضو', memberId);
+          if (memberName) setCell3('اسم العضو', memberName);
+        }
+        return { success: true, message: 'تم ربط العضو الموجود مسبقاً في الشجرة برقم العضوية الفعلي' };
+      }
+    }
+
     var nodeId = generateId('N');
     var colMap = {
       'رقم العقدة':  nodeId,
@@ -420,9 +462,6 @@ function approveTreeRequest(body) {
     formatLastRow(treeSheet);
 
     // ربط سجل الابن في جدول الأبناء برقم عضويته
-    var mbrNid = '';
-    var mbrFound2 = findRow('الأعضاء', 0, memberId);
-    if (mbrFound2) mbrNid = String(mbrFound2.rowData[mbrFound2.headers.indexOf('رقم الهوية')] || '');
     linkChildRecordToMember(memberId, memberName, fatherMemberId, mbrNid);
 
     // إضافة أبناء هذا العضو الذين سُجِّلوا مسبقاً ولا عقدة لهم في الشجرة

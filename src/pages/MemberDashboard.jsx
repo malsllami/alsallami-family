@@ -153,7 +153,7 @@ export default function MemberDashboard() {
 
   /* بيانات الهوية */
   const [editId,      setEditId]      = useState(false)
-  const [idDraft,     setIdDraft]     = useState({ nationalId: '', branch: '' })
+  const [idDraft,     setIdDraft]     = useState({ nationalId: '', branch: '', fatherName: '', grandfatherName: '' })
   const [idLoading,   setIdLoading]   = useState(false)
 
   /* بيانات الميلاد */
@@ -187,7 +187,11 @@ export default function MemberDashboard() {
   useEffect(() => {
     if (!API || treeData) return
     post({ action: 'getFamilyTree' })
-      .then(d => { if (d.success && d.tree?.length > 0) setTreeData(d.tree[0]) })
+      .then(d => {
+        if (d.success && d.tree?.length > 0) {
+          setTreeData({ id: 'root', name: 'الشجرة', generationLevel: 0, children: d.tree })
+        }
+      })
       .catch(() => {})
   }, [])
 
@@ -234,7 +238,11 @@ export default function MemberDashboard() {
     if (!showTreeLink || treeData || !API) return
     setTreeLoading(true)
     post({ action: 'getFamilyTree' })
-      .then(d => { if (d.success && d.tree?.length > 0) setTreeData(d.tree[0]) })
+      .then(d => {
+        if (d.success && d.tree?.length > 0) {
+          setTreeData({ id: 'root', name: 'الشجرة', generationLevel: 0, children: d.tree })
+        }
+      })
       .catch(() => {})
       .finally(() => setTreeLoading(false))
   }, [showTreeLink, treeData])
@@ -281,6 +289,8 @@ export default function MemberDashboard() {
 
   /* ── تعديل بيانات الهوية ── */
   const handleUpdateId = async () => {
+    if (!idDraft.fatherName.trim()) return alert('اسم الأب مطلوب')
+    if (!idDraft.grandfatherName.trim()) return alert('اسم الجد مطلوب')
     try {
       setIdLoading(true)
       const result = await post({
@@ -288,9 +298,11 @@ export default function MemberDashboard() {
         memberId: savedUser.memberId,
         'رقم الهوية': idDraft.nationalId,
         'الفخذ':      idDraft.branch,
+        'اسم الأب':   idDraft.fatherName.trim(),
+        'اسم الجد':   idDraft.grandfatherName.trim(),
       })
       if (result.success) {
-        setMemberData(p => ({ ...p, nationalId: idDraft.nationalId, branch: idDraft.branch }))
+        setMemberData(p => ({ ...p, nationalId: idDraft.nationalId, branch: idDraft.branch, fatherName: idDraft.fatherName.trim(), grandfatherName: idDraft.grandfatherName.trim() }))
         setEditId(false)
       } else { alert(result.message) }
     } catch { alert('حدث خطأ') }
@@ -361,6 +373,9 @@ export default function MemberDashboard() {
   /* ── إضافة ابن / بنت ── */
   const handleAddChild = async () => {
     if (!newChild.name.trim()) return alert('الاسم مطلوب')
+    if (!newChild.birthDate) return alert('تاريخ الميلاد مطلوب')
+    if (!newChild.nationalId.trim()) return alert('رقم الهوية مطلوب')
+    if (!familyAncestors?.path) return alert('يجب أن تكون مرتبطاً في الشجرة أولاً حتى يُضاف الابن في التسلسل العائلي')
     try {
       setChildLoading(true)
       const result = await post({ action: 'addChild', memberId: savedUser.memberId, name: newChild.name.trim(), gender: newChild.gender, birthDate: newChild.birthDate, alive: newChild.alive, job: newChild.job, nationalId: newChild.nationalId })
@@ -402,6 +417,10 @@ export default function MemberDashboard() {
 
   /* ── إرسال طلب ربط الشجرة ── */
   const handleSubmitTreeLink = async () => {
+    if (!isProfileCompleteForTree) {
+      setTreeLinkMsg({ success: false, text: 'أكمل بياناتك أولاً قبل إرسال طلب الربط بالشجرة.' })
+      return
+    }
     if (!fatherNotFound && !selectedParent) return
     if (fatherNotFound && !notFoundName.trim()) return
     try {
@@ -482,6 +501,11 @@ export default function MemberDashboard() {
   const totalChildren = (m.children || []).length
   const visibleWives  = (m.wives    || []).filter(w => w.status !== 'منفصلة' || totalChildren > 0)
   const maritalStatus = ((m.wives?.length || 0) > 0) ? 'متزوج' : 'أعزب'
+  const isProfileCompleteForTree = Boolean(
+    m.firstName && m.phone && m.nationalId && m.birthDate && m.job && m.maritalStatus && m.fatherName && m.grandfatherName
+  )
+  const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && familyAncestors?.path)
+  const childTreeWarning = !familyAncestors?.path
 
   /* ══════════ لوحة العضو ══════════ */
   return (
@@ -539,7 +563,7 @@ export default function MemberDashboard() {
           </svg>
         } action={!dataLoading && (
           <button
-            onClick={() => { setEditId(e => !e); setIdDraft({ nationalId: m.nationalId || '', branch: m.branch || '' }) }}
+            onClick={() => { setEditId(e => !e); setIdDraft({ nationalId: m.nationalId || '', branch: m.branch || '', fatherName: m.fatherName || '', grandfatherName: m.grandfatherName || '' }) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
             style={{ border: `1px solid ${editId ? T.blue.border : 'rgba(255,255,255,0.1)'}`, color: editId ? T.blue.accent : 'rgba(255,255,255,0.4)', background: editId ? T.blue.soft : 'transparent' }}>
             {editId ? 'إلغاء' : 'تعديل'}
@@ -556,6 +580,18 @@ export default function MemberDashboard() {
             </>
           ) : (
             <div className="space-y-3">
+              <div>
+                <label className="font-nav text-xs text-gray-500 mb-1.5 block">اسم الأب</label>
+                <input type="text" value={idDraft.fatherName}
+                  onChange={e => setIdDraft(p => ({ ...p, fatherName: e.target.value }))}
+                  className="form-input" placeholder="اسم الأب" />
+              </div>
+              <div>
+                <label className="font-nav text-xs text-gray-500 mb-1.5 block">اسم الجد</label>
+                <input type="text" value={idDraft.grandfatherName}
+                  onChange={e => setIdDraft(p => ({ ...p, grandfatherName: e.target.value }))}
+                  className="form-input" placeholder="اسم الجد" />
+              </div>
               <div>
                 <label className="font-nav text-xs text-gray-500 mb-1.5 block">رقم الهوية</label>
                 <input type="text" inputMode="numeric" maxLength={10} value={idDraft.nationalId}
@@ -777,7 +813,7 @@ export default function MemberDashboard() {
                   {JOBS.map(j => <option key={j} value={j}>{j}</option>)}
                 </select>
                 <input type="text" inputMode="numeric" maxLength={10}
-                  placeholder="رقم الهوية (اختياري)"
+                  placeholder="رقم الهوية"
                   value={newChild.nationalId}
                   onChange={e => setNewChild(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))}
                   className="form-input" />
@@ -796,8 +832,13 @@ export default function MemberDashboard() {
                     </button>
                   </div>
                 </div>
-                <button onClick={handleAddChild} disabled={childLoading}
-                  className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                {childTreeWarning && (
+                  <p className="font-nav text-xs text-yellow-200 mb-2" style={{ color: 'rgba(245,158,11,0.9)' }}>
+                    يجب أن تكون مرتبطاً بالشجرة أولاً حتى يتم ضم الابن إلى التسلسل الشجري مع أبيه.
+                  </p>
+                )}
+                <button onClick={handleAddChild} disabled={childLoading || !newChild.name.trim() || !newChild.birthDate || !newChild.nationalId.trim() || !familyAncestors?.path}
+                  className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
                   {childLoading ? 'جاري الإضافة...' : 'إضافة ابن'}
                 </button>
@@ -869,11 +910,18 @@ export default function MemberDashboard() {
             <span className="font-nav text-sm font-semibold" style={{ color: T.emerald.accent }}>ربطك بالشجرة العائلية</span>
           </div>
           <button onClick={() => { setShowTreeLink(v => !v); setTreeLinkMsg(null) }}
-            className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
+            disabled={!isProfileCompleteForTree}
+            className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
             style={{ border: `1px solid ${showTreeLink ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showTreeLink ? T.emerald.accent : 'rgba(255,255,255,0.4)', background: showTreeLink ? T.emerald.soft : 'transparent' }}>
-            {showTreeLink ? 'إلغاء' : 'ربط بالشجرة'}
+            {showTreeLink ? 'إلغاء' : (isProfileCompleteForTree ? 'ربط بالشجرة' : 'أكمل بياناتك أولاً')}
           </button>
         </div>
+
+        {!isProfileCompleteForTree && (
+          <p className="font-nav text-xs text-yellow-200 mt-3" style={{ color: 'rgba(245,158,11,0.9)' }}>
+            يجب إكمال الاسم، رقم الجوال، رقم الهوية، تاريخ الميلاد، المهنة، الحالة الاجتماعية، اسم الأب واسم الجد قبل طلب الربط.
+          </p>
+        )}
 
         {treeLinkMsg && (
           <div className="mt-4 px-4 py-3 rounded-2xl font-nav text-sm"

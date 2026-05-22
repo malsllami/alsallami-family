@@ -25,7 +25,12 @@ function addLevels(node, level = 1) {
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 export default function TreeNavigator({ treeData, onSelect, selected }) {
-  const tree = useMemo(() => addLevels(treeData ?? RAW_TREE), [treeData])
+  const tree = useMemo(() => {
+    const raw = Array.isArray(treeData)
+      ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
+      : (treeData ?? RAW_TREE)
+    return addLevels(raw, raw.generationLevel || 0)
+  }, [treeData])
 
   const [pathNodes, setPathNodes] = useState([])
 

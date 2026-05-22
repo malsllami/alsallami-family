@@ -35,6 +35,7 @@ function getMemberData(body) {
   });
 
   // جلب الأبناء
+  var seenChildIds = {};
   var children = sheetToObjects('الأبناء').filter(function(c) {
     return String(c['رقم العضو الأب']) === memberId;
   }).map(function(c) {
@@ -48,6 +49,11 @@ function getMemberData(body) {
       nationalId: String(c['رقم الهوية']     || ''),
       notes:      String(c['ملاحظات']        || ''),
     };
+  }).filter(function(c) {
+    if (!c.id) return true;
+    if (seenChildIds[c.id]) return false;
+    seenChildIds[c.id] = true;
+    return true;
   });
 
   // فحص ما إذا تمت إضافة هذا العضو مسبقاً كابن من قِبل والده
@@ -76,6 +82,35 @@ function getMemberData(body) {
         break;
       }
     }
+    if (!preLinked) {
+      for (var ci = 0; ci < allChildren.length; ci++) {
+        var cr = allChildren[ci];
+        if (String(cr['رقم الهوية'] || '').trim() === nid) {
+          var fatherMId   = String(cr['رقم العضو الأب'] || '');
+          var fatherName  = '';
+          if (fatherMId) {
+            var fatherRow = findRow('الأعضاء', 0, fatherMId);
+            if (fatherRow) {
+              var fatherObj = rowToObject(fatherRow.headers, fatherRow.rowData);
+              fatherName = [fatherObj['الاسم الأول'], fatherObj['اسم الأب']].filter(Boolean).join(' ');
+            }
+          }
+          preLinked = {
+            fatherMemberId: fatherMId,
+            fatherName:     fatherName || 'والدك',
+            childName:      String(cr['الاسم'] || ''),
+          };
+          if (String(cr['رقم عضو الابن'] || '').trim() !== memberId) {
+            var childRow = findRow('الأبناء', 0, String(cr['رقم السجل'] || ''));
+            if (childRow) {
+              var col = childRow.headers.indexOf('رقم عضو الابن') + 1;
+              if (col > 0) getSheet('الأبناء').getRange(childRow.rowIndex, col).setValue(memberId);
+            }
+          }
+          break;
+        }
+      }
+    }
   }
 
   return {
@@ -100,7 +135,7 @@ function updateMemberInfo(body) {
   var headers = found.headers;
   var rowIdx  = found.rowIndex;
 
-  var allowed = ['الاسم الأول', 'البريد الإلكتروني', 'رقم الجوال', 'المدينة', 'المهنة', 'الفخذ', 'رقم الهوية', 'تاريخ الميلاد', 'الحالة الاجتماعية'];
+  var allowed = ['الاسم الأول', 'البريد الإلكتروني', 'رقم الجوال', 'المدينة', 'المهنة', 'الفخذ', 'رقم الهوية', 'تاريخ الميلاد', 'الحالة الاجتماعية', 'اسم الأب', 'اسم الجد'];
 
   allowed.forEach(function(field) {
     if (body[field] !== undefined) {
@@ -187,12 +222,22 @@ function removeWife(body) {
 function addChild(body) {
   var memberId = String(body.memberId || '').trim();
   var name     = String(body.name     || '').trim();
+  var birthDate = String(body.birthDate || '').trim();
+  var nationalId = String(body.nationalId || '').trim();
   if (!memberId || !name) return { success: false, message: 'رقم العضو واسم الابن مطلوبان' };
+  if (!birthDate) return { success: false, message: 'تاريخ الميلاد مطلوب' };
+  if (!nationalId) return { success: false, message: 'رقم الهوية مطلوب' };
+
+  var treeNodes = sheetToObjects('الشجرة العائلية');
+  var fatherNode = null;
+  for (var ti = 0; ti < treeNodes.length; ti++) {
+    if (String(treeNodes[ti]['رقم العضو'] || '') === memberId) { fatherNode = treeNodes[ti]; break; }
+  }
+  if (!fatherNode) return { success: false, message: 'يجب أن تكون مرتبطاً في الشجرة أولاً حتى يمكن إضافة الابن في التسلسل' };
 
   var sheet      = getSheet('الأبناء');
   var headers    = sheet.getDataRange().getValues()[0];
   var id         = generateId('C');
-  var nationalId = String(body.nationalId || '').trim();
 
   // إذا كان الابن مسجلاً مسبقاً كعضو برقم هويته → استخدم رقمه الحالي
   // وإلا → ولّد رقم عضو محجوز مسبقاً لاستخدامه عند تسجيله مستقبلاً
@@ -210,11 +255,6 @@ function addChild(body) {
 
   // إضافة الابن مباشرة في الشجرة تحت الأب إذا كان الأب موجوداً فيها
   var childNodeId = '';
-  var treeNodes = sheetToObjects('الشجرة العائلية');
-  var fatherNode = null;
-  for (var ti = 0; ti < treeNodes.length; ti++) {
-    if (String(treeNodes[ti]['رقم العضو'] || '') === memberId) { fatherNode = treeNodes[ti]; break; }
-  }
   var isFemale   = String(body.gender || '').trim() === 'أنثى';
   var hasNidBody = nationalId !== '';
   if (fatherNode && (!isFemale || hasNidBody)) {

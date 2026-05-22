@@ -296,7 +296,7 @@ export default function AdminDashboard() {
           method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
         })
         const d = await r.json()
-        if (d.success && d.tree?.length > 0) setAdminTreeData(d.tree[0])
+        if (d.success && d.tree?.length > 0) setAdminTreeData({ id: 'root', name: 'الشجرة', generationLevel: 0, children: d.tree })
       } catch { /* ignore network errors */ }
       setAdminTreeLoading(false)
     }

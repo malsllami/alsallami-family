@@ -26,10 +26,19 @@ export default function MiniTree({
   memberName,
   fatherName,
   grandfatherName,
+  branch,
   ancestorPath = [],
   wives     = [],
   children  = [],
 }) {
+  const effectiveAncestors = useMemo(() => {
+    if (ancestorPath.length > 0) return ancestorPath
+    const list = []
+    if (grandfatherName) list.push({ name: grandfatherName, label: 'الجد' })
+    if (fatherName)      list.push({ name: fatherName,      label: 'الأب' })
+    return list
+  }, [ancestorPath, fatherName, grandfatherName])
+
   const L = useMemo(() => {
     const nW = wives.length
     const nC = children.length
@@ -150,13 +159,13 @@ export default function MiniTree({
         )}
 
         {/* ── Ancestor nodes ── */}
-        {ancestorPath.map((ancestor, i) => (
+        {effectiveAncestors.map((ancestor, i) => (
           <g key={`a${i}`}>
             <rect x={L.ancestorX} y={L.ancestorYs[i]} width={AW} height={AH} rx={10}
               fill={BLUE.fill} stroke={BLUE.stroke} strokeWidth={1} />
             <text x={L.mCX} y={L.ancestorYs[i] + 12} textAnchor="middle"
               fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>
-              الجيل {ancestor.generation}
+              {ancestor.label || `الجيل ${ancestor.generation || ''}`}
             </text>
             <text x={L.mCX} y={L.ancestorYs[i] + 26} textAnchor="middle"
               fill={BLUE.text} fontSize={12} fontFamily={FONT}>{trunc(ancestor.name)}</text>
@@ -168,10 +177,16 @@ export default function MiniTree({
           fill={GOLD.fill} stroke={GOLD.stroke} strokeWidth={1.5} />
         <text x={L.mCX} y={L.memberY + 14} textAnchor="middle"
           fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>أنت</text>
-        <text x={L.mCX} y={L.memberY + 29} textAnchor="middle"
+        <text x={L.mCX} y={L.memberY + 24} textAnchor="middle"
           fill={GOLD.text} fontSize={13} fontFamily={FONT} fontWeight="600">
           {trunc(memberName, 11)}
         </text>
+        {branch && (
+          <text x={L.mCX} y={L.memberY + 38} textAnchor="middle"
+            fill="rgba(255,255,255,0.6)" fontSize={10} fontFamily={FONT}>
+            {trunc(branch, 10)}
+          </text>
+        )}
 
         {/* ── Wife pills ── */}
         {L.wivesPos.map((w, i) => (
