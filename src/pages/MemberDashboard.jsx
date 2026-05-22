@@ -178,6 +178,7 @@ export default function MemberDashboard() {
   const [treeData,        setTreeData]        = useState(null)
   const [treeLoading,     setTreeLoading]     = useState(false)
   const [familyAncestors, setFamilyAncestors] = useState(null)
+  const [memberTreeNode,  setMemberTreeNode]  = useState(null)
 
   const setPw = (field) => (e) => setPasswordData(p => ({ ...p, [field]: e.target.value }))
   const API   = import.meta.env.VITE_API_URL
@@ -221,7 +222,11 @@ export default function MemberDashboard() {
       return path
     }
     const memberNode = findByMemberId(treeData)
-    if (!memberNode) return
+    if (!memberNode) {
+      setFamilyAncestors(null)
+      setMemberTreeNode(null)
+      return
+    }
     const ancestorPath = buildAncestorPath(memberNode, treeData)
     const fatherNode = memberNode.parentId ? findById(treeData, memberNode.parentId) : null
     setFamilyAncestors({
@@ -231,6 +236,7 @@ export default function MemberDashboard() {
       generation:      memberNode.generation || null,
       ancestorPath:    ancestorPath,
     })
+    setMemberTreeNode(memberNode)
   }, [treeData])
 
   /* جلب الشجرة عند فتح لوحة الربط */
@@ -876,7 +882,7 @@ export default function MemberDashboard() {
             grandfatherName={familyAncestors?.grandfatherName || m.grandfatherName}
             ancestorPath={familyAncestors?.ancestorPath || []}
             wives={m.wives || []}
-            children={m.children || []}
+            children={memberTreeNode?.children || m.children || []}
           />
           {familyAncestors?.path && (
             <p className="text-center font-nav text-[11px] mt-3" style={{ color: 'rgba(255,255,255,0.28)' }}>

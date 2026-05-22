@@ -17,6 +17,22 @@ const ROSE = { fill: 'rgba(244,63,94,0.12)',   stroke: 'rgba(244,63,94,0.38)',  
 const LINE = 'rgba(255,255,255,0.12)'
 const FONT = 'Tajawal, sans-serif'
 
+const GEN_PALETTE = [
+  { stroke: '#C6A16B', line: 'rgba(198,161,107,0.40)' },
+  { stroke: '#00c896', line: 'rgba(0,200,150,0.35)' },
+  { stroke: '#818cf8', line: 'rgba(99,102,241,0.35)' },
+  { stroke: '#c084fc', line: 'rgba(168,85,247,0.35)' },
+  { stroke: '#eab308', line: 'rgba(234,179,8,0.35)' },
+  { stroke: '#34d399', line: 'rgba(16,185,129,0.35)' },
+  { stroke: '#fb923c', line: 'rgba(249,115,22,0.35)' },
+  { stroke: '#f472b6', line: 'rgba(236,72,153,0.35)' },
+]
+const paletteFor = (generation, fallbackIndex = 0) => {
+  var index = Number(generation) - 1
+  if (isNaN(index) || index < 0) index = fallbackIndex
+  return GEN_PALETTE[index % GEN_PALETTE.length]
+}
+
 function trunc(str, max = 8) {
   if (!str) return '—'
   return str.length > max ? str.slice(0, max) + '…' : str
@@ -34,8 +50,8 @@ export default function MiniTree({
   const effectiveAncestors = useMemo(() => {
     if (ancestorPath.length > 0) return ancestorPath
     const list = []
-    if (grandfatherName) list.push({ name: grandfatherName, label: 'الجد' })
-    if (fatherName)      list.push({ name: fatherName,      label: 'الأب' })
+    if (grandfatherName) list.push({ name: grandfatherName, label: 'الجد', generation: 1 })
+    if (fatherName)      list.push({ name: fatherName,      label: 'الأب',  generation: 2 })
     return list
   }, [ancestorPath, fatherName, grandfatherName])
 
@@ -159,31 +175,36 @@ export default function MiniTree({
         )}
 
         {/* ── Ancestor nodes ── */}
-        {effectiveAncestors.map((ancestor, i) => (
-          <g key={`a${i}`}>
-            <rect x={L.ancestorX} y={L.ancestorYs[i]} width={AW} height={AH} rx={10}
-              fill={BLUE.fill} stroke={BLUE.stroke} strokeWidth={1} />
-            <text x={L.mCX} y={L.ancestorYs[i] + 12} textAnchor="middle"
-              fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>
-              {ancestor.label || `الجيل ${ancestor.generation || ''}`}
-            </text>
-            <text x={L.mCX} y={L.ancestorYs[i] + 26} textAnchor="middle"
-              fill={BLUE.text} fontSize={12} fontFamily={FONT}>{trunc(ancestor.name)}</text>
-          </g>
-        ))}
+        {effectiveAncestors.map((ancestor, i) => {
+          var palette = paletteFor(ancestor.generation || i + 1, i)
+          return (
+            <g key={`a${i}`}>
+              <rect x={L.ancestorX} y={L.ancestorYs[i]} width={AW} height={AH} rx={10}
+                fill="rgba(15,28,46,0.95)" stroke={palette.stroke} strokeWidth={1.5} />
+              <text x={L.mCX} y={L.ancestorYs[i] + 12} textAnchor="middle"
+                fill={palette.stroke} fontSize={9} fontFamily={FONT}>
+                {ancestor.label || `الجيل ${ancestor.generation || ''}`}
+              </text>
+              <text x={L.mCX} y={L.ancestorYs[i] + 26} textAnchor="middle"
+                fill="#ffffff" fontSize={12} fontFamily={FONT} fontWeight="700">
+                {trunc(ancestor.name)}
+              </text>
+            </g>
+          )
+        })}
 
         {/* ── Member node (gold) ── */}
         <rect x={L.mX} y={L.memberY} width={MW} height={MH} rx={12}
-          fill={GOLD.fill} stroke={GOLD.stroke} strokeWidth={1.5} />
+          fill={GOLD.fill} stroke={GOLD.stroke} strokeWidth={1.6} />
         <text x={L.mCX} y={L.memberY + 14} textAnchor="middle"
-          fill="rgba(255,255,255,0.28)" fontSize={9} fontFamily={FONT}>أنت</text>
+          fill="rgba(255,255,255,0.32)" fontSize={9} fontFamily={FONT}>أنت</text>
         <text x={L.mCX} y={L.memberY + 24} textAnchor="middle"
-          fill={GOLD.text} fontSize={13} fontFamily={FONT} fontWeight="600">
+          fill="#ffffff" fontSize={13} fontFamily={FONT} fontWeight="700">
           {trunc(memberName, 11)}
         </text>
         {branch && (
           <text x={L.mCX} y={L.memberY + 38} textAnchor="middle"
-            fill="rgba(255,255,255,0.6)" fontSize={10} fontFamily={FONT}>
+            fill="rgba(255,255,255,0.78)" fontSize={10} fontFamily={FONT}>
             {trunc(branch, 10)}
           </text>
         )}
@@ -194,10 +215,10 @@ export default function MiniTree({
             <rect
               x={w.cx - WW / 2} y={w.cy - WH / 2}
               width={WW} height={WH} rx={13}
-              fill={ROSE.fill} stroke={ROSE.stroke} strokeWidth={1}
+              fill={ROSE.fill} stroke={ROSE.stroke} strokeWidth={1.2}
             />
             <text x={w.cx} y={w.cy} textAnchor="middle" dominantBaseline="middle"
-              fill={ROSE.text} fontSize={11} fontFamily={FONT}>
+              fill={ROSE.text} fontSize={11} fontFamily={FONT} fontWeight="600">
               {trunc(w.name, 7)}
             </text>
           </g>
@@ -212,10 +233,10 @@ export default function MiniTree({
               <rect
                 x={c.cx - CW / 2} y={c.top}
                 width={CW} height={CH} rx={isFemale ? 15 : 8}
-                fill={col.fill} stroke={col.stroke} strokeWidth={1}
+                fill={col.fill} stroke={col.stroke} strokeWidth={1.2}
               />
               <text x={c.cx} y={c.top + CH / 2} textAnchor="middle" dominantBaseline="middle"
-                fill={col.text} fontSize={11} fontFamily={FONT}>
+                fill="#ffffff" fontSize={11} fontFamily={FONT} fontWeight="700">
                 {trunc(c.name, 7)}
               </text>
             </g>

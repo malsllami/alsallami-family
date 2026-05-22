@@ -74,7 +74,7 @@ function getMemberData(body) {
           var fatherRow = findRow('الأعضاء', 0, fatherMId);
           if (fatherRow) {
             var fatherObj = rowToObject(fatherRow.headers, fatherRow.rowData);
-            fatherName = [fatherObj['الاسم الأول'], fatherObj['اسم الأب']].filter(Boolean).join(' ');
+            fatherName = String(fatherObj['الاسم الأول'] || '');
             if (!user.fatherName) user.fatherName = fatherName;
             if (!user.grandfatherName && fatherObj['اسم الأب']) user.grandfatherName = String(fatherObj['اسم الأب']);
             if (!user.branch && fatherObj['الفخذ']) user.branch = String(fatherObj['الفخذ']);
@@ -111,7 +111,7 @@ function getMemberData(body) {
             var fatherRow = findRow('الأعضاء', 0, fatherMId);
             if (fatherRow) {
               var fatherObj = rowToObject(fatherRow.headers, fatherRow.rowData);
-              fatherName = [fatherObj['الاسم الأول'], fatherObj['اسم الأب']].filter(Boolean).join(' ');
+              fatherName = String(fatherObj['الاسم الأول'] || '');
               if (!user.fatherName) user.fatherName = fatherName;
               if (!user.grandfatherName && fatherObj['اسم الأب']) user.grandfatherName = String(fatherObj['اسم الأب']);
               if (!user.branch && fatherObj['الفخذ']) user.branch = String(fatherObj['الفخذ']);
