@@ -78,6 +78,19 @@ function getMemberData(body) {
             if (!user.fatherName) user.fatherName = fatherName;
             if (!user.grandfatherName && fatherObj['اسم الأب']) user.grandfatherName = String(fatherObj['اسم الأب']);
             if (!user.branch && fatherObj['الفخذ']) user.branch = String(fatherObj['الفخذ']);
+
+            var missingMemberCols = {};
+            if (user.fatherName && !String(member['اسم الأب'] || '').trim()) missingMemberCols['اسم الأب'] = user.fatherName;
+            if (user.grandfatherName && !String(member['اسم الجد'] || '').trim()) missingMemberCols['اسم الجد'] = user.grandfatherName;
+            if (user.branch && !String(member['الفخذ'] || '').trim()) missingMemberCols['الفخذ'] = user.branch;
+            if (Object.keys(missingMemberCols).length) {
+              var memberSheet = getSheet('الأعضاء');
+              var memberHeaders = found.headers;
+              Object.keys(missingMemberCols).forEach(function(colName) {
+                var colIndex = memberHeaders.indexOf(colName) + 1;
+                if (colIndex > 0) memberSheet.getRange(found.rowIndex, colIndex).setValue(missingMemberCols[colName]);
+              });
+            }
           }
         }
         preLinked = {
@@ -99,6 +112,22 @@ function getMemberData(body) {
             if (fatherRow) {
               var fatherObj = rowToObject(fatherRow.headers, fatherRow.rowData);
               fatherName = [fatherObj['الاسم الأول'], fatherObj['اسم الأب']].filter(Boolean).join(' ');
+              if (!user.fatherName) user.fatherName = fatherName;
+              if (!user.grandfatherName && fatherObj['اسم الأب']) user.grandfatherName = String(fatherObj['اسم الأب']);
+              if (!user.branch && fatherObj['الفخذ']) user.branch = String(fatherObj['الفخذ']);
+
+              var missingMemberCols = {};
+              if (user.fatherName && !String(member['اسم الأب'] || '').trim()) missingMemberCols['اسم الأب'] = user.fatherName;
+              if (user.grandfatherName && !String(member['اسم الجد'] || '').trim()) missingMemberCols['اسم الجد'] = user.grandfatherName;
+              if (user.branch && !String(member['الفخذ'] || '').trim()) missingMemberCols['الفخذ'] = user.branch;
+              if (Object.keys(missingMemberCols).length) {
+                var memberSheet = getSheet('الأعضاء');
+                var memberHeaders = found.headers;
+                Object.keys(missingMemberCols).forEach(function(colName) {
+                  var colIndex = memberHeaders.indexOf(colName) + 1;
+                  if (colIndex > 0) memberSheet.getRange(found.rowIndex, colIndex).setValue(missingMemberCols[colName]);
+                });
+              }
             }
           }
           preLinked = {

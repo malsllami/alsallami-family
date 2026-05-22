@@ -959,7 +959,7 @@ export default function MemberDashboard() {
               {treeLoading ? (
                 <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>جاري تحميل الشجرة...</p>
               ) : (
-                <TreeNavigator treeData={treeData} onSelect={setSelectedParent} selected={selectedParent} />
+                <TreeNavigator treeData={treeData} onSelect={setSelectedParent} selected={selectedParent} currentMemberId={savedUser.memberId} />
               )}
               {selectedParent && !treeLoading && (
                 <button onClick={handleSubmitTreeLink} disabled={treeLinkLoading}

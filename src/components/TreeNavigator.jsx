@@ -24,7 +24,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected }) {
+export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId }) {
   const tree = useMemo(() => {
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
@@ -43,7 +43,7 @@ export default function TreeNavigator({ treeData, onSelect, selected }) {
     if (node) newPath.push(node)
     setPathNodes(newPath)
 
-    if (!node) { onSelect(null); return }
+    if (!node || (currentMemberId && node.memberId === currentMemberId)) { onSelect(null); return }
 
     onSelect({
       parentId:        node.id,
@@ -106,13 +106,14 @@ export default function TreeNavigator({ treeData, onSelect, selected }) {
             style={{ direction: 'rtl', cursor: 'pointer' }}
           >
             <option value="">— اختر —</option>
-            {lvl.options.map(n => (
-              <option key={n.id} value={n.id}>
-                {n.name}
-                {n.location ? ` — ${n.location}` : ''}
-                {n.alive === false ? ' (متوفى)' : ''}
-              </option>
-            ))}
+            {lvl.options.map(n => {
+              var isCurrent = currentMemberId && n.memberId === currentMemberId
+              return (
+                <option key={n.id} value={n.id} disabled={isCurrent}>
+                  {n.name}{n.location ? ` — ${n.location}` : ''}{n.alive === false ? ' (متوفى)' : ''}{isCurrent ? ' (أنت)' : ''}
+                </option>
+              )
+            })}
           </select>
         </div>
       ))}
