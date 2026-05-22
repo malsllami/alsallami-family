@@ -14,6 +14,15 @@ function getMemberData(body) {
   var member = rowToObject(found.headers, found.rowData);
   var user   = buildUserObject(member);
 
+  function normalizeFatherName(fatherName, grandfatherName) {
+    fatherName = String(fatherName || '').trim();
+    grandfatherName = String(grandfatherName || '').trim();
+    if (fatherName && grandfatherName && fatherName.endsWith(' ' + grandfatherName)) {
+      fatherName = fatherName.slice(0, fatherName.length - grandfatherName.length - 1).trim();
+    }
+    return fatherName;
+  }
+
   // ضمان وجود الحقول الإضافية
   if (!user.email)         user.email         = String(member['البريد الإلكتروني'] || '');
   if (!user.city)          user.city          = String(member['المدينة']           || '');
@@ -22,6 +31,9 @@ function getMemberData(body) {
   if (!user.fatherName)    user.fatherName    = String(member['اسم الأب']           || '');
   if (!user.grandfatherName) user.grandfatherName = String(member['اسم الجد']       || '');
   if (!user.branch)        user.branch        = String(member['الفخذ']              || '');
+  if (user.fatherName && user.grandfatherName) {
+    user.fatherName = normalizeFatherName(user.fatherName, user.grandfatherName);
+  }
 
   // جلب الزوجات
   var wives = sheetToObjects('الزوجات').filter(function(w) {

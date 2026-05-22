@@ -86,9 +86,20 @@ function getFamilyTree(body) {
 
   // بناء فهرس للأرقام التي لها عقدة فعلية في الشجرة
   var memberIdsWithNodes = {};
+  var memberIdToNationalId = {};
   nodes.forEach(function(n) {
     var mid = String(n['رقم العضو'] || '');
-    if (mid) memberIdsWithNodes[mid] = true;
+    if (!mid) return;
+    memberIdsWithNodes[mid] = true;
+    var member = membersAll.find(function(m) { return String(m['رقم العضو'] || '') === mid; });
+    if (member) {
+      var nid = String(member['رقم الهوية'] || '').trim();
+      if (nid) memberIdToNationalId[mid] = nid;
+    }
+  });
+  var nationalIdsWithNodes = {};
+  Object.keys(memberIdToNationalId).forEach(function(mid) {
+    nationalIdsWithNodes[memberIdToNationalId[mid]] = true;
   });
 
   // إضافة الأبناء والبنات من جدول الأبناء (كلا الجنسين)
@@ -107,6 +118,8 @@ function getFamilyTree(body) {
       // تخطي فقط إذا كان للابن عقدة حقيقية في الشجرة
       var preId = String(c['رقم عضو الابن'] || '');
       if (preId && memberIdsWithNodes[preId]) return;
+      var childNationalId = String(c['رقم الهوية'] || '').trim();
+      if (childNationalId && nationalIdsWithNodes[childNationalId]) return;
 
       var rid      = String(c['رقم السجل'] || '');
       var isFemale = String(c['الجنس']) === 'أنثى';
