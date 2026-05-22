@@ -15,10 +15,13 @@ function getMemberData(body) {
   var user   = buildUserObject(member);
 
   // ضمان وجود الحقول الإضافية
-  if (!user.email)      user.email      = String(member['البريد الإلكتروني'] || '');
-  if (!user.city)       user.city       = String(member['المدينة']           || '');
-  if (!user.job)        user.job        = String(member['المهنة']            || '');
-  if (!user.nationalId) user.nationalId = String(member['رقم الهوية']        || '');
+  if (!user.email)         user.email         = String(member['البريد الإلكتروني'] || '');
+  if (!user.city)          user.city          = String(member['المدينة']           || '');
+  if (!user.job)           user.job           = String(member['المهنة']            || '');
+  if (!user.nationalId)    user.nationalId    = String(member['رقم الهوية']        || '');
+  if (!user.fatherName)    user.fatherName    = String(member['اسم الأب']           || '');
+  if (!user.grandfatherName) user.grandfatherName = String(member['اسم الجد']       || '');
+  if (!user.branch)        user.branch        = String(member['الفخذ']              || '');
 
   // جلب الزوجات
   var wives = sheetToObjects('الزوجات').filter(function(w) {
@@ -72,6 +75,9 @@ function getMemberData(body) {
           if (fatherRow) {
             var fatherObj = rowToObject(fatherRow.headers, fatherRow.rowData);
             fatherName = [fatherObj['الاسم الأول'], fatherObj['اسم الأب']].filter(Boolean).join(' ');
+            if (!user.fatherName) user.fatherName = fatherName;
+            if (!user.grandfatherName && fatherObj['اسم الأب']) user.grandfatherName = String(fatherObj['اسم الأب']);
+            if (!user.branch && fatherObj['الفخذ']) user.branch = String(fatherObj['الفخذ']);
           }
         }
         preLinked = {

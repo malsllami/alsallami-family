@@ -126,14 +126,28 @@ function findRowByPhone(normalizedPhone) {
 /* ═══ تسجيل عضو جديد ════════════════════════════════════════════════════ */
 
 function register(body) {
-  var firstName    = normalizeInput(body['الاسم الأول'] || body.firstName       || '');
-  var fatherName   = normalizeInput(body['اسم الأب']    || body.fatherName      || '');
-  var grandName    = normalizeInput(body['اسم الجد']    || body.grandfatherName || '');
-  var rawPhone     =                body['رقم الجوال']  || body.phone           || '';
-  var parentNodeId = normalizeInput(body.parentNodeId   || '');
+  var firstName      = normalizeInput(body['الاسم الأول'] || body.firstName       || '');
+  var fatherName     = normalizeInput(body['اسم الأب']    || body.fatherName      || '');
+  var grandName      = normalizeInput(body['اسم الجد']    || body.grandfatherName || '');
+  var rawPhone       =                body['رقم الجوال']  || body.phone           || '';
+  var parentNodeId   = normalizeInput(body.parentNodeId   || '');
+  var rawNationalId  = normalizeInput(body['رقم الهوية'] || body.nationalId || '');
+  var nationalId     = rawNationalId.replace(/[^\d]/g, '');
+  var rawJob         = normalizeInput(body.job || body['المهنة'] || '');
+  var jobOther       = normalizeInput(body.jobOther || '');
+  var job            = rawJob === 'أخرى' ? jobOther : rawJob;
+  var maritalStatus  = normalizeInput(body.maritalStatus || body['الحالة الاجتماعية'] || '');
+  var password       = String(body.password || '');
+  var birthDate      = normalizeInput(body.birthDate || body['تاريخ الميلاد'] || '');
 
-  if (!firstName) return { success: false, message: 'الاسم الأول مطلوب' };
-  if (!rawPhone)  return { success: false, message: 'رقم الجوال مطلوب' };
+  if (!firstName)       return { success: false, message: 'الاسم الأول مطلوب' };
+  if (!rawPhone)        return { success: false, message: 'رقم الجوال مطلوب' };
+  if (!nationalId)      return { success: false, message: 'رقم الهوية مطلوب' };
+  if (!/^\d{10}$/.test(nationalId)) return { success: false, message: 'رقم الهوية يجب أن يكون 10 أرقام' };
+  if (!birthDate)       return { success: false, message: 'تاريخ الميلاد مطلوب' };
+  if (!job)             return { success: false, message: 'المهنة مطلوبة' };
+  if (!maritalStatus)   return { success: false, message: 'الحالة الاجتماعية مطلوبة' };
+  if (!password || password.length < 6) return { success: false, message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' };
 
   var phone = normalizePhone(normalizeInput(rawPhone));
 
@@ -167,17 +181,17 @@ function register(body) {
     'الجيل':               normalizeInput(body.generation  || body['الجيل']             || ''),
     'رقم الجوال':          phone,
     'البريد الإلكتروني':   normalizeInput(body.email       || body['البريد الإلكتروني'] || ''),
-    'تاريخ الميلاد':       normalizeInput(body.birthDate   || body['تاريخ الميلاد']     || ''),
+    'تاريخ الميلاد':       birthDate,
     'المدينة':             normalizeInput(body.city        || body['المدينة']           || ''),
-    'المهنة':              normalizeInput(body.job         || body['المهنة']            || ''),
+    'المهنة':              job,
     'الحالة':              'معلق',
     'تاريخ الطلب':         today,
     'ملاحظات':             '',
-    'رقم الهوية':          normalizeInput(body.nationalId  || ''),
+    'رقم الهوية':          nationalId,
     'رقم عقدة الأب':       parentNodeId,
-    'كلمة المرور المشفرة': body.password ? hashPassword(normalizeInput(body.password)) : '',
+    'كلمة المرور المشفرة': hashPassword(password),
     'حي/ميت':              'حي',
-    'الحالة الاجتماعية':   normalizeInput(body.maritalStatus || ''),
+    'الحالة الاجتماعية':   maritalStatus,
   };
   var row = headers.map(function(h) {
     return colMap[h] !== undefined ? colMap[h] : '';

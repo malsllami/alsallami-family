@@ -31,11 +31,15 @@ export default function Register() {
     const nameRe = /^[؀-ۿ]+([\s][؀-ۿ]+)*$/
     if (!nameRe.test(form.firstName.trim()))           { setError('الاسم الأول يجب أن يكون بالعربية'); return }
     if (!form.phone.trim())                             { setError('رقم الجوال مطلوب'); return }
-    if (form.nationalId && !/^\d{10}$/.test(form.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
+    if (!form.nationalId.trim())                        { setError('رقم الهوية مطلوب'); return }
+    if (!/^\d{10}$/.test(form.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
                                                         { setError('رقم الهوية يجب أن يكون 10 أرقام'); return }
+    if (!form.birthDate)                                { setError('تاريخ الميلاد مطلوب'); return }
+    if (!form.job)                                      { setError('المهنة مطلوبة'); return }
+    if (form.job === 'أخرى' && !form.jobOther.trim())   { setError('يرجى تحديد المهنة'); return }
+    if (!form.maritalStatus)                            { setError('الحالة الاجتماعية مطلوبة'); return }
     if (form.password.length < 6)                       { setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return }
     if (form.password !== form.confirmPassword)          { setError('كلمة المرور وتأكيدها غير متطابقتين'); return }
-    if (form.job === 'أخرى' && !form.jobOther.trim())   { setError('يرجى تحديد المهنة'); return }
 
     const jobFinal = form.job === 'أخرى' ? form.jobOther.trim() : form.job
 
@@ -116,20 +120,20 @@ export default function Register() {
               <input name="phone" required inputMode="numeric" value={form.phone}
                 onChange={set} className="form-input" placeholder="05xxxxxxxx" />
             </F>
-            <F label="رقم الهوية">
-              <input name="nationalId" inputMode="numeric" value={form.nationalId}
+            <F label="رقم الهوية *">
+              <input name="nationalId" required inputMode="numeric" value={form.nationalId}
                 onChange={set} className="form-input" placeholder="10 أرقام" maxLength={10} />
             </F>
           </div>
 
           {/* تاريخ + مهنة */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <F label="تاريخ الميلاد">
-              <input type="date" name="birthDate" value={form.birthDate}
+            <F label="تاريخ الميلاد *">
+              <input type="date" name="birthDate" required value={form.birthDate}
                 onChange={set} className="form-input" />
             </F>
-            <F label="المهنة">
-              <select name="job" value={form.job} onChange={set} className="form-input">
+            <F label="المهنة *">
+              <select name="job" required value={form.job} onChange={set} className="form-input">
                 <option value="">— اختر المهنة —</option>
                 {JOBS.map(j => <option key={j} value={j}>{j}</option>)}
               </select>
@@ -143,8 +147,8 @@ export default function Register() {
           )}
 
           {/* الحالة الاجتماعية */}
-          <F label="الحالة الاجتماعية">
-            <select name="maritalStatus" value={form.maritalStatus} onChange={set} className="form-input">
+          <F label="الحالة الاجتماعية *">
+            <select name="maritalStatus" required value={form.maritalStatus} onChange={set} className="form-input">
               <option value="">— اختر —</option>
               {MARITAL_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>

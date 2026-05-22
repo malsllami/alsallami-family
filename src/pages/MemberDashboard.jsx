@@ -504,6 +504,11 @@ export default function MemberDashboard() {
   const isProfileCompleteForTree = Boolean(
     m.firstName && m.phone && m.nationalId && m.birthDate && m.job && m.maritalStatus && m.fatherName && m.grandfatherName
   )
+  const hasChildren = totalChildren > 0
+  const preLinkedNeedsChildren = Boolean(preLinked && !familyAncestors?.path)
+  const canOpenTreeLink = Boolean(
+    familyAncestors?.path || (!preLinkedNeedsChildren && isProfileCompleteForTree) || (preLinkedNeedsChildren && hasChildren && isProfileCompleteForTree)
+  )
   const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && familyAncestors?.path)
   const childTreeWarning = !familyAncestors?.path
 
@@ -910,16 +915,18 @@ export default function MemberDashboard() {
             <span className="font-nav text-sm font-semibold" style={{ color: T.emerald.accent }}>ربطك بالشجرة العائلية</span>
           </div>
           <button onClick={() => { setShowTreeLink(v => !v); setTreeLinkMsg(null) }}
-            disabled={!isProfileCompleteForTree}
+            disabled={!canOpenTreeLink}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
             style={{ border: `1px solid ${showTreeLink ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showTreeLink ? T.emerald.accent : 'rgba(255,255,255,0.4)', background: showTreeLink ? T.emerald.soft : 'transparent' }}>
-            {showTreeLink ? 'إلغاء' : (isProfileCompleteForTree ? 'ربط بالشجرة' : 'أكمل بياناتك أولاً')}
+            {showTreeLink ? 'إلغاء' : (canOpenTreeLink ? 'ربط بالشجرة' : (preLinked ? 'أضف أبناءك أولاً' : 'أكمل بياناتك أولاً'))}
           </button>
         </div>
 
-        {!isProfileCompleteForTree && (
+        {!canOpenTreeLink && (
           <p className="font-nav text-xs text-yellow-200 mt-3" style={{ color: 'rgba(245,158,11,0.9)' }}>
-            يجب إكمال الاسم، رقم الجوال، رقم الهوية، تاريخ الميلاد، المهنة، الحالة الاجتماعية، اسم الأب واسم الجد قبل طلب الربط.
+            {preLinkedNeedsChildren
+              ? 'تمت إضافتك مسبقاً في الشجرة — أضف أبناءك أولاً ثم قدم طلب الربط.'
+              : 'يجب إكمال الاسم، رقم الجوال، رقم الهوية، تاريخ الميلاد، المهنة، الحالة الاجتماعية، اسم الأب واسم الجد قبل طلب الربط.'}
           </p>
         )}
 
