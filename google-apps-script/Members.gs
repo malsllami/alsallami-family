@@ -17,23 +17,25 @@ function getMemberData(body) {
   function normalizeFatherName(fatherName, grandfatherName) {
     fatherName = String(fatherName || '').trim();
     grandfatherName = String(grandfatherName || '').trim();
-    if (fatherName && grandfatherName && fatherName.endsWith(' ' + grandfatherName)) {
-      fatherName = fatherName.slice(0, fatherName.length - grandfatherName.length - 1).trim();
+    if (!fatherName) return '';
+    if (grandfatherName) {
+      var suffix = ' ' + grandfatherName;
+      if (fatherName.endsWith(suffix)) {
+        fatherName = fatherName.slice(0, fatherName.length - suffix.length).trim();
+      }
     }
     return fatherName;
   }
 
   // ضمان وجود الحقول الإضافية
-  if (!user.email)         user.email         = String(member['البريد الإلكتروني'] || '');
-  if (!user.city)          user.city          = String(member['المدينة']           || '');
-  if (!user.job)           user.job           = String(member['المهنة']            || '');
-  if (!user.nationalId)    user.nationalId    = String(member['رقم الهوية']        || '');
-  if (!user.fatherName)    user.fatherName    = String(member['اسم الأب']           || '');
-  if (!user.grandfatherName) user.grandfatherName = String(member['اسم الجد']       || '');
-  if (!user.branch)        user.branch        = String(member['الفخذ']              || '');
-  if (user.fatherName && user.grandfatherName) {
-    user.fatherName = normalizeFatherName(user.fatherName, user.grandfatherName);
-  }
+  if (!user.email)      user.email         = String(member['البريد الإلكتروني'] || '');
+  if (!user.city)       user.city          = String(member['المدينة']           || '');
+  if (!user.job)        user.job           = String(member['المهنة']            || '');
+  if (!user.nationalId) user.nationalId    = String(member['رقم الهوية']        || '');
+  if (!user.branch)     user.branch        = String(member['الفخذ']              || '');
+
+  user.fatherName      = normalizeFatherName(member['اسم الأب'], member['اسم الجد']);
+  user.grandfatherName = String(member['اسم الجد'] || '');
 
   // جلب الزوجات
   var wives = sheetToObjects('الزوجات').filter(function(w) {

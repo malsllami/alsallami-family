@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import PasswordInput from '../components/PasswordInput'
 import { normalizeDigits } from '../utils/normalizeInput'
-import MiniTree from '../components/MiniTree'
 import TreeNavigator from '../components/TreeNavigator'
 
 function calcAge(birthDate) {
@@ -168,10 +167,9 @@ export default function MemberDashboard() {
 
   /* ربط الشجرة */
   const [showTreeLink,    setShowTreeLink]    = useState(false)
-  const [selectedParent,  setSelectedParent]  = useState(null)
   const [treeLinkLoading, setTreeLinkLoading] = useState(false)
   const [treeLinkMsg,     setTreeLinkMsg]     = useState(null)
-  const [fatherNotFound,  setFatherNotFound]  = useState(false)
+  const [treeMode,        setTreeMode]        = useState('branch')
   const [notFoundName,    setNotFoundName]    = useState('')
   const [notFoundNote,    setNotFoundNote]    = useState('')
   const [notFoundAncestor,setNotFoundAncestor]= useState(null)
@@ -229,9 +227,10 @@ export default function MemberDashboard() {
     }
     const ancestorPath = buildAncestorPath(memberNode, treeData)
     const fatherNode = memberNode.parentId ? findById(treeData, memberNode.parentId) : null
+    const grandfatherNode = fatherNode?.parentId ? findById(treeData, fatherNode.parentId) : null
     setFamilyAncestors({
-      fatherName:      memberNode.parentName || null,
-      grandfatherName: fatherNode?.parentName || null,
+      fatherName:      fatherNode?.name || memberNode.parentName || null,
+      grandfatherName: grandfatherNode?.name || fatherNode?.parentName || null,
       path:            memberNode.path       || '',
       generation:      memberNode.generation || null,
       ancestorPath:    ancestorPath,
@@ -427,29 +426,40 @@ export default function MemberDashboard() {
       setTreeLinkMsg({ success: false, text: 'أكمل بياناتك أولاً قبل إرسال طلب الربط بالشجرة.' })
       return
     }
-    if (!fatherNotFound && !selectedParent) return
-    if (fatherNotFound && !notFoundName.trim()) return
+    const isMissingFatherMode = treeMode === 'branch'
+    if (isMissingFatherMode && !notFoundName.trim()) return
+    if (!isMissingFatherMode && !memberTreeNode) return
+
     try {
       setTreeLinkLoading(true)
       setTreeLinkMsg(null)
       const ancestorTag = notFoundAncestor ? '[' + notFoundAncestor.parentId + ']' : ''
-      const payload = fatherNotFound
-        ? { action: 'submitTreeRequest', memberId: savedUser.memberId,
+      const payload = isMissingFatherMode
+        ? {
+            action: 'submitTreeRequest', memberId: savedUser.memberId,
             parentId: 'NOTFOUND', parentName: notFoundName.trim(),
             generationLevel: notFoundAncestor ? notFoundAncestor.generationLevel : 0,
             path: notFoundAncestor ? notFoundAncestor.path : '',
-            note: ancestorTag + (notFoundNote.trim() ? ' ' + notFoundNote.trim() : '') }
-        : { action: 'submitTreeRequest', memberId: savedUser.memberId,
-            parentId: selectedParent.parentId, parentName: selectedParent.parentName,
-            generationLevel: selectedParent.generationLevel, path: selectedParent.path, note: '' }
+            note: ancestorTag + (notFoundNote.trim() ? ' ' + notFoundNote.trim() : ''),
+          }
+        : {
+            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            parentId: memberTreeNode.parentId || '',
+            parentName: familyAncestors?.fatherName || memberTreeNode.parentName || '',
+            generationLevel: familyAncestors?.generation || memberTreeNode.generation || 0,
+            path: familyAncestors?.path || memberTreeNode.path || '',
+            note: '',
+          }
       const result = await post(payload)
       setTreeLinkMsg({ success: result.success, text: result.message || (result.success ? 'تم إرسال الطلب بنجاح، في انتظار موافقة المدير' : 'حدث خطأ') })
       if (result.success) {
-        setSelectedParent(null); setFatherNotFound(false)
         setNotFoundName(''); setNotFoundNote(''); setNotFoundAncestor(null); setShowTreeLink(false)
       }
-    } catch { setTreeLinkMsg({ success: false, text: 'تعذّر الاتصال بالخادم' }) }
-    finally { setTreeLinkLoading(false) }
+    } catch {
+      setTreeLinkMsg({ success: false, text: 'تعذّر الاتصال بالخادم' })
+    } finally {
+      setTreeLinkLoading(false)
+    }
   }
 
   /* ── تغيير كلمة المرور ── */
@@ -511,9 +521,10 @@ export default function MemberDashboard() {
     m.firstName && m.phone && m.nationalId && m.birthDate && m.job && m.maritalStatus && m.fatherName && m.grandfatherName
   )
   const hasChildren = totalChildren > 0
+  const memberHasTreePath = Boolean(familyAncestors?.path && memberTreeNode)
   const preLinkedNeedsChildren = Boolean(preLinked && !familyAncestors?.path)
   const canOpenTreeLink = Boolean(
-    familyAncestors?.path || (!preLinkedNeedsChildren && isProfileCompleteForTree) || (preLinkedNeedsChildren && hasChildren && isProfileCompleteForTree)
+    memberHasTreePath || (!preLinkedNeedsChildren && isProfileCompleteForTree) || (preLinkedNeedsChildren && hasChildren && isProfileCompleteForTree)
   )
   const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && familyAncestors?.path)
   const childTreeWarning = !familyAncestors?.path
@@ -876,19 +887,22 @@ export default function MemberDashboard() {
             </div>
             <span className="font-nav text-sm font-semibold text-[var(--gold-main)]">شجرتك العائلية</span>
           </div>
-          <MiniTree
-            memberName={m.firstName}
-            fatherName={familyAncestors?.fatherName || m.fatherName}
-            grandfatherName={familyAncestors?.grandfatherName || m.grandfatherName}
-            ancestorPath={familyAncestors?.ancestorPath || []}
-            wives={m.wives || []}
-            children={memberTreeNode?.children || m.children || []}
-          />
-          {familyAncestors?.path && (
-            <p className="text-center font-nav text-[11px] mt-3" style={{ color: 'rgba(255,255,255,0.28)' }}>
-              موقعك في الشجرة: {familyAncestors.path}
-              {familyAncestors.generation ? ` · الجيل ${familyAncestors.generation}` : ''}
+          <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <p className="font-nav text-[11px] text-gray-300">مسارك في الشجرة الرئيسية:</p>
+            <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>
+              {familyAncestors?.path || 'غير متوفر'}
             </p>
+            {familyAncestors?.generation ? (
+              <p className="font-nav text-[11px] text-gray-400 mt-2">الجيل {familyAncestors.generation}</p>
+            ) : null}
+          </div>
+          {memberTreeNode?.children?.length > 0 && (
+            <div className="rounded-2xl p-4 mt-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <p className="font-nav text-[11px] text-gray-300">أبناؤك المسجلون في الشجرة:</p>
+              <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>
+                {(memberTreeNode.children || []).map(c => c.name).join(' ، ') || 'لا يوجد'}
+              </p>
+            </div>
           )}
           <div className="flex justify-center mt-3">
             <a href={`${import.meta.env.BASE_URL}family-tree`}
@@ -945,40 +959,41 @@ export default function MemberDashboard() {
 
         <SlidePanel open={showTreeLink}>
           <div className="flex gap-2 mb-3">
-            <button onClick={() => { setFatherNotFound(false); setSelectedParent(null) }}
+            <button onClick={() => { setTreeMode('existing') }}
+              disabled={!memberHasTreePath}
               className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
-              style={{ background: !fatherNotFound ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!fatherNotFound ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'}`, color: !fatherNotFound ? '#93c5fd' : '#6b7280' }}>
-              اختر من الشجرة
+              style={{ background: treeMode === 'existing' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${treeMode === 'existing' ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'}`, color: treeMode === 'existing' ? '#93c5fd' : '#6b7280', opacity: memberHasTreePath ? 1 : 0.5 }}>
+              عضويتي موجودة في الشجرة
             </button>
-            <button onClick={() => { setFatherNotFound(true); setSelectedParent(null) }}
+            <button onClick={() => { setTreeMode('branch'); setNotFoundName(''); setNotFoundNote(''); setNotFoundAncestor(null) }}
               className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
-              style={{ background: fatherNotFound ? 'rgba(251,146,60,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${fatherNotFound ? 'rgba(251,146,60,0.35)' : 'rgba(255,255,255,0.08)'}`, color: fatherNotFound ? '#fb923c' : '#6b7280' }}>
+              style={{ background: treeMode === 'branch' ? 'rgba(251,146,60,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${treeMode === 'branch' ? 'rgba(251,146,60,0.35)' : 'rgba(255,255,255,0.08)'}`, color: treeMode === 'branch' ? '#fb923c' : '#6b7280' }}>
               أبي غير موجود
             </button>
           </div>
 
-          {!fatherNotFound ? (
+          {treeMode === 'existing' ? (
             <>
               <p className="font-nav text-xs text-gray-500 leading-5 pb-2">
-                اختر الشخص الذي تنتمي إليه مباشرةً (أبوك في الشجرة) — سيُحسب جيلك تلقائياً وتُرسل الطلب للمدير لمراجعته.
+                تم العثور على مسارك في الشجرة. سيُضاف أبناءك تلقائياً من بطاقة الأبناء إلى العرض، ثم يُرسل الطلب للمدير للمراجعة.
               </p>
-              {treeLoading ? (
-                <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>جاري تحميل الشجرة...</p>
-              ) : (
-                <TreeNavigator treeData={treeData} onSelect={setSelectedParent} selected={selectedParent} currentMemberId={savedUser.memberId} />
-              )}
-              {selectedParent && !treeLoading && (
-                <button onClick={handleSubmitTreeLink} disabled={treeLinkLoading}
-                  className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50 mt-2"
-                  style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
-                  {treeLinkLoading ? 'جاري الإرسال...' : `إرسال طلب الربط — الجيل ${selectedParent.generationLevel}`}
-                </button>
-              )}
+              <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="font-nav text-[11px] text-gray-300">مسارك الحالي في الشجرة:</p>
+                <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>{familyAncestors?.path || 'غير متوفر'}</p>
+                {familyAncestors?.generation ? (
+                  <p className="font-nav text-[11px] text-gray-400 mt-2">الجيل {familyAncestors.generation}</p>
+                ) : null}
+              </div>
+              <button onClick={handleSubmitTreeLink} disabled={treeLinkLoading || !memberTreeNode || !memberTreeNode.parentId}
+                className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
+                {treeLinkLoading ? 'جاري الإرسال...' : 'إرسال طلب الربط للمدير'}
+              </button>
             </>
           ) : (
             <div className="space-y-3">
               <p className="font-nav text-xs leading-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                اختر أقرب شخص تعرفه في الشجرة — ثم اكتب اسم أبيك الغير موجود.
+                اختر أقرب شخص تعرفه في الشجرة — ثم اكتب اسم أبيك غير الموجود.
               </p>
               {treeLoading ? (
                 <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>جاري تحميل الشجرة...</p>

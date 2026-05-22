@@ -84,22 +84,22 @@ function getFamilyTree(body) {
     }
   });
 
-  // بناء فهرس للأرقام التي لها عقدة فعلية في الشجرة
+  // بناء فهرس بالأعضاء الذين لهم عقدة فعلية في الشجرة
   var memberIdsWithNodes = {};
-  var memberIdToNationalId = {};
+  var nationalIdsWithNodes = {};
+  var membersById = {};
+  membersAll.forEach(function(m) {
+    var mid = String(m['رقم العضو'] || '').trim();
+    if (mid) membersById[mid] = m;
+  });
   nodes.forEach(function(n) {
-    var mid = String(n['رقم العضو'] || '');
+    var mid = String(n['رقم العضو'] || '').trim();
     if (!mid) return;
     memberIdsWithNodes[mid] = true;
-    var member = membersAll.find(function(m) { return String(m['رقم العضو'] || '') === mid; });
-    if (member) {
-      var nid = String(member['رقم الهوية'] || '').trim();
-      if (nid) memberIdToNationalId[mid] = nid;
-    }
-  });
-  var nationalIdsWithNodes = {};
-  Object.keys(memberIdToNationalId).forEach(function(mid) {
-    nationalIdsWithNodes[memberIdToNationalId[mid]] = true;
+    var member = membersById[mid];
+    if (!member) return;
+    var nid = String(member['رقم الهوية'] || '').trim();
+    if (nid) nationalIdsWithNodes[nid] = true;
   });
 
   // إضافة الأبناء والبنات من جدول الأبناء (كلا الجنسين)
@@ -109,14 +109,19 @@ function getFamilyTree(body) {
     var node = nodeMap[id];
     if (!node.memberId) return;
     childrenAll.filter(function(c) {
-      return String(c['رقم العضو الأب']) === node.memberId;
+      return String(c['رقم العضو الأب'] || '').trim() === node.memberId;
     }).forEach(function(c) {
-      var childKey = String(c['رقم العضو الأب'] || '') + '|' + String(c['الاسم'] || '') + '|' + String(c['الجنس'] || '') + '|' + String(c['رقم الهوية'] || '');
+      var childKey = [
+        String(c['رقم العضو الأب'] || '').trim(),
+        String(c['الاسم'] || '').trim(),
+        String(c['الجنس'] || '').trim(),
+        String(c['رقم الهوية'] || '').trim(),
+      ].join('|');
       if (seenChildren[childKey]) return;
       seenChildren[childKey] = true;
 
       // تخطي فقط إذا كان للابن عقدة حقيقية في الشجرة
-      var preId = String(c['رقم عضو الابن'] || '');
+      var preId = String(c['رقم عضو الابن'] || '').trim();
       if (preId && memberIdsWithNodes[preId]) return;
       var childNationalId = String(c['رقم الهوية'] || '').trim();
       if (childNationalId && nationalIdsWithNodes[childNationalId]) return;
@@ -508,6 +513,14 @@ function approveTreeRequest(body) {
     syncFatherChildrenToTree(memberId, updatedNodeId, memberName, updatedGen, path);
 
     return { success: true, message: 'تم تحديث موقع العضو في الشجرة' };
+  }
+
+  if (existingEntry) {
+    var existingNodeId = String(existingEntry['رقم العقدة'] || '');
+    var existingPath   = String(existingEntry['المسار'] || path);
+    var existingGen    = Number(existingEntry['مستوى الجيل'] || generation);
+    syncFatherChildrenToTree(memberId, existingNodeId, memberName, existingGen, existingPath);
+    return { success: true, message: 'العضو موجود في الشجرة بالفعل. تم مزامنة الأبناء.' };
   }
 
   return { success: true, message: 'العضو موجود في الشجرة بالفعل' };
