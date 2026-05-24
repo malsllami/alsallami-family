@@ -198,4 +198,8 @@ function Alert({ type, children }) {
     ? { background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.25)', color:'#f87171' }
     : { background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.25)', color:'#34d399' }
   return <div className="font-nav text-sm text-center py-2.5 px-4 rounded-2xl" style={s}>{children}</div>
+<<<<<<< HEAD
 }
+=======
+}
+>>>>>>> 9b1dbdc59847af003d3edbb4110db40cf929e5e1
