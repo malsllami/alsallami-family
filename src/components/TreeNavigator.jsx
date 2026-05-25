@@ -24,7 +24,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, minFatherGen = 1 }) {
+export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, minFatherGen = 1 }) {
   const tree = useMemo(() => {
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
@@ -115,18 +115,41 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               )
             })}
           </select>
-          {onSelectFather && pathNodes[lvl.index] && (pathNodes[lvl.index]?.generationLevel ?? 0) >= minFatherGen && (
-            <button
-              type="button"
-              onClick={() => onSelectFather(pathNodes[lvl.index])}
-              className="mt-2 w-full font-nav text-xs py-2 rounded-xl transition-all duration-200"
-              style={
-                selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id
-                  ? { background: 'rgba(198,161,107,0.2)', border: '1px solid rgba(198,161,107,0.5)', color: 'var(--gold-main)', fontWeight: 700 }
-                  : { background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.25)', color: 'rgba(198,161,107,0.8)' }
-              }>
-              {selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id ? '✓ هذا والدي' : 'هذا والدي'}
-            </button>
+          {(onSelectFather || onSelectGrandfather) && pathNodes[lvl.index] && (pathNodes[lvl.index]?.generationLevel ?? 0) >= minFatherGen && (
+            <div className="flex gap-2 mt-2">
+              {onSelectFather && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
+                    onSelectFather({ ...pathNodes[lvl.index], computedPath }, pathNodes)
+                  }}
+                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  style={
+                    selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id
+                      ? { background: 'rgba(198,161,107,0.2)', border: '1px solid rgba(198,161,107,0.5)', color: 'var(--gold-main)', fontWeight: 700 }
+                      : { background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.25)', color: 'rgba(198,161,107,0.8)' }
+                  }>
+                  {selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id ? '✓ هذا والدي' : 'هذا والدي'}
+                </button>
+              )}
+              {onSelectGrandfather && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
+                    onSelectGrandfather({ ...pathNodes[lvl.index], computedPath }, pathNodes)
+                  }}
+                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  style={
+                    selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id
+                      ? { background: 'rgba(251,146,60,0.2)', border: '1px solid rgba(251,146,60,0.5)', color: '#fb923c', fontWeight: 700 }
+                      : { background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.25)', color: 'rgba(251,146,60,0.75)' }
+                  }>
+                  {selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id ? '✓ هذا جدي' : 'هذا جدي'}
+                </button>
+              )}
+            </div>
           )}
         </div>
       ))}
@@ -184,7 +207,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
       {/* رسالة إذا وصل لآخر مستوى */}
       {lastNode && !(lastNode.children?.length) && (
         <p className="font-nav text-[11px] text-center" style={{ color: 'rgba(255,255,255,0.25)' }}>
-          هذا آخر مستوى متاح — إذا لم يكن أبوك موجوداً اختر &quot;أبي غير موجود&quot;
+          هذا آخر مستوى متاح — استخدم زر &quot;هذا والدي&quot; أو &quot;هذا جدي&quot; في الصف أعلاه
         </p>
       )}
 

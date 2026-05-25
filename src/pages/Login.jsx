@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
-import { normalizeDigits } from '../utils/normalizeInput'
+import PhoneInput from '../components/PhoneInput'
 
 export default function Login() {
   const { login }   = useAuth()
   const navigate    = useNavigate()
-  const [phone,    setPhone]    = useState('')
+  const [phone,       setPhone]       = useState('')
+  const [countryCode, setCountryCode] = useState('+966')
   const [password, setPassword] = useState('')
   const [loading,        setLoading]        = useState(false)
   const [error,          setError]          = useState('')
@@ -25,7 +26,7 @@ export default function Login() {
         method: 'POST',
         body: JSON.stringify({
           action:   'login',
-          phone:    normalizeDigits(phone).trim(),
+          phone:    countryCode + phone.trim(),
           password: password.trim(),
         }),
       })
@@ -122,13 +123,13 @@ export default function Login() {
             </div>
           )}
 
-          <input
-            type="text"
-            inputMode="numeric"
+          <PhoneInput
             value={phone}
-            onChange={e => setPhone(normalizeDigits(e.target.value))}
-            placeholder="رقم الجوال"
-            className="form-input"
+            onChange={setPhone}
+            countryCode={countryCode}
+            onCountryChange={setCountryCode}
+            label="رقم الجوال"
+            placeholder="5xxxxxxxx"
           />
 
           <PasswordInput

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import PasswordInput from '../components/PasswordInput'
 import { normalizeDigits } from '../utils/normalizeInput'
 import TreeNavigator from '../components/TreeNavigator'
+import PhoneInput from '../components/PhoneInput'
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -131,6 +132,7 @@ export default function MemberDashboard() {
   /* التواصل */
   const [editContact,    setEditContact]    = useState(false)
   const [draft,          setDraft]          = useState({ firstName: '', phone: '', email: '', city: '', job: '' })
+  const [phoneCountry,   setPhoneCountry]   = useState('+966')
   const [contactLoading, setContactLoading] = useState(false)
 
   /* الزوجات */
@@ -167,17 +169,16 @@ export default function MemberDashboard() {
   const [changePwLoading, setChangePwLoading] = useState(false)
 
   /* ربط الشجرة */
-  const [showTreeLink,    setShowTreeLink]    = useState(false)
-  const [treeLinkLoading, setTreeLinkLoading] = useState(false)
-  const [treeLinkMsg,     setTreeLinkMsg]     = useState(null)
-  const [treeMode,        setTreeMode]        = useState('branch')
-  const [notFoundName,    setNotFoundName]    = useState('')
-  const [notFoundNote,    setNotFoundNote]    = useState('')
-  const [notFoundAncestor,setNotFoundAncestor]= useState(null)
-  const [treeData,        setTreeData]        = useState(null)
-  const [treeLoading,     setTreeLoading]     = useState(false)
-  const [familyAncestors, setFamilyAncestors] = useState(null)
-  const [memberTreeNode,  setMemberTreeNode]  = useState(null)
+  const [showTreeLink,        setShowTreeLink]        = useState(false)
+  const [treeLinkLoading,     setTreeLinkLoading]     = useState(false)
+  const [treeLinkMsg,         setTreeLinkMsg]         = useState(null)
+  const [selectedLinkFather,  setSelectedLinkFather]  = useState(null)
+  const [selectedLinkGrandfa, setSelectedLinkGrandfa] = useState(null)
+  const [linkFatherName,      setLinkFatherName]      = useState('')
+  const [treeData,            setTreeData]            = useState(null)
+  const [treeLoading,         setTreeLoading]         = useState(false)
+  const [familyAncestors,     setFamilyAncestors]     = useState(null)
+  const [memberTreeNode,      setMemberTreeNode]      = useState(null)
 
   const setPw = (field) => (e) => setPasswordData(p => ({ ...p, [field]: e.target.value }))
   const API   = import.meta.env.VITE_API_URL
@@ -220,7 +221,34 @@ export default function MemberDashboard() {
       }
       return path
     }
-    const memberNode = findByMemberId(treeData)
+    // تطبيع الحروف العربية (أ/إ/آ → ا، ة → ه، ى → ي)
+    function normAr(s) {
+      return (s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim()
+    }
+
+    // Primary: search by memberId
+    let memberNode = findByMemberId(treeData)
+
+    // Fallback: match by firstName + fatherName + grandfatherName (3-level to avoid false matches)
+    if (!memberNode && memberData?.firstName) {
+      const fn = normAr(memberData.firstName)
+      const pn = normAr(memberData.fatherName || '')
+      const gn = normAr(memberData.grandfatherName || '')
+      function findByName(node, parent, grandparent) {
+        const nodeFn = normAr((node.name || '').split(' ')[0])
+        if (nodeFn === fn) {
+          const parentFn  = normAr((parent?.name      || '').split(' ')[0])
+          const gpFn      = normAr((grandparent?.name || '').split(' ')[0])
+          const parentOk  = !pn || parentFn === pn
+          const gpOk      = !gn || gpFn === gn
+          if (parentOk && gpOk) return node
+        }
+        for (const c of (node.children || [])) { const r = findByName(c, node, parent); if (r) return r }
+        return null
+      }
+      memberNode = findByName(treeData, null, null)
+    }
+
     if (!memberNode) {
       setFamilyAncestors(null)
       setMemberTreeNode(null)
@@ -233,11 +261,11 @@ export default function MemberDashboard() {
       fatherName:      fatherNode?.name || memberNode.parentName || null,
       grandfatherName: grandfatherNode?.name || fatherNode?.parentName || null,
       path:            memberNode.path       || '',
-      generation:      memberNode.generation || null,
+      generation:      memberNode.generation || memberNode.generationLevel || null,
       ancestorPath:    ancestorPath,
     })
     setMemberTreeNode(memberNode)
-  }, [treeData])
+  }, [treeData, memberData])
 
   /* جلب الشجرة عند فتح لوحة الربط */
   useEffect(() => {
@@ -280,7 +308,7 @@ export default function MemberDashboard() {
         action: 'updateMemberInfo',
         memberId: savedUser.memberId,
         'الاسم الأول':       draft.firstName,
-        'رقم الجوال':        draft.phone,
+        'رقم الجوال':        phoneCountry + draft.phone,
         'البريد الإلكتروني': draft.email,
         'المدينة':           draft.city,
         'المهنة':            draft.job,
@@ -428,34 +456,48 @@ export default function MemberDashboard() {
       setTreeLinkMsg({ success: false, text: 'أكمل بياناتك أولاً قبل إرسال طلب الربط بالشجرة.' })
       return
     }
-    const isMissingFatherMode = treeMode === 'branch'
-    if (isMissingFatherMode && !notFoundName.trim()) return
-    if (!isMissingFatherMode && !memberTreeNode) return
+    const hasFather      = Boolean(selectedLinkFather)
+    const hasGrandfather = Boolean(selectedLinkGrandfa && linkFatherName.trim())
+    if (!hasFather && !hasGrandfather) return
+
+    // Check if grandfather's children already contain the typed father name
+    const grandfatherChildMatch = hasGrandfather
+      ? (selectedLinkGrandfa.children || []).find(c => (c.name || '').split(' ')[0].trim() === linkFatherName.trim())
+      : null
 
     try {
       setTreeLinkLoading(true)
       setTreeLinkMsg(null)
-      const ancestorTag = notFoundAncestor ? '[' + notFoundAncestor.parentId + ']' : ''
-      const payload = isMissingFatherMode
+      const payload = hasFather
         ? {
             action: 'submitTreeRequest', memberId: savedUser.memberId,
-            parentId: 'NOTFOUND', parentName: notFoundName.trim(),
-            generationLevel: notFoundAncestor ? notFoundAncestor.generationLevel : 0,
-            path: notFoundAncestor ? notFoundAncestor.path : '',
-            note: ancestorTag + (notFoundNote.trim() ? ' ' + notFoundNote.trim() : ''),
+            parentId:        selectedLinkFather.id,
+            parentName:      selectedLinkFather.name,
+            generationLevel: (selectedLinkFather.generationLevel || 0) + 1,
+            path:            selectedLinkFather.computedPath || selectedLinkFather.path || '',
+            note: '',
+          }
+        : grandfatherChildMatch
+        ? {
+            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            parentId:        grandfatherChildMatch.id,
+            parentName:      grandfatherChildMatch.name,
+            generationLevel: (grandfatherChildMatch.generationLevel || 0) + 1,
+            path:            selectedLinkGrandfa.computedPath || selectedLinkGrandfa.path || '',
+            note: '',
           }
         : {
             action: 'submitTreeRequest', memberId: savedUser.memberId,
-            parentId: memberTreeNode.parentId || '',
-            parentName: familyAncestors?.fatherName || memberTreeNode.parentName || '',
-            generationLevel: familyAncestors?.generation || memberTreeNode.generation || 0,
-            path: familyAncestors?.path || memberTreeNode.path || '',
-            note: '',
+            parentId:        'NOTFOUND',
+            parentName:      linkFatherName.trim(),
+            generationLevel: (selectedLinkGrandfa.generationLevel || 0) + 2,
+            path:            selectedLinkGrandfa.computedPath || selectedLinkGrandfa.path || '',
+            note: `والدي "${linkFatherName.trim()}" غير موجود في الشجرة — جده ${selectedLinkGrandfa.name} [${selectedLinkGrandfa.id}]`,
           }
       const result = await post(payload)
       setTreeLinkMsg({ success: result.success, text: result.message || (result.success ? 'تم إرسال الطلب بنجاح، في انتظار موافقة المدير' : 'حدث خطأ') })
       if (result.success) {
-        setNotFoundName(''); setNotFoundNote(''); setNotFoundAncestor(null); setShowTreeLink(false)
+        setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setLinkFatherName(''); setShowTreeLink(false)
       }
     } catch {
       setTreeLinkMsg({ success: false, text: 'تعذّر الاتصال بالخادم' })
@@ -522,12 +564,9 @@ export default function MemberDashboard() {
   const isProfileCompleteForTree = Boolean(
     m.firstName && m.phone && m.nationalId && m.birthDate && m.job && m.maritalStatus && m.fatherName && m.grandfatherName
   )
-  const hasChildren = totalChildren > 0
+
   const memberHasTreePath = Boolean(familyAncestors?.path && memberTreeNode)
-  const preLinkedNeedsChildren = Boolean(preLinked && !familyAncestors?.path)
-  const canOpenTreeLink = Boolean(
-    memberHasTreePath || (!preLinkedNeedsChildren && isProfileCompleteForTree) || (preLinkedNeedsChildren && hasChildren && isProfileCompleteForTree)
-  )
+  const canOpenTreeLink = Boolean(memberHasTreePath || isProfileCompleteForTree)
   const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && familyAncestors?.path)
   const childTreeWarning = !familyAncestors?.path
 
@@ -601,6 +640,9 @@ export default function MemberDashboard() {
               <InfoRow label="اسم الجد"     value={m.grandfatherName} />
               <InfoRow label="رقم الهوية"   value={m.nationalId} />
               <InfoRow label="الفخذ"        value={m.branch} />
+              {familyAncestors?.generation && (
+                <InfoRow label="الجيل في الشجرة" value={`الجيل ${familyAncestors.generation}`} accent={T.blue.accent} />
+              )}
             </>
           ) : (
             <div className="space-y-3">
@@ -709,15 +751,23 @@ export default function MemberDashboard() {
             <div className="space-y-3">
               {[
                 { key: 'firstName', label: 'الاسم الأول',       type: 'text'  },
-                { key: 'phone',     label: 'رقم الجوال',        type: 'text'  },
                 { key: 'email',     label: 'البريد الإلكتروني', type: 'email' },
                 { key: 'city',      label: 'المدينة',           type: 'text'  },
               ].map(({ key, label, type }) => (
                 <div key={key}>
                   <label className="font-nav text-xs text-gray-500 mb-1.5 block">{label}</label>
-                  <input type={type} value={draft[key]} onChange={e => setDraft(p => ({ ...p, [key]: key === 'phone' ? normalizeDigits(e.target.value) : e.target.value }))} className="form-input" />
+                  <input type={type} value={draft[key]} onChange={e => setDraft(p => ({ ...p, [key]: e.target.value }))} className="form-input" />
                 </div>
               ))}
+              <div>
+                <label className="font-nav text-xs text-gray-500 mb-1.5 block">رقم الجوال</label>
+                <PhoneInput
+                  value={draft.phone}
+                  onChange={val => setDraft(p => ({ ...p, phone: val }))}
+                  countryCode={phoneCountry}
+                  onCountryChange={setPhoneCountry}
+                />
+              </div>
               <div>
                 <label className="font-nav text-xs text-gray-500 mb-1.5 block">المهنة</label>
                 <select value={draft.job} onChange={e => setDraft(p => ({ ...p, job: e.target.value }))} className="form-input">
@@ -976,9 +1026,7 @@ export default function MemberDashboard() {
 
         {!canOpenTreeLink && (
           <p className="font-nav text-xs text-yellow-200 mt-3" style={{ color: 'rgba(245,158,11,0.9)' }}>
-            {preLinkedNeedsChildren
-              ? 'تمت إضافتك مسبقاً في الشجرة — أضف أبناءك أولاً ثم قدم طلب الربط.'
-              : 'يجب إكمال الاسم، رقم الجوال، رقم الهوية، تاريخ الميلاد، المهنة، الحالة الاجتماعية، اسم الأب واسم الجد قبل طلب الربط.'}
+            يجب إكمال الاسم، رقم الجوال، رقم الهوية، تاريخ الميلاد، المهنة، الحالة الاجتماعية، اسم الأب واسم الجد قبل طلب الربط.
           </p>
         )}
 
@@ -990,62 +1038,60 @@ export default function MemberDashboard() {
         )}
 
         <SlidePanel open={showTreeLink}>
-          <div className="flex gap-2 mb-3">
-            <button onClick={() => { setTreeMode('existing') }}
-              disabled={!memberHasTreePath}
-              className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
-              style={{ background: treeMode === 'existing' ? 'rgba(59,130,246,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${treeMode === 'existing' ? 'rgba(59,130,246,0.35)' : 'rgba(255,255,255,0.08)'}`, color: treeMode === 'existing' ? '#93c5fd' : '#6b7280', opacity: memberHasTreePath ? 1 : 0.5 }}>
-              عضويتي موجودة في الشجرة
-            </button>
-            <button onClick={() => { setTreeMode('branch'); setNotFoundName(''); setNotFoundNote(''); setNotFoundAncestor(null) }}
-              className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
-              style={{ background: treeMode === 'branch' ? 'rgba(251,146,60,0.12)' : 'rgba(255,255,255,0.04)', border: `1px solid ${treeMode === 'branch' ? 'rgba(251,146,60,0.35)' : 'rgba(255,255,255,0.08)'}`, color: treeMode === 'branch' ? '#fb923c' : '#6b7280' }}>
-              أبي غير موجود
-            </button>
-          </div>
+          <p className="font-nav text-xs leading-5 pb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            ابحث عن والدك في الشجرة واضغط <span style={{ color: 'rgba(198,161,107,0.9)' }}>هذا والدي</span>.
+            إذا لم يكن والدك موجوداً، اختر جدك واضغط <span style={{ color: '#fb923c' }}>هذا جدي</span> ثم اكتب اسم والدك.
+          </p>
 
-          {treeMode === 'existing' ? (
-            <>
-              <p className="font-nav text-xs text-gray-500 leading-5 pb-2">
-                تم العثور على مسارك في الشجرة. سيُضاف أبناءك تلقائياً من بطاقة الأبناء إلى العرض، ثم يُرسل الطلب للمدير للمراجعة.
-              </p>
-              <div className="rounded-2xl p-4 mb-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="font-nav text-[11px] text-gray-300">مسارك الحالي في الشجرة:</p>
-                <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>{familyAncestors?.path || 'غير متوفر'}</p>
-                {familyAncestors?.generation ? (
-                  <p className="font-nav text-[11px] text-gray-400 mt-2">الجيل {familyAncestors.generation}</p>
-                ) : null}
-              </div>
-              <button onClick={handleSubmitTreeLink} disabled={treeLinkLoading || !memberTreeNode || !memberTreeNode.parentId}
-                className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-                style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
-                {treeLinkLoading ? 'جاري الإرسال...' : 'إرسال طلب الربط للمدير'}
-              </button>
-            </>
+          {treeLoading ? (
+            <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>جاري تحميل الشجرة...</p>
           ) : (
-            <div className="space-y-3">
-              <p className="font-nav text-xs leading-5" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                اختر أقرب شخص تعرفه في الشجرة — ثم اكتب اسم أبيك غير الموجود.
-              </p>
-              {treeLoading ? (
-                <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>جاري تحميل الشجرة...</p>
-              ) : (
-                <TreeNavigator treeData={treeData} onSelect={setNotFoundAncestor} selected={notFoundAncestor} />
-              )}
-              <div className="pt-1">
-                <p className="font-nav text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>اسم أبيك (غير الموجود في الشجرة)</p>
-                <input type="text" value={notFoundName} onChange={e => setNotFoundName(e.target.value)}
-                  placeholder="اسم الأب الكامل *" className="form-input" />
-              </div>
-              <textarea value={notFoundNote} onChange={e => setNotFoundNote(e.target.value)}
-                placeholder="ملاحظة إضافية للمدير..." className="form-input resize-none" rows={2} />
-              <button onClick={handleSubmitTreeLink} disabled={treeLinkLoading || !notFoundName.trim()}
-                className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-                style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c' }}>
-                {treeLinkLoading ? 'جاري الإرسال...' : 'إرسال الطلب للمدير'}
-              </button>
+            <TreeNavigator
+              treeData={treeData}
+              onSelect={() => {}}
+              selected={null}
+              onSelectFather={node => { setSelectedLinkFather(node); setSelectedLinkGrandfa(null); setLinkFatherName('') }}
+              selectedFatherId={selectedLinkFather?.id}
+              onSelectGrandfather={node => { setSelectedLinkGrandfa(node); setSelectedLinkFather(null) }}
+              selectedGrandfatherId={selectedLinkGrandfa?.id}
+            />
+          )}
+
+          {/* عرض الوالد المختار */}
+          {selectedLinkFather && (
+            <div className="rounded-2xl p-4" style={{ background: 'rgba(198,161,107,0.05)', border: '1px solid rgba(198,161,107,0.2)' }}>
+              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>الوالد المختار:</p>
+              <p className="font-nav text-sm font-semibold mt-1" style={{ color: 'var(--gold-main)' }}>{selectedLinkFather.name}</p>
             </div>
           )}
+
+          {/* وضع الجد — والد غير موجود */}
+          {selectedLinkGrandfa && (
+            <div className="space-y-2">
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>الجد المختار:</p>
+                <p className="font-nav text-sm font-semibold mt-1" style={{ color: '#fb923c' }}>{selectedLinkGrandfa.name}</p>
+                {(selectedLinkGrandfa.children || []).find(c => (c.name || '').split(' ')[0].trim() === linkFatherName.trim()) && (
+                  <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                    ✓ تم العثور على اسم والدك في أبناء هذا الجد — سيُربط تلقائياً
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className="font-nav text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>اسم والدك (غير الموجود في الشجرة) *</p>
+                <input type="text" value={linkFatherName} onChange={e => setLinkFatherName(e.target.value)}
+                  placeholder="اسم الأب الكامل" className="form-input" />
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={handleSubmitTreeLink}
+            disabled={treeLinkLoading || (!selectedLinkFather && !(selectedLinkGrandfa && linkFatherName.trim()))}
+            className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+            style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
+            {treeLinkLoading ? 'جاري الإرسال...' : 'إرسال الطلب للمدير'}
+          </button>
         </SlidePanel>
       </div>
 

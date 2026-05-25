@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TreeNavigator from '../components/TreeNavigator';
+import PhoneInput from '../components/PhoneInput';
+import DateInput from '../components/DateInput';
 import { normalizeDigits } from '../utils/normalizeInput';
 
 export default function Register() {
@@ -12,29 +14,31 @@ export default function Register() {
   const [formData, setFormData] = useState({
     firstName: '', phone: '', nationalId: '', birthDate: '',
     job: '', jobOther: '', maritalStatus: '', password: '', confirmPassword: '',
+    email: '', city: '',
   });
+  const [countryCode, setCountryCode] = useState('+966');
 
-  const [treeData,       setTreeData]       = useState(null);
-  const [treeLoading,    setTreeLoading]    = useState(false);
-  const [selectedFather, setSelectedFather] = useState(null);  // { id, name, generationLevel, path, children }
-  const [fatherMatch,    setFatherMatch]    = useState(null);  // 'found' | 'notfound' | null
-  const [loading,        setLoading]        = useState(false);
-  const [message,        setMessage]        = useState('');
-  const [messageType,    setMessageType]    = useState('');
+  const [treeData,          setTreeData]          = useState(null);
+  const [treeLoading,       setTreeLoading]       = useState(true);
+  const [selectedFather,    setSelectedFather]    = useState(null);
+  const [selectedGrandfa,   setSelectedGrandfa]   = useState(null);
+  const [fatherNotInTree,   setFatherNotInTree]   = useState('');
+  const [fatherMatch,       setFatherMatch]       = useState(null);  // 'found' | 'notfound' | null
+  const [loading,           setLoading]           = useState(false);
+  const [message,           setMessage]           = useState('');
+  const [messageType,       setMessageType]       = useState('');
 
-  const NUMERIC_FIELDS = ['phone', 'nationalId'];
+  const NUMERIC_FIELDS = ['nationalId'];
   const handleChange = (e) => {
     const { name, value } = e.target;
     const newVal = NUMERIC_FIELDS.includes(name) ? normalizeDigits(value) : value;
     setFormData(prev => ({ ...prev, [name]: newVal }));
-    // إذا تغير الاسم بعد اختيار الأب — أعد حساب التطابق
     if (name === 'firstName' && selectedFather) checkMatch(newVal, selectedFather);
   };
 
   // تحميل الشجرة
   useEffect(() => {
     let mounted = true;
-    setTreeLoading(true);
     fetch(import.meta.env.VITE_API_URL, {
       method: 'POST',
       body: JSON.stringify({ action: 'getFamilyTree' }),
@@ -46,7 +50,6 @@ export default function Register() {
     return () => { mounted = false; };
   }, []);
 
-  // البحث عن اسم المسجّل في أبناء الأب المختار
   const checkMatch = useCallback((firstName, fatherNode) => {
     if (!firstName || !fatherNode) { setFatherMatch(null); return; }
     const name = firstName.trim();
@@ -58,8 +61,19 @@ export default function Register() {
   }, []);
 
   const handleSelectFather = (node) => {
-    setSelectedFather(node);
+    const pathStr = node.computedPath || node.path || '';
+    const pathParts = pathStr.split(' ← ').map(s => s.trim()).filter(Boolean);
+    const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
+    setSelectedFather({ ...node, branch });
+    setSelectedGrandfa(null);
+    setFatherNotInTree('');
     checkMatch(formData.firstName, node);
+  };
+
+  const handleSelectGrandfather = (node) => {
+    setSelectedGrandfa(node);
+    setSelectedFather(null);
+    setFatherMatch(null);
   };
 
   const validate = () => {
@@ -69,7 +83,9 @@ export default function Register() {
     if (!/^\d{10}$/.test(formData.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
                                                         { setMessage('رقم الهوية يجب أن يكون 10 أرقام'); return false; }
     if (!formData.birthDate)                            { setMessage('تاريخ الميلاد مطلوب'); return false; }
-    if (!selectedFather)                                { setMessage('يجب اختيار والدك من الشجرة'); return false; }
+    if (!selectedFather && !(selectedGrandfa && fatherNotInTree.trim()))
+                                                        { setMessage('يجب اختيار والدك من الشجرة، أو اختيار جدك وكتابة اسم والدك'); return false; }
+    if (selectedGrandfa && !fatherNotInTree.trim())     { setMessage('يرجى كتابة اسم والدك'); return false; }
     if (!formData.phone.trim())                         { setMessage('رقم الجوال مطلوب'); return false; }
     if (!formData.maritalStatus)                        { setMessage('الحالة الاجتماعية مطلوبة'); return false; }
     if (!formData.job)                                  { setMessage('المهنة مطلوبة'); return false; }
@@ -86,24 +102,45 @@ export default function Register() {
 
     const jobFinal = formData.job === 'أخرى' ? formData.jobOther.trim() : formData.job;
 
+    // Resolve grandfather-mode: check if typed father name exists among grandfather's children
+    let grandfaChildMatch = null;
+    if (selectedGrandfa && fatherNotInTree.trim()) {
+      grandfaChildMatch = (selectedGrandfa.children || []).find(
+        c => (c.name || '').split(' ')[0].trim() === fatherNotInTree.trim()
+      ) || null;
+    }
+
+    // Determine effective parent node
+    const parentNode = selectedFather
+      ? selectedFather
+      : grandfaChildMatch
+        ? { ...grandfaChildMatch, branch: selectedGrandfa.branch || '' }
+        : selectedGrandfa;
+
     setLoading(true);
     try {
       const res = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action:           'register',
-          firstName:        formData.firstName.trim(),
-          phone:            formData.phone.trim(),
-          nationalId:       formData.nationalId.trim(),
-          birthDate:        formData.birthDate,
-          job:              jobFinal,
-          maritalStatus:    formData.maritalStatus,
-          password:         formData.password,
-          parentNodeId:     selectedFather.id,
-          parentNodeName:   selectedFather.name,
-          generationLevel:  (selectedFather.generationLevel || 0) + 1,
-          matchedInFather:  fatherMatch === 'found',
+          action:          'register',
+          firstName:       formData.firstName.trim(),
+          phone:           countryCode + formData.phone.trim(),
+          nationalId:      formData.nationalId.trim(),
+          birthDate:       formData.birthDate,
+          job:             jobFinal,
+          maritalStatus:   formData.maritalStatus,
+          password:        formData.password,
+          email:           formData.email.trim(),
+          city:            formData.city.trim(),
+          parentNodeId:    parentNode.id,
+          fatherName:      selectedFather
+            ? selectedFather.name.split(' ')[0]
+            : fatherNotInTree.trim(),
+          generation:      String((parentNode.generationLevel || 0) + 1),
+          branch:          (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
+          matchedInFather: fatherMatch === 'found' || Boolean(grandfaChildMatch),
+          fatherNotInTree: Boolean(selectedGrandfa && !grandfaChildMatch),
+          grandfatherId:   selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
         }),
       });
       const data = await res.json();
@@ -182,8 +219,11 @@ export default function Register() {
                 onChange={handleChange} className="form-input" placeholder="10 أرقام" maxLength={10} />
             </Field>
             <Field label="تاريخ الميلاد *">
-              <input type="date" name="birthDate" required value={formData.birthDate}
-                onChange={handleChange} className="form-input" />
+              <DateInput
+                value={formData.birthDate}
+                onChange={val => setFormData(prev => ({ ...prev, birthDate: val }))}
+                required
+              />
             </Field>
           </div>
 
@@ -208,15 +248,22 @@ export default function Register() {
                 selected={null}
                 onSelectFather={handleSelectFather}
                 selectedFatherId={selectedFather?.id}
+                onSelectGrandfather={handleSelectGrandfather}
+                selectedGrandfatherId={selectedGrandfa?.id}
               />
             )}
 
-            {/* نتيجة المطابقة */}
+            {/* الوالد المختار */}
             {selectedFather && (
               <div className="mt-4 rounded-xl p-3"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>الوالد المختار:</p>
                 <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>{selectedFather.name}</p>
+                {selectedFather.branch && (
+                  <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                    الفخذ: <span style={{ color: 'rgba(198,161,107,0.8)' }}>{selectedFather.branch}</span>
+                  </p>
+                )}
                 {fatherMatch === 'found' && (
                   <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
                     ✓ تم العثور على اسمك في قائمة أبناء هذا الوالد — سيتم الربط تلقائياً
@@ -229,15 +276,55 @@ export default function Register() {
                 )}
               </div>
             )}
+
+            {/* الجد المختار — الوالد غير موجود */}
+            {selectedGrandfa && (
+              <div className="mt-4 space-y-3">
+                <div className="rounded-xl p-3"
+                  style={{ background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.2)' }}>
+                  <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>الجد المختار:</p>
+                  <p className="font-nav text-sm font-semibold" style={{ color: '#fb923c' }}>{selectedGrandfa.name}</p>
+                  {(selectedGrandfa.children || []).find(c => (c.name || '').split(' ')[0].trim() === fatherNotInTree.trim()) && (
+                    <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                      ✓ تم العثور على اسم والدك في أبناء هذا الجد — سيُربط تلقائياً
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    اسم والدك (غير الموجود في الشجرة) *
+                  </label>
+                  <input type="text" value={fatherNotInTree}
+                    onChange={e => setFatherNotInTree(e.target.value)}
+                    className="form-input" placeholder="اسم الأب الكامل" />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 4. رقم الجوال */}
           <Field label="رقم الجوال *">
-            <input name="phone" required inputMode="numeric" value={formData.phone}
-              onChange={handleChange} className="form-input" placeholder="05xxxxxxxx" />
+            <PhoneInput
+              value={formData.phone}
+              onChange={val => setFormData(prev => ({ ...prev, phone: val }))}
+              countryCode={countryCode}
+              onCountryChange={setCountryCode}
+            />
           </Field>
 
-          {/* 5. الحالة الاجتماعية + المهنة */}
+          {/* 5. البريد الإلكتروني + المدينة */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="البريد الإلكتروني">
+              <input name="email" type="email" value={formData.email}
+                onChange={handleChange} className="form-input" placeholder="example@email.com" dir="ltr" />
+            </Field>
+            <Field label="المدينة">
+              <input name="city" value={formData.city}
+                onChange={handleChange} className="form-input" placeholder="مثال: جدة" />
+            </Field>
+          </div>
+
+          {/* 6. الحالة الاجتماعية + المهنة */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="الحالة الاجتماعية *">
               <select name="maritalStatus" required value={formData.maritalStatus} onChange={handleChange} className="form-input">
@@ -259,7 +346,7 @@ export default function Register() {
             </Field>
           )}
 
-          {/* 6. كلمة المرور */}
+          {/* 7. كلمة المرور */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="كلمة المرور *">
               <input type="password" name="password" value={formData.password}
@@ -271,16 +358,16 @@ export default function Register() {
             </Field>
           </div>
 
-          <div className="pt-4 flex justify-center gap-4">
-            <button type="submit" disabled={loading || !selectedFather}
-              className="font-nav bg-[var(--gold-main)] text-black font-bold flex items-center justify-center overflow-hidden transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{ height: 56, width: loading ? 56 : '100%', borderRadius: loading ? '50%' : 14,
-                transition: 'width 0.5s cubic-bezier(0.23,1,0.32,1), border-radius 0.5s cubic-bezier(0.23,1,0.32,1)' }}>
+          <div className="pt-4 space-y-3">
+            <button type="submit" disabled={loading || (!selectedFather && !(selectedGrandfa && fatherNotInTree.trim()))}
+              className="font-nav bg-[var(--gold-main)] text-black font-bold flex items-center justify-center overflow-hidden transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed w-full"
+              style={{ height: 56, borderRadius: loading ? '50%' : 14,
+                transition: 'border-radius 0.5s cubic-bezier(0.23,1,0.32,1)' }}>
               {loading ? <div className="btn-spinner" /> : 'إرسال طلب العضوية'}
             </button>
             <button type="button" onClick={() => navigate('/login')}
-              className="px-6 py-3 border-2 border-[var(--gold-main)] text-[var(--gold-main)] rounded-xl hover:bg-[var(--gold-main)]/10 font-semibold transition-colors font-nav">
-              لديك حساب؟
+              className="w-full py-3 border-2 border-[var(--gold-main)] text-[var(--gold-main)] rounded-xl hover:bg-[var(--gold-main)]/10 font-semibold transition-colors font-nav">
+              لديك حساب؟ تسجيل الدخول
             </button>
           </div>
 

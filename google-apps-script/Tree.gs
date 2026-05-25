@@ -60,16 +60,57 @@ function getFamilyTree(body) {
     };
   });
 
-  // إثراء بيانات الشجرة من جدول الأعضاء (المهنة والمدينة)
+  // تطبيع الحروف العربية للمقارنة
+  var normAr = function(s) {
+    return String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+  };
+
+  // إثراء بيانات الشجرة من جدول الأعضاء
   Object.keys(nodeMap).forEach(function(id) {
     var node   = nodeMap[id];
-    if (!node.memberId) return;
-    var member = membersAll.find(function(m) { return String(m['رقم العضو']) === node.memberId; });
+    var member = null;
+
+    // البحث الأساسي: برقم العضو المسجل على العقدة
+    if (node.memberId) {
+      member = membersAll.find(function(m) { return String(m['رقم العضو']) === node.memberId; });
+    }
+
+    // البحث الاحتياطي: باسم العضو + اسم الأب + اسم الجد + رقم الجيل
+    if (!member) {
+      var nodeFn       = normAr((node.name || '').split(' ')[0]);
+      var parentNode   = node.parentId ? nodeMap[node.parentId] : null;
+      var gpNode       = parentNode && parentNode.parentId ? nodeMap[parentNode.parentId] : null;
+      var parentFn     = parentNode ? normAr((parentNode.name || '').split(' ')[0]) : '';
+      var gpFn         = gpNode     ? normAr((gpNode.name     || '').split(' ')[0]) : '';
+      var nodeGen      = node.generation || 0;
+
+      var candidates = membersAll.filter(function(m) {
+        var mFn = normAr(String(m['الاسم الأول'] || ''));
+        if (mFn !== nodeFn) return false;
+        if (parentFn) {
+          var pFn = normAr(String(m['اسم الأب'] || ''));
+          if (pFn && pFn !== parentFn) return false;
+        }
+        if (gpFn) {
+          var gFn = normAr(String(m['اسم الجد'] || ''));
+          if (gFn && gFn !== gpFn) return false;
+        }
+        return true;
+      });
+
+      // إذا وجد مرشح واحد فقط — هو العضو الصحيح
+      if (candidates.length === 1) {
+        member = candidates[0];
+        node.memberId = String(member['رقم العضو'] || '');
+      }
+    }
+
     if (!member) return;
-    if (member['المهنة'])            node.job     = String(member['المهنة']);
-    if (member['المدينة'])           node.location = String(member['المدينة']);
-    if (member['الحالة الاجتماعية']) node.marital  = String(member['الحالة الاجتماعية']);
-    if (member['رقم الجوال'])        node.phone    = String(member['رقم الجوال']);
+    if (member['المهنة'])            node.job       = String(member['المهنة']);
+    if (member['المدينة'])           node.location  = String(member['المدينة']);
+    if (member['الحالة الاجتماعية']) node.marital   = String(member['الحالة الاجتماعية']);
+    if (member['رقم الجوال'])        node.phone     = String(member['رقم الجوال']);
+    if (member['تاريخ الميلاد'])     node.birthDate = String(member['تاريخ الميلاد']);
   });
 
   // ربط عقد الشجرة بآبائهم
@@ -399,19 +440,46 @@ function approveTreeRequest(body) {
     var mbrParent   = existingMbr ? String(existingMbr['رقم الأب'] || '') : null;
 
     if (!existingMbr) {
-      var mbrNodeId = generateId('N');
-      var mbrMap = {
-        'رقم العقدة':  mbrNodeId,
-        'رقم العضو':   memberId,
-        'اسم العضو':   memberName,
-        'رقم الأب':    fatherNodeId,
-        'اسم الأب':    parentName,
-        'مستوى الجيل': memberGenLvl,
-        'المسار':      memberPath,
-        'حي/ميت':      'حي',
+      // فحص عقدة يتيمة تحت الأب الجديد
+      var normArNF = function(s) {
+        return String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
       };
-      treeSheet.appendRow(treeHeaders.map(function(h) { return mbrMap[h] !== undefined ? mbrMap[h] : ''; }));
-      formatLastRow(treeSheet);
+      var mbrFN = normArNF(memberName.split(' ')[0]);
+      var orphanNF = null;
+      for (var oni = 0; oni < existing.length; oni++) {
+        var oen = existing[oni];
+        if (String(oen['رقم العضو'] || '').trim()) continue;
+        if (String(oen['رقم الأب']  || '').trim() !== fatherNodeId) continue;
+        if (normArNF(String(oen['اسم العضو'] || '').split(' ')[0]) === mbrFN) { orphanNF = oen; break; }
+      }
+      if (orphanNF) {
+        var orphanNFFound = findRow('الشجرة العائلية', 0, String(orphanNF['رقم العقدة'] || ''));
+        if (orphanNFFound) {
+          var setONF = function(colName, val) {
+            var c = orphanNFFound.headers.indexOf(colName) + 1;
+            if (c > 0) treeSheet.getRange(orphanNFFound.rowIndex, c).setValue(val);
+          };
+          setONF('رقم العضو',   memberId);
+          setONF('اسم العضو',   memberName);
+          setONF('مستوى الجيل', memberGenLvl);
+          setONF('المسار',      memberPath);
+          setONF('حي/ميت',      'حي');
+        }
+      } else {
+        var mbrNodeId = generateId('N');
+        var mbrMap = {
+          'رقم العقدة':  mbrNodeId,
+          'رقم العضو':   memberId,
+          'اسم العضو':   memberName,
+          'رقم الأب':    fatherNodeId,
+          'اسم الأب':    parentName,
+          'مستوى الجيل': memberGenLvl,
+          'المسار':      memberPath,
+          'حي/ميت':      'حي',
+        };
+        treeSheet.appendRow(treeHeaders.map(function(h) { return mbrMap[h] !== undefined ? mbrMap[h] : ''; }));
+        formatLastRow(treeSheet);
+      }
     } else if (mbrParent === 'NOTFOUND' || mbrParent === '') {
       var mbrFound = findRow('الشجرة العائلية', 0, String(existingMbr['رقم العقدة'] || ''));
       if (mbrFound) {
@@ -465,6 +533,40 @@ function approveTreeRequest(body) {
       }
     }
 
+    // ─── فحص العقدة اليتيمة: عقدة أضافها المدير بدون رقم عضو تحت نفس الأب بنفس الاسم ───
+    var normArLocal = function(s) {
+      return String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+    };
+    var memberFirstName = normArLocal(memberName.split(' ')[0]);
+    var orphanNode = null;
+    for (var oi = 0; oi < existing.length; oi++) {
+      var en = existing[oi];
+      if (String(en['رقم العضو'] || '').trim()) continue;           // له رقم عضو — تجاهل
+      if (String(en['رقم الأب']  || '').trim() !== parentId) continue; // أب مختلف — تجاهل
+      var enFirstName = normArLocal(String(en['اسم العضو'] || '').split(' ')[0]);
+      if (enFirstName === memberFirstName) { orphanNode = en; break; }
+    }
+
+    if (orphanNode) {
+      // ربط العقدة اليتيمة بالعضو الجديد بدلاً من إنشاء عقدة مكررة
+      var orphanFound = findRow('الشجرة العائلية', 0, String(orphanNode['رقم العقدة'] || ''));
+      if (orphanFound) {
+        var setOrphan = function(colName, val) {
+          var c = orphanFound.headers.indexOf(colName) + 1;
+          if (c > 0) treeSheet.getRange(orphanFound.rowIndex, c).setValue(val);
+        };
+        setOrphan('رقم العضو',   memberId);
+        setOrphan('اسم العضو',   memberName);
+        setOrphan('مستوى الجيل', generation);
+        setOrphan('المسار',      path);
+        setOrphan('حي/ميت',      'حي');
+      }
+      linkChildRecordToMember(memberId, memberName, fatherMemberId, mbrNid);
+      syncFatherChildrenToTree(memberId, String(orphanNode['رقم العقدة']), memberName, generation, path);
+      return { success: true, message: 'تم ربط بيانات العضو بالعقدة الموجودة في الشجرة (أضافها المدير مسبقاً)' };
+    }
+
+    // ─── لا عقدة يتيمة — أنشئ عقدة جديدة ───
     var nodeId = generateId('N');
     var colMap = {
       'رقم العقدة':  nodeId,

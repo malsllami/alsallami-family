@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import PhoneInput from '../components/PhoneInput'
 
 /* ════ بيانات افتراضية — تُستبدل بجلب من API عند توفر الباكند ════════════ */
 const FALLBACK = {
@@ -85,6 +86,16 @@ function shallowTree(node, maxDepth, depth = 0) {
   if (depth >= maxDepth) return { ...node, children: [] }
   return { ...node, children: (node.children || []).map(c => shallowTree(c, maxDepth, depth + 1)) }
 }
+// يجد المسار من الجذر إلى targetId ويعيد مصفوفة مرتبة من معرّفات العقد
+function findPath(node, targetId, path = []) {
+  const next = [...path, node.id]
+  if (node.id === targetId) return next
+  for (const c of (node.children || [])) {
+    const r = findPath(c, targetId, next)
+    if (r) return r
+  }
+  return null
+}
 
 /* ════ وظائف التخطيط ══════════════════════════════════════════════════════ */
 function visKids(node, pub) {
@@ -159,18 +170,18 @@ function buildWivesData(nodes, showWives) {
 }
 
 /* ════ مكونات SVG ══════════════════════════════════════════════════════════ */
-function CircleNode({ n, active, onClick }) {
-  const { cx, cy, r, alive, marriedOut, name, depth = 0 } = n
+function CircleNode({ n, active, onClick, dimmed, isMe }) {
+  const { cx, cy, r, alive, name, depth = 0 } = n
   const [hov, setHov] = useState(false)
-  const isMO = !!marriedOut
   const pal  = genPalette(depth)
 
-  // تخفيف التوهج مع العمق: الجذر أوضح، الأحفاد أهدأ
   const dimOp      = depth === 0 ? 1.0 : depth === 1 ? 0.85 : 0.70
-  const strokeColor = active ? '#C6A16B' : pal.stroke
-  const strokeW     = active ? 2.5 : hov ? 2.3 : 2.0
-  const strokeOp    = active ? 1.0 : hov ? Math.min(dimOp + 0.15, 1.0) : dimOp
-  const glowFilter  = active
+  const strokeColor = (active || isMe) ? '#C6A16B' : pal.stroke
+  const strokeW     = (active || isMe) ? 2.5 : hov ? 2.3 : 2.0
+  const strokeOp    = (active || isMe) ? 1.0 : hov ? Math.min(dimOp + 0.15, 1.0) : dimOp
+  const glowFilter  = isMe
+    ? 'drop-shadow(0 0 14px rgba(198,161,107,1.0))'
+    : active
     ? 'drop-shadow(0 0 10px rgba(198,161,107,0.85))'
     : pal.glow
 
@@ -184,10 +195,24 @@ function CircleNode({ n, active, onClick }) {
         transformBox: 'fill-box',
         transformOrigin: 'center',
         transform: hov ? 'scale(1.05)' : 'scale(1)',
-        transition: 'transform .25s ease',
+        transition: 'transform .25s ease, opacity .35s ease',
+        opacity: dimmed ? 0.12 : 1,
       }}
     >
-      {/* حلقة الحياة — أوضح وأكثر صلابة */}
+      {/* هالة موقعي */}
+      {isMe && (
+        <>
+          <circle cx={cx} cy={cy} r={r + 18}
+            fill="none" stroke="rgba(198,161,107,0.15)" strokeWidth={6}
+            style={{ filter: 'blur(5px)' }} />
+          <circle cx={cx} cy={cy} r={r + 10}
+            fill="none" stroke="rgba(198,161,107,0.45)" strokeWidth={3}
+            style={{ filter: 'blur(2px)' }} />
+          <circle cx={cx} cy={cy} r={r + 5}
+            fill="none" stroke="rgba(198,161,107,0.7)" strokeWidth={1.5} />
+        </>
+      )}
+      {/* حلقة الحياة */}
       {alive && (
         <circle cx={cx} cy={cy} r={r + 5}
           fill="none" stroke="#00c896" strokeWidth={5} strokeOpacity={0.40}
@@ -238,6 +263,194 @@ function MarriageDiamond({ cx, cy }) {
   )
 }
 
+/* ════ حساب إحصائيات الشجرة ════════════════════════════════════════════ */
+function parseAgeFromDate(dateStr) {
+  if (!dateStr) return null
+  let d = new Date(dateStr)
+  if (isNaN(d.getTime())) {
+    const parts = String(dateStr).split('/')
+    if (parts.length === 3) {
+      d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10))
+    }
+  }
+  if (isNaN(d.getTime())) return null
+  const age = Math.floor((Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000))
+  return (age >= 0 && age < 130) ? age : null
+}
+
+function computeTreeStats(root) {
+  if (!root) return null
+  const all = []
+  function walk(node, depth) {
+    if (!node || node.isWife) return
+    all.push({ alive: node.alive === true, gen: node.generation || (depth + 1), birthDate: node.birthDate || null })
+    ;(node.children || []).forEach(c => walk(c, depth + 1))
+  }
+  walk(root, 0)
+
+  const genMap = {}
+  all.forEach(n => {
+    if (!genMap[n.gen]) genMap[n.gen] = { count: 0, ages: [] }
+    genMap[n.gen].count++
+    const age = parseAgeFromDate(n.birthDate)
+    if (age !== null) genMap[n.gen].ages.push(age)
+  })
+  const generations = Object.entries(genMap)
+    .map(([g, d]) => ({
+      gen: Number(g),
+      count: d.count,
+      avgAge: d.ages.length > 0 ? Math.round(d.ages.reduce((a, b) => a + b, 0) / d.ages.length) : null,
+    }))
+    .sort((a, b) => a.gen - b.gen)
+
+  const branches = []
+  ;(root.children || []).forEach(mid => {
+    ;(mid.children || []).forEach(branch => {
+      let maxGen = branch.generation || 3
+      function walkBranch(n, ig) {
+        const g = n.generation || ig
+        if (g > maxGen) maxGen = g
+        ;(n.children || []).forEach(c => walkBranch(c, g + 1))
+      }
+      walkBranch(branch, branch.generation || 3)
+      branches.push({ name: branch.name, maxGen, span: maxGen - (branch.generation || 3) + 1 })
+    })
+  })
+
+  const total = all.length
+  const alive = all.filter(n => n.alive).length
+  return { total, alive, dead: total - alive, generations, branches }
+}
+
+/* ════ لوحة الإحصائيات ══════════════════════════════════════════════════ */
+function StatsPanel({ stats, onClose }) {
+  if (!stats) return null
+  const maxCount = stats.generations.reduce((a, g) => Math.max(a, g.count), 1)
+  return (
+    <div className="fixed inset-0 z-[9998] flex items-start justify-center px-4"
+      style={{ paddingTop: 72 }}
+      onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+      <div className="relative w-full max-w-[460px] rounded-[26px] z-10 flex flex-col"
+        style={{
+          maxHeight: 'calc(100svh - 90px)',
+          background: 'rgba(12,22,34,0.98)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          backdropFilter: 'blur(28px)',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.75)',
+        }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* رأس اللوحة */}
+        <div className="flex items-center justify-between px-5 py-4 flex-shrink-0"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
+          <button onClick={onClose}
+            className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-all text-sm">✕</button>
+          <span className="font-bold text-[var(--gold-main)] text-base">إحصائيات الشجرة العائلية</span>
+          <div className="w-8" />
+        </div>
+
+        {/* المحتوى */}
+        <div className="overflow-y-auto p-5 space-y-5" style={{ scrollbarWidth: 'none' }}>
+
+          {/* الإجمالي + الأحياء + المتوفون */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="rounded-2xl p-4 text-center"
+              style={{ background: 'rgba(198,161,107,0.08)', border: '1px solid rgba(198,161,107,0.22)' }}>
+              <p className="font-nav text-[10px] text-gray-500 mb-2">إجمالي الشجرة</p>
+              <p className="text-3xl font-black tabular-nums" style={{ color: 'var(--gold-main)' }}>{stats.total}</p>
+              <p className="font-nav text-[10px] text-gray-500 mt-1">شخص</p>
+            </div>
+            <div className="rounded-2xl p-4 text-center"
+              style={{ background: 'rgba(74,222,128,0.07)', border: '1px solid rgba(74,222,128,0.2)' }}>
+              <p className="font-nav text-[10px] text-gray-500 mb-2">أحياء</p>
+              <p className="text-3xl font-black tabular-nums text-green-400">{stats.alive}</p>
+              <p className="font-nav text-[10px] text-green-700 mt-1">
+                {stats.total ? Math.round(stats.alive / stats.total * 100) : 0}%
+              </p>
+            </div>
+            <div className="rounded-2xl p-4 text-center"
+              style={{ background: 'rgba(156,163,175,0.05)', border: '1px solid rgba(156,163,175,0.16)' }}>
+              <p className="font-nav text-[10px] text-gray-500 mb-2">متوفون</p>
+              <p className="text-3xl font-black tabular-nums text-gray-400">{stats.dead}</p>
+              <p className="font-nav text-[10px] text-gray-600 mt-1">
+                {stats.total ? Math.round(stats.dead / stats.total * 100) : 0}%
+              </p>
+            </div>
+          </div>
+
+          {/* توزيع الأجيال */}
+          <div>
+            <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>توزيع الأجيال</p>
+            <div className="space-y-2">
+              {stats.generations.map(g => (
+                <div key={g.gen} className="rounded-xl px-4 py-2.5"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <div className="flex items-center gap-3 mb-1.5">
+                    <span className="font-nav text-xs font-bold w-14 flex-shrink-0"
+                      style={{ color: genPalette(g.gen - 1).stroke }}>
+                      الجيل {g.gen}
+                    </span>
+                    <div className="flex-1 h-1.5 rounded-full overflow-hidden"
+                      style={{ background: 'rgba(255,255,255,0.06)' }}>
+                      <div className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${Math.max(4, (g.count / maxCount) * 100)}%`,
+                          background: genPalette(g.gen - 1).stroke,
+                          opacity: 0.75,
+                        }} />
+                    </div>
+                    <span className="font-nav text-sm font-bold text-white tabular-nums w-8 text-right flex-shrink-0">
+                      {g.count}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span />
+                    {g.avgAge !== null
+                      ? <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                          متوسط العمر: {g.avgAge} سنة
+                        </span>
+                      : <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                          لا توجد بيانات أعمار
+                        </span>
+                    }
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* أعماق الفخوذ */}
+          {stats.branches.length > 0 && (
+            <div>
+              <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>عمق كل فخذ</p>
+              <div className="space-y-2">
+                {stats.branches.map(b => (
+                  <div key={b.name} className="flex items-center justify-between rounded-xl px-4 py-3"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(16,185,129,0.12)' }}>
+                    <div className="flex items-center gap-3">
+                      <span className="font-bold text-sm text-white">فخذ {b.name}</span>
+                      <span className="font-nav text-xs text-gray-500">يصل للجيل {b.maxGen}</span>
+                    </div>
+                    <span className="font-nav text-[11px] px-2.5 py-1 rounded-full font-bold flex-shrink-0"
+                      style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
+                      {b.span} {b.span === 1 ? 'جيل' : 'أجيال'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <p className="font-nav text-[10px] text-center pb-1" style={{ color: 'rgba(255,255,255,0.13)' }}>
+            تتحدث تلقائياً عند أي تغيير في الشجرة
+          </p>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ════ نافذة التفاصيل ════════════════════════════════════════════════════ */
 function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
   const mapMarital = (m) => {
@@ -246,14 +459,51 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     return m || ''
   }
 
-  const [editing,      setEditing]      = useState(false)
-  const [editName,     setEditName]     = useState(node.name)
-  const [editAlive,    setEditAlive]    = useState(node.alive)
-  const [editPhone,    setEditPhone]    = useState(node.phone || '')
-  const [editMarital,  setEditMarital]  = useState(mapMarital(node.marital))
-  const [editJob,      setEditJob]      = useState(node.job || '')
-  const [editLocation, setEditLocation] = useState(node.location || '')
-  const [saving,       setSaving]       = useState(false)
+  const [editing,         setEditing]         = useState(false)
+  const [editName,        setEditName]        = useState(node.name)
+  const [editAlive,       setEditAlive]       = useState(node.alive)
+  const [editPhone,       setEditPhone]       = useState(node.phone || '')
+  const [editPhoneCountry,setEditPhoneCountry]= useState('+966')
+  const [editMarital,     setEditMarital]     = useState(mapMarital(node.marital))
+  const [editJob,         setEditJob]         = useState(node.job || '')
+  const [editLocation,    setEditLocation]    = useState(node.location || '')
+  const [saving,          setSaving]          = useState(false)
+
+  /* ── جلب بيانات العضو المسجل إن وجد ── */
+  const [profile,        setProfile]        = useState(null)
+  const [profileLoading, setProfileLoading] = useState(false)
+  const API = import.meta.env.VITE_API_URL
+
+  useEffect(() => {
+    if (!node.memberId || !API) return
+    setProfileLoading(true)
+    fetch(API, { method: 'POST', body: JSON.stringify({ action: 'getMemberData', memberId: node.memberId }) })
+      .then(r => r.json())
+      .then(d => { if (d.success && d.member) setProfile(d.member) })
+      .catch(() => {})
+      .finally(() => setProfileLoading(false))
+  }, [node.memberId])
+
+  /* دمج بيانات التسجيل فوق بيانات الشجرة */
+  const display = profile ? {
+    alive:      profile.alive !== undefined ? profile.alive : node.alive,
+    marital:    profile.maritalStatus || node.marital,
+    job:        profile.job           || node.job,
+    location:   profile.city          || node.location,
+    phone:      profile.phone         || node.phone,
+    nationalId: profile.nationalId    || null,
+    generation: node.generationLevel  || null,
+    name:       node.name,
+  } : {
+    alive:      node.alive,
+    marital:    node.marital,
+    job:        node.job,
+    location:   node.location,
+    phone:      node.phone,
+    nationalId: null,
+    generation: node.generationLevel || null,
+    name:       node.name,
+  }
 
   const isWifeDaughter = node.isWife || node.isDaughter || node.isSon
   const isLoggedIn     = !!user
@@ -279,7 +529,6 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
 
   const handleSave = async () => {
     setSaving(true)
-    const API = import.meta.env.VITE_API_URL
     if (API) {
       try {
         if (node.isWife) {
@@ -296,7 +545,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
             nodeId:   node.id,
             name:     editName.trim(),
             status:   editAlive ? 'حي' : 'متوفى',
-            phone:    editPhone.trim(),
+            phone:    editPhoneCountry + editPhone.trim(),
             marital:  editMarital,
             job:      editJob,
             location: editLocation.trim(),
@@ -306,7 +555,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     }
     const updates = isWifeDaughter
       ? { alive: editAlive }
-      : { name: editName.trim(), alive: editAlive, phone: editPhone.trim(), marital: editMarital, job: editJob, location: editLocation.trim() }
+      : { name: editName.trim(), alive: editAlive, phone: editPhoneCountry + editPhone.trim(), marital: editMarital, job: editJob, location: editLocation.trim() }
     onUpdateNode(node.id, updates)
     setSaving(false)
     onClose()
@@ -315,7 +564,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center px-4" onClick={onClose}>
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-      <div className="relative w-full max-w-[320px] rounded-[26px] p-6 z-10"
+      <div className="relative w-full max-w-[340px] rounded-[26px] p-6 z-10"
         onClick={e => e.stopPropagation()}
         style={{ background: 'rgba(20,28,38,0.98)', border: '1px solid rgba(255,255,255,0.11)', backdropFilter: 'blur(24px)', boxShadow: '0 32px 80px rgba(0,0,0,0.7)' }}>
 
@@ -323,20 +572,28 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
         <div className="flex items-center justify-between mb-5">
           <button onClick={onClose}
             className="w-8 h-8 rounded-xl flex items-center justify-center text-gray-500 hover:text-gray-200 hover:bg-white/10 transition-all text-sm">✕</button>
-          {isAdmin && !editing && (
-            <button onClick={() => setEditing(true)}
-              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
-              style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.25)', color: 'var(--gold-main)' }}>
-              تعديل
-            </button>
-          )}
-          {isAdmin && editing && (
-            <button onClick={cancelEdit}
-              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
-              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }}>
-              إلغاء
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {profile && (
+              <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
+                عضو مسجل
+              </span>
+            )}
+            {isAdmin && !editing && (
+              <button onClick={() => setEditing(true)}
+                className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
+                style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.25)', color: 'var(--gold-main)' }}>
+                تعديل
+              </button>
+            )}
+            {isAdmin && editing && (
+              <button onClick={cancelEdit}
+                className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }}>
+                إلغاء
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── وضع التعديل ── */}
@@ -346,7 +603,6 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               تعديل بيانات {node.isWife ? 'الزوجة' : node.isDaughter ? 'الابنة' : node.isSon ? 'الابن' : 'العقدة'}
             </p>
 
-            {/* الاسم — للعقد الرئيسية فقط */}
             {!isWifeDaughter && (
               <EF label="الاسم">
                 <input type="text" value={editName} onChange={e => setEditName(e.target.value)}
@@ -354,7 +610,6 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               </EF>
             )}
 
-            {/* حي / متوفى */}
             <EF label="الحال">
               <div className="flex gap-2">
                 <button onClick={() => setEditAlive(true)} className="flex-1 font-nav text-sm py-2 rounded-xl transition-all"
@@ -368,7 +623,6 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               </div>
             </EF>
 
-            {/* الحالة الاجتماعية + المهنة + المدينة + الجوال — للعقد الرئيسية فقط */}
             {!isWifeDaughter && <>
               <EF label="الحالة الاجتماعية">
                 <select value={editMarital} onChange={e => setEditMarital(e.target.value)}
@@ -396,8 +650,12 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                   className="form-input w-full" style={{ direction: 'rtl' }} placeholder="مثال: الرياض، جدة..." />
               </EF>
               <EF label="رقم الجوال">
-                <input type="text" inputMode="numeric" value={editPhone} onChange={e => setEditPhone(e.target.value)}
-                  className="form-input w-full" style={{ direction: 'ltr', textAlign: 'right' }} placeholder="05xxxxxxxx" />
+                <PhoneInput
+                  value={editPhone}
+                  onChange={setEditPhone}
+                  countryCode={editPhoneCountry}
+                  onCountryChange={setEditPhoneCountry}
+                />
               </EF>
             </>}
 
@@ -406,6 +664,12 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }}>
               {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
             </button>
+          </div>
+        ) : profileLoading ? (
+          <div className="py-8 flex flex-col items-center gap-3">
+            <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
+              style={{ borderColor: 'rgba(198,161,107,0.4)', borderTopColor: 'transparent' }} />
+            <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>جاري تحميل البيانات...</p>
           </div>
         ) : (
           <>
@@ -420,19 +684,33 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                 </svg>
               </div>
             </div>
-            <p className="text-center text-lg font-bold text-[var(--gold-main)] mb-1">{node.name}</p>
-            {lineage && (
-              <p className="text-center font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.38)' }}>{lineage}</p>
-            )}
+            <p className="text-center text-lg font-bold text-[var(--gold-main)] mb-1">{display.name}</p>
+            <div className="flex items-center justify-center gap-2 mb-1">
+              {display.generation && (
+                <span className="font-nav text-[11px] px-2.5 py-0.5 rounded-full font-bold"
+                  style={{ background: 'rgba(198,161,107,0.15)', border: '1px solid rgba(198,161,107,0.35)', color: 'var(--gold-main)' }}>
+                  الجيل {display.generation}
+                </span>
+              )}
+              {lineage && (
+                <span className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.38)' }}>{lineage}</span>
+              )}
+            </div>
             <div className="divide-y divide-white/[0.06]">
-              <PR label="الحال" value={node.alive ? 'حي' : 'متوفى'} color={node.alive ? '#4ade80' : '#9ca3af'} />
+              <PR label="الحال" value={display.alive ? 'حي' : 'متوفى'} color={display.alive ? '#4ade80' : '#9ca3af'} />
               {!isWifeDaughter && <>
-                <PR label="الحالة الاجتماعية" value={node.marital ? mapMarital(node.marital) : '—'} />
-                <PR label="المهنة"  value={node.job      || '—'} />
-                <PR label="المدينة" value={node.location || '—'} color={node.location ? '#a78bfa' : undefined} />
-                {isLoggedIn && <PR label="الجوال" value={node.phone || '—'} />}
+                <PR label="الحالة الاجتماعية" value={display.marital ? mapMarital(display.marital) : '—'} />
+                <PR label="المهنة"  value={display.job      || '—'} />
+                <PR label="المدينة" value={display.location || '—'} color={display.location ? '#a78bfa' : undefined} />
+                {isLoggedIn && <PR label="الجوال"     value={display.phone      || '—'} />}
+                {isLoggedIn && display.nationalId && <PR label="رقم الهوية" value={display.nationalId} />}
               </>}
             </div>
+            {!isLoggedIn && node.memberId && (
+              <p className="font-nav text-[10px] text-center mt-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
+                سجّل دخولك لرؤية رقم الجوال والهوية
+              </p>
+            )}
           </>
         )}
       </div>
@@ -470,8 +748,12 @@ export default function FamilyTree({ viewerMode = false }) {
   const [tx,         setTx]        = useState({ x: 0, y: 0, s: 0.5 })
   const [isDragging, setDrag]      = useState(false)
   const showWives = false
-  const isAdmin   = !viewerMode && user?.roles?.includes('admin')
+  const isAdmin      = !viewerMode && user?.roles?.includes('admin')
+  const [lineageMode, setLineageMode] = useState(false)
+  const [showStats,   setShowStats]   = useState(false)
   const initDone  = useRef(false)
+
+  const treeStats = useMemo(() => computeTreeStats(treeRoot), [treeRoot])
 
   /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
   useEffect(() => {
@@ -516,6 +798,34 @@ export default function FamilyTree({ viewerMode = false }) {
     if (!user?.memberId) return null
     return nodes.find(n => n.memberId === user.memberId) || null
   }, [nodes, user])
+
+  /* ── وضع مسار الانتساب ── */
+  const ancestryPath = useMemo(() => {
+    if (!lineageMode || !myNode) return null
+    return findPath(effectiveRoot, myNode.id)
+  }, [lineageMode, myNode, effectiveRoot])
+
+  const ancestryPathSet = useMemo(() => {
+    if (!ancestryPath) return null
+    return new Set(ancestryPath)
+  }, [ancestryPath])
+
+  const ancestryLineSegs = useMemo(() => {
+    if (!ancestryPath || ancestryPath.length < 2) return []
+    const byId = Object.fromEntries(nodes.map(n => [n.id, n]))
+    const segs = []
+    for (let i = 0; i < ancestryPath.length - 1; i++) {
+      const p = byId[ancestryPath[i]]
+      const c = byId[ancestryPath[i + 1]]
+      if (!p || !c) continue
+      const midY = p.cy + p.r + (c.cy - c.r - p.cy - p.r) / 2
+      segs.push({ x1: p.cx, y1: p.cy + p.r, x2: p.cx,  y2: midY,        gen: i })
+      if (Math.abs(p.cx - c.cx) > 1)
+        segs.push({ x1: p.cx, y1: midY,      x2: c.cx,  y2: midY,        gen: i })
+      segs.push({ x1: c.cx, y1: midY,        x2: c.cx,  y2: c.cy - c.r, gen: i })
+    }
+    return segs
+  }, [ancestryPath, nodes])
 
   const centerOn = (n) => {
     const vw = window.innerWidth
@@ -595,6 +905,28 @@ export default function FamilyTree({ viewerMode = false }) {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branch])
+
+  // عند تفعيل وضع الانتساب: اضبط العرض ليشمل المسار كاملاً
+  useEffect(() => {
+    if (!lineageMode || !ancestryPath || !nodes.length) return
+    const byId = Object.fromEntries(nodes.map(n => [n.id, n]))
+    const pNodes = ancestryPath.map(id => byId[id]).filter(Boolean)
+    if (!pNodes.length) return
+    const xs = pNodes.flatMap(n => [n.cx - n.r - 40, n.cx + n.r + 40])
+    const ys = pNodes.flatMap(n => [n.cy - n.r - 40, n.cy + n.r + 40])
+    const minX = Math.min(...xs), maxX = Math.max(...xs)
+    const minY = Math.min(...ys), maxY = Math.max(...ys)
+    const pw = maxX - minX, ph = maxY - minY
+    const vw = window.innerWidth, vh = window.innerHeight
+    const avW = vw - 80, avH = vh - BAR_H - 80
+    const s = Math.max(0.15, Math.min(avW / pw, avH / ph, 2))
+    requestAnimationFrame(() => setTx({
+      s,
+      x: vw / 2 - (minX + pw / 2) * s,
+      y: BAR_H + avH / 2 - (minY + ph / 2) * s + 20,
+    }))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lineageMode, ancestryPath])
 
   useEffect(() => {
     const prev = { overflow: document.body.style.overflow, touchAction: document.body.style.touchAction }
@@ -739,10 +1071,31 @@ export default function FamilyTree({ viewerMode = false }) {
             ))}
           </select>
 
+          {/* زر الإحصائيات */}
+          <button
+            onClick={() => setShowStats(v => !v)}
+            title="إحصائيات الشجرة"
+            className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 flex items-center gap-1.5"
+            style={{
+              background: showStats ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)',
+              border: `1px solid ${showStats ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
+              color: showStats ? '#818cf8' : 'rgba(255,255,255,0.6)',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+            </svg>
+            <span className="hidden sm:inline">إحصائيات</span>
+          </button>
+
           {/* زر موقعي في الشجرة */}
-          {!viewerMode && myNode && (
+          {!viewerMode && user?.memberId && !lineageMode && (
             <button
-              onClick={() => { setSel(myNode); centerOn(myNode) }}
+              onClick={() => {
+                if (!myNode) setBranch('all')
+                setLineageMode(true)
+                setSel(null)
+              }}
               className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
               style={{
                 background: 'rgba(198,161,107,0.12)',
@@ -753,6 +1106,24 @@ export default function FamilyTree({ viewerMode = false }) {
             >
               <span className="hidden sm:inline">موقعي</span>
               <span className="sm:hidden">◎</span>
+            </button>
+          )}
+
+          {/* زر الخروج من وضع الانتساب */}
+          {lineageMode && (
+            <button
+              onClick={() => setLineageMode(false)}
+              className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200"
+              style={{
+                background: 'rgba(198,161,107,0.18)',
+                border: '1px solid rgba(198,161,107,0.55)',
+                color: 'var(--gold-main)',
+                whiteSpace: 'nowrap',
+                fontWeight: 700,
+              }}
+            >
+              <span className="hidden sm:inline">✕ الشجرة كاملة</span>
+              <span className="sm:hidden">✕</span>
             </button>
           )}
 
@@ -779,19 +1150,72 @@ export default function FamilyTree({ viewerMode = false }) {
           {/* خطوط الأب–الأبناء */}
           {lines.map((l, i) => (
             <line key={i} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-              stroke={genPalette(l.d ?? 0).line} strokeWidth={1.2} opacity={0.65} />
+              stroke={genPalette(l.d ?? 0).line} strokeWidth={1.2}
+              opacity={lineageMode ? 0.15 : 0.65} />
           ))}
 
           {/* خطوط وحدة الزواج */}
           {wLines.map((l, i) => (
             <line key={`wl${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
-              stroke={WIFE_LC} strokeWidth={1.4} strokeDasharray="6,3" />
+              stroke={WIFE_LC} strokeWidth={1.4} strokeDasharray="6,3"
+              opacity={lineageMode ? 0.1 : 1} />
           ))}
+
+          {/* خطوط مسار الانتساب — تظهر جيلاً بعد جيل */}
+          {lineageMode && (
+            <>
+              <defs>
+                <style>{`
+                  @keyframes ancestryDraw {
+                    from { stroke-dashoffset: 2000; opacity: 0; }
+                    to   { stroke-dashoffset: 0;    opacity: 1; }
+                  }
+                `}</style>
+              </defs>
+              {ancestryLineSegs.map((l, i) => {
+                const delay = `${l.gen * 0.28}s`
+                return (
+                  <g key={`alg${i}`}>
+                    {/* هالة خارجية ضبابية */}
+                    <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                      stroke="rgba(198,161,107,0.25)" strokeWidth={14} strokeLinecap="round"
+                      strokeDasharray="2000" strokeDashoffset="2000"
+                      style={{
+                        filter: 'blur(6px)',
+                        animation: `ancestryDraw 0.45s ease forwards`,
+                        animationDelay: delay,
+                      }} />
+                    {/* هالة وسطى */}
+                    <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                      stroke="rgba(198,161,107,0.55)" strokeWidth={5} strokeLinecap="round"
+                      strokeDasharray="2000" strokeDashoffset="2000"
+                      style={{
+                        filter: 'blur(2px)',
+                        animation: `ancestryDraw 0.45s ease forwards`,
+                        animationDelay: delay,
+                      }} />
+                    {/* الخط الرئيسي */}
+                    <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+                      stroke="rgba(198,161,107,0.95)" strokeWidth={2.5} strokeLinecap="round"
+                      strokeDasharray="2000" strokeDashoffset="2000"
+                      style={{
+                        filter: 'drop-shadow(0 0 4px rgba(198,161,107,1))',
+                        animation: `ancestryDraw 0.45s ease forwards`,
+                        animationDelay: delay,
+                      }} />
+                  </g>
+                )
+              })}
+            </>
+          )}
 
           {/* عقد الأشخاص */}
           {nodes.map(n => (
             <CircleNode key={n.id} n={n} active={sel?.id === n.id}
-              onClick={() => onNodeClick(n)} />
+              onClick={() => onNodeClick(n)}
+              dimmed={lineageMode && ancestryPathSet ? !ancestryPathSet.has(n.id) : false}
+              isMe={lineageMode && n.id === myNode?.id}
+            />
           ))}
 
           {/* الزوجات + الماسات */}
@@ -867,12 +1291,38 @@ export default function FamilyTree({ viewerMode = false }) {
         <LegendDot fill="rgba(59,130,246,0.05)" stroke="rgba(198,161,107,0.45)" dash label="متوفى" />
       </div>
 
+      {/* ── شريط وضع الانتساب ── */}
+      {lineageMode && myNode && (
+        <div style={{
+          position: 'absolute', top: BAR_H + 10, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 50, background: 'rgba(15,28,46,0.92)', backdropFilter: 'blur(12px)',
+          border: '1px solid rgba(198,161,107,0.4)', borderRadius: 14,
+          padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <span style={{ fontSize: 12, color: 'rgba(198,161,107,0.6)', fontFamily: 'Cairo,sans-serif' }}>مسارك في الشجرة:</span>
+          <span style={{ fontSize: 13, color: 'var(--gold-main)', fontWeight: 700, fontFamily: 'Cairo,sans-serif' }}>
+            {ancestryPath
+              ? ancestryPath.map((id, i) => {
+                  const n = nodes.find(x => x.id === id)
+                  return n ? (i === ancestryPath.length - 1
+                    ? <span key={id} style={{ color: '#C6A16B', fontWeight: 900 }}>{firstName(n.name)}</span>
+                    : <span key={id}>{firstName(n.name)} ← </span>
+                  ) : null
+                })
+              : firstName(myNode.name)}
+          </span>
+        </div>
+      )}
+
       {/* ── loading ── */}
       {loading && (
         <div style={{ position: 'absolute', top: BAR_H + 16, left: '50%', transform: 'translateX(-50%)', zIndex: 60 }}>
           <div className="font-nav text-sm text-gray-500">جاري تحميل الشجرة...</div>
         </div>
       )}
+
+      {/* ── لوحة الإحصائيات ── */}
+      {showStats && <StatsPanel stats={treeStats} onClose={() => setShowStats(false)} />}
 
       {/* ── نافذة التفاصيل ── */}
       {sel && <Popup key={sel.id} node={sel} onClose={() => setSel(null)} isAdmin={isAdmin} user={user} onUpdateNode={handleUpdateNode} />}

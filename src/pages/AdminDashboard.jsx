@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
+import { normalizeDigits } from '../utils/normalizeInput'
+import PhoneInput from '../components/PhoneInput'
 
 /* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور */
 function buildFlatTree(roots) {
@@ -97,6 +99,8 @@ export default function AdminDashboard() {
   const [adminAncestor,       setAdminAncestor]       = useState(null)   // العقدة التي اختارها المدير
   const [adminTreeData,       setAdminTreeData]       = useState(null)
   const [adminTreeLoading,    setAdminTreeLoading]    = useState(false)
+  const [amPhoneCountry,      setAmPhoneCountry]      = useState('+966')
+  const [editReqPhoneCountry, setEditReqPhoneCountry] = useState('+966')
 
   const AM_INITIAL = {
     nationalId:'', firstName:'', phone:'',
@@ -228,7 +232,7 @@ export default function AdminDashboard() {
       setEditLoading(true)
       const res = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
-        body: JSON.stringify({ action: 'updatePendingRequest', requestId, ...editFields }),
+        body: JSON.stringify({ action: 'updatePendingRequest', requestId, ...editFields, 'رقم الجوال': editReqPhoneCountry + (editFields['رقم الجوال'] || '') }),
       })
       const result = await res.json()
       if (result.success) {
@@ -433,7 +437,7 @@ export default function AdminDashboard() {
           action:               'addMember',
           nationalId:           amData.nationalId,
           firstName:            amData.firstName,
-          phone:                amData.phone,
+          phone:                amPhoneCountry + amData.phone,
           branch:               amData.branch,
           parentNodeId:         amData.parentNodeId,
           parentChildRecordId:  parentNode?.childRecordId || '',
@@ -614,7 +618,7 @@ export default function AdminDashboard() {
                 <PasswordInput
                   placeholder="رمز الدخول"
                   value={pin}
-                  onChange={e => { setPin(e.target.value); setPinError('') }}
+                  onChange={e => { setPin(normalizeDigits(e.target.value)); setPinError('') }}
                   onKeyDown={e => e.key === 'Enter' && handleVerifyPin()}
                 />
 
@@ -1196,7 +1200,6 @@ export default function AdminDashboard() {
                         ['الاسم الأول','الاسم الأول','text'],
                         ['اسم الأب','اسم الأب','text'],
                         ['اسم الجد','اسم الجد','text'],
-                        ['رقم الجوال','الجوال','numeric'],
                         ['رقم الهوية','الهوية','numeric'],
                         ['المدينة','المدينة','text'],
                       ].map(([field, ph, mode]) => (
@@ -1205,6 +1208,12 @@ export default function AdminDashboard() {
                           onChange={e => setEditFields(p => ({ ...p, [field]: e.target.value }))} />
                       ))}
                     </div>
+                    <PhoneInput
+                      value={editFields['رقم الجوال'] || ''}
+                      onChange={val => setEditFields(p => ({ ...p, 'رقم الجوال': val }))}
+                      countryCode={editReqPhoneCountry}
+                      onCountryChange={setEditReqPhoneCountry}
+                    />
                     <div className="flex gap-2">
                       <button onClick={() => handleSaveEdit(req.requestId)} disabled={editLoading}
                         className="flex-1 font-nav text-xs py-2.5 rounded-xl font-bold transition-all"
@@ -1481,9 +1490,12 @@ export default function AdminDashboard() {
                 onChange={e => setAmData(p => ({ ...p, nationalId: e.target.value }))} />
             </AmField>
             <AmField label="رقم الجوال (اختياري)">
-              <input className="form-input" placeholder="05xxxxxxxx" inputMode="numeric"
+              <PhoneInput
                 value={amData.phone}
-                onChange={e => setAmData(p => ({ ...p, phone: e.target.value }))} />
+                onChange={val => setAmData(p => ({ ...p, phone: val }))}
+                countryCode={amPhoneCountry}
+                onCountryChange={setAmPhoneCountry}
+              />
             </AmField>
           </div>
         )}
