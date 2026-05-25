@@ -1,236 +1,310 @@
-import { useState, useEffect } from 'react'
-import PasswordInput from '../components/PasswordInput'
-import { normalizeDigits } from '../utils/normalizeInput'
-
-const JOBS = ['مولود', 'طالب', 'موظف', 'رجل أعمال', 'متقاعد']
-const MARITAL_STATUS = ['أعزب', 'متزوج', 'أرمل', 'منفصل']
-const BRANCHES = [
-  { id: 'صاحب', label: 'صاحب' },
-  { id: 'شامي', label: 'شامي' },
-  { id: 'علي', label: 'علي "سندي"' },
-  { id: 'ابراهيم', label: 'إبراهيم "الشقيق"' },
-  { id: 'يحيى', label: 'يحيى' }
-]
-
-const INITIAL = {
-  firstName: '', phone: '', nationalId: '', birthDate: '',
-  job: '', maritalStatus: '', password: '', confirmPassword: '',
-  selectedBranch: '', selectedFatherId: '', selectedFatherName: ''
-}
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import TreeNavigator from '../components/TreeNavigator';
+import { normalizeDigits } from '../utils/normalizeInput';
 
 export default function Register() {
-  const [form, setForm] = useState(INITIAL)
-  const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState('')
-  const [error, setError] = useState('')
+  const navigate = useNavigate();
   
-  const [treeData, setTreeData] = useState(null)
-  const [treeLoading, setTreeLoading] = useState(false)
-  const [currentPath, setCurrentPath] = useState([])
-  const [childrenAtLevel, setChildrenAtLevel] = useState([])
-  const [matchingStatus, setMatchingStatus] = useState(null)
+  // ═══ ثوابت ═══
+  const JOBS = ['موظف', 'طالب', 'متقاعد', 'رجل أعمال', 'أخرى'];
+  const MARITAL_STATUS = ['أعزب', 'متزوج', 'مطلق', 'أرمل'];
+  
+  // ═══ الفخوذ الصحيحة ═══
+  const branches = [
+    'آل صاحب',
+    'آل شامي',
+    'آل يحيى',
+    'آل علي " سيد "',
+    'آل ابراهيم " الشقيق "'
+  ];
 
-  const NUMERIC_FIELDS = ['phone', 'nationalId']
-  const set = e => {
-    const val = NUMERIC_FIELDS.includes(e.target.name)
-      ? normalizeDigits(e.target.value)
-      : e.target.value
-    setForm(p => ({ ...p, [e.target.name]: val }))
-  }
+  // ═══ States ═══
+  const [formData, setFormData] = useState({
+    firstName: '',
+    fatherName: '',
+    grandfatherName: '',
+    phone: '',
+    email: '',
+    nationalId: '',
+    birthDate: '',
+    city: '',
+    job: '',
+    jobOther: '',
+    password: '',
+    confirmPassword: '',
+    branch: '',
+    maritalStatus: '',
+  });
 
+  const [selectedFather, setSelectedFather] = useState(null);
+  const [treeData, setTreeData] = useState([]);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('');
+  const [matchResult, setMatchResult] = useState(null);
+
+  // ═══ الحقول الرقمية للتنسيق ═══
+  const NUMERIC_FIELDS = ['phone', 'nationalId'];
+
+  // ═══ Functions ═══
+  
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    const newValue = NUMERIC_FIELDS.includes(name) ? normalizeDigits(value) : value;
+    setFormData(prev => ({ ...prev, [name]: newValue }));
+  };
+
+  // تحميل الشجرة
   useEffect(() => {
-    loadTree()
-  }, [])
-
-  const loadTree = async () => {
-    setTreeLoading(true)
-    try {
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'getFamilyTree' })
-      })
-      const result = await res.json()
-      if (result.success && result.tree) {
-        setTreeData(result.tree)
-        const root = result.tree.find(n => n['الاسم الأول'] === 'إبراهيم' && !n['رقم الأب'])
-        if (root) {
-          const ahmad = result.tree.find(n => 
-            n['الاسم الأول'] === 'أحمد' && n['رقم الأب'] === root['رقم العقدة']
-          )
-          if (ahmad) {
-            setCurrentPath([
-              { id: root['رقم العقدة'], name: 'إبراهيم العفريتي', generation: root['الجيل'] },
-              { id: ahmad['رقم العقدة'], name: 'أحمد', generation: ahmad['الجيل'] }
-            ])
-          }
+    let isMounted = true;
+    
+    const fetchTree = async () => {
+      setTreeLoading(true);
+      try {
+        const res = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'getFamilyTree' }),
+        });
+        const data = await res.json();
+        if (isMounted && data.success && data.tree) {
+          setTreeData(data.tree);
         }
+      } catch (error) {
+        console.error('Error loading tree:', error);
+      } finally {
+        if (isMounted) setTreeLoading(false);
       }
-    } catch (err) {
-      console.error('خطأ في جلب الشجرة:', err)
-    } finally {
-      setTreeLoading(false)
+    };
+    
+    fetchTree();
+    return () => { isMounted = false; };
+  }, []);
+
+  // التحقق من المطابقة
+  const checkMatch = useCallback(async () => {
+    if (!selectedFather || !formData.firstName || !formData.nationalId || !formData.birthDate) {
+      return;
     }
-  }
 
-  const handleBranchSelect = (branchId) => {
-    if (!treeData) return
-    setForm(p => ({ ...p, selectedBranch: branchId, selectedFatherId: '', selectedFatherName: '' }))
-    setMatchingStatus(null)
-    
-    const ahmadNode = currentPath[1]
-    const branchNode = treeData.find(n => 
-      n['الاسم الأول'] === branchId && n['رقم الأب'] === ahmadNode?.id
-    )
-    
-    if (branchNode) {
-      const newPath = [
-        ...currentPath,
-        { id: branchNode['رقم العقدة'], name: branchId, generation: branchNode['الجيل'] }
-      ]
-      setCurrentPath(newPath)
-      loadChildrenAtLevel(branchNode['رقم العقدة'])
-    }
-  }
-
-  const loadChildrenAtLevel = (nodeId) => {
-    if (!treeData) return
-    const children = treeData.filter(n => n['رقم الأب'] === nodeId)
-    setChildrenAtLevel(children.map(c => ({
-      id: c['رقم العقدة'],
-      name: c['الاسم الأول'],
-      memberId: c['رقم العضو'],
-      generation: c['الجيل'],
-      isAlive: c['الحالة'] === 'حي'
-    })))
-  }
-
-  const handleNodeSelect = (node) => {
-    const newPath = [...currentPath, node]
-    setCurrentPath(newPath)
-    loadChildrenAtLevel(node.id)
-    setMatchingStatus(null)
-  }
-
-  const handleGoBack = () => {
-    if (currentPath.length <= 2) return
-    const newPath = currentPath.slice(0, -1)
-    setCurrentPath(newPath)
-    loadChildrenAtLevel(newPath[newPath.length - 1].id)
-    setMatchingStatus(null)
-    setForm(p => ({ ...p, selectedFatherId: '', selectedFatherName: '' }))
-  }
-
-  const handleSelectFather = async (node) => {
-    setForm(p => ({ 
-      ...p, 
-      selectedFatherId: node.id,
-      selectedFatherName: node.name
-    }))
-    
-    if (!form.firstName.trim()) {
-      setMatchingStatus({ found: false, message: 'يرجى إدخال اسمك أولاً' })
-      return
-    }
-    
     try {
       const res = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'checkChildMatch',
-          fatherNodeId: node.id,
-          firstName: form.firstName.trim(),
-          nationalId: form.nationalId.trim(),
-          birthDate: form.birthDate
-        })
-      })
-      const result = await res.json()
-      
-      if (result.success && result.found) {
-        setMatchingStatus({ 
-          found: true, 
-          message: 'تم العثور على بياناتك في الشجرة! سيتم ربط حسابك تلقائياً.',
-          matchedChild: result.child
-        })
+          parentNodeId: selectedFather.id,
+          firstName: formData.firstName,
+          nationalId: formData.nationalId,
+          birthDate: formData.birthDate,
+        }),
+      });
+      const data = await res.json();
+      if (data.success && data.match) {
+        setMatchResult(data.match);
       } else {
-        setMatchingStatus({ 
-          found: false, 
-          message: 'لم يتم العثور على اسمك ضمن أبناء هذا الوالد. سيتم إرسال طلب للمدير للمراجعة.'
-        })
+        setMatchResult(null);
       }
-    } catch (err) {
-      console.error('خطأ في التحقق من المطابقة:', err)
-      setMatchingStatus({ found: false, message: 'خطأ في التحقق من البيانات' })
+    } catch (error) {
+      console.error('Error checking match:', error);
+      setMatchResult(null);
     }
-  }
+  }, [selectedFather, formData.firstName, formData.nationalId, formData.birthDate]);
+
+  // تحديث اسم الأب والفخذ عند اختيار والد
+  useEffect(() => {
+    if (selectedFather && selectedFather.name) {
+      setFormData(prev => ({
+        ...prev,
+        fatherName: prev.fatherName || selectedFather.name,
+        branch: prev.branch || selectedFather.branch || '',
+      }));
+    }
+  }, [selectedFather]);
+
+  // التحقق من المطابقة مع تأخير
+  useEffect(() => {
+    if (selectedFather && formData.firstName && formData.nationalId && formData.birthDate) {
+      const timer = setTimeout(() => {
+        checkMatch();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedFather, formData.firstName, formData.nationalId, formData.birthDate, checkMatch]);
+
+  // التحقق من صحة البيانات
+  const validateForm = () => {
+    const nameRe = /^[؀-ۿ]+([\s][؀-ۿ]+)*$/;
+    if (!nameRe.test(formData.firstName.trim())) {
+      setMessage('الاسم الأول يجب أن يكون بالعربية');
+      setMessageType('error');
+      return false;
+    }
+    if (!formData.phone.trim()) {
+      setMessage('رقم الجوال مطلوب');
+      setMessageType('error');
+      return false;
+    }
+    if (!formData.nationalId.trim()) {
+      setMessage('رقم الهوية مطلوب');
+      setMessageType('error');
+      return false;
+    }
+    if (!/^\d{10}$/.test(formData.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)))) {
+      setMessage('رقم الهوية يجب أن يكون 10 أرقام');
+      setMessageType('error');
+      return false;
+    }
+    if (!formData.birthDate) {
+      setMessage('تاريخ الميلاد مطلوب');
+      setMessageType('error');
+      return false;
+    }
+    if (!formData.job) {
+      setMessage('المهنة مطلوبة');
+      setMessageType('error');
+      return false;
+    }
+    if (formData.job === 'أخرى' && !formData.jobOther.trim()) {
+      setMessage('يرجى تحديد المهنة');
+      setMessageType('error');
+      return false;
+    }
+    if (!formData.maritalStatus) {
+      setMessage('الحالة الاجتماعية مطلوبة');
+      setMessageType('error');
+      return false;
+    }
+    if (!selectedFather) {
+      setMessage('يجب اختيار الوالد من الشجرة');
+      setMessageType('error');
+      return false;
+    }
+    if (formData.password.length < 6) {
+      setMessage('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
+      setMessageType('error');
+      return false;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setMessage('كلمة المرور وتأكيدها غير متطابقتين');
+      setMessageType('error');
+      return false;
+    }
+    return true;
+  };
 
   const handleSubmit = async (e) => {
-    e.preventDefault()
-    setError(''); setSuccess('')
+    e.preventDefault();
+    setMessage('');
+    setMessageType('');
 
-    const nameRe = /^[؀-ۿ]+([\s][؀-ۿ]+)*$/
-    if (!nameRe.test(form.firstName.trim())) { setError('الاسم الأول يجب أن يكون بالعربية'); return }
-    if (!form.phone.trim()) { setError('رقم الجوال مطلوب'); return }
-    if (!form.nationalId.trim()) { setError('رقم الهوية مطلوب'); return }
-    if (!/^\d{10}$/.test(form.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
-      { setError('رقم الهوية يجب أن يكون 10 أرقام'); return }
-    if (!form.birthDate) { setError('تاريخ الميلاد مطلوب'); return }
-    if (!form.selectedBranch) { setError('يرجى اختيار الفخذ'); return }
-    if (!form.selectedFatherId) { setError('يرجى اختيار والدك من الشجرة'); return }
-    if (!form.job) { setError('المهنة مطلوبة'); return }
-    if (!form.maritalStatus) { setError('الحالة الاجتماعية مطلوبة'); return }
-    if (form.password.length < 6) { setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return }
-    if (form.password !== form.confirmPassword) { setError('كلمة المرور وتأكيدها غير متطابقتين'); return }
+    if (!validateForm()) return;
+
+    const jobFinal = formData.job === 'أخرى' ? formData.jobOther.trim() : formData.job;
+
+    setLoading(true);
 
     try {
-      setLoading(true)
+      const payload = {
+        action: 'register',
+        firstName: formData.firstName.trim(),
+        fatherName: formData.fatherName.trim() || selectedFather.name,
+        grandfatherName: formData.grandfatherName.trim(),
+        phone: formData.phone.trim(),
+        email: formData.email.trim(),
+        nationalId: formData.nationalId.trim(),
+        birthDate: formData.birthDate,
+        city: formData.city.trim(),
+        job: jobFinal,
+        password: formData.password,
+        branch: formData.branch || selectedFather.branch || '',
+        maritalStatus: formData.maritalStatus,
+        parentNodeId: selectedFather.id,
+        selectedFatherName: selectedFather.name,
+        treePath: selectedFather.path || selectedFather.name,
+      };
+
       const res = await fetch(import.meta.env.VITE_API_URL, {
         method: 'POST',
-        body: JSON.stringify({
-          action: 'register',
-          firstName: form.firstName.trim(),
-          phone: form.phone.trim(),
-          nationalId: form.nationalId.trim(),
-          birthDate: form.birthDate,
-          job: form.job,
-          maritalStatus: form.maritalStatus,
-          password: form.password,
-          parentNodeId: form.selectedFatherId,
-          parentName: form.selectedFatherName,
-          selectedBranch: form.selectedBranch,
-          treePath: currentPath.map(p => p.name).join(' ← '),
-          matchingData: matchingStatus
-        }),
-      })
-      const result = await res.json()
-      if (result.success) {
-        setSuccess(result.message)
-        setForm(INITIAL)
-        setCurrentPath(currentPath.slice(0, 2))
-        setChildrenAtLevel([])
-        setMatchingStatus(null)
-      } else setError(result.message || 'حدث خطأ')
-    } catch {
-      setError('تعذّر الاتصال بالخادم')
-    } finally { setLoading(false) }
-  }
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
 
+      const data = await res.json();
+
+      if (data.success) {
+        setMessage('تم إرسال طلب التسجيل بنجاح! سيتم مراجعته من قبل الإدارة.');
+        setMessageType('success');
+        
+        setFormData({
+          firstName: '',
+          fatherName: '',
+          grandfatherName: '',
+          phone: '',
+          email: '',
+          nationalId: '',
+          birthDate: '',
+          city: '',
+          job: '',
+          jobOther: '',
+          password: '',
+          confirmPassword: '',
+          branch: '',
+          maritalStatus: '',
+        });
+        setSelectedFather(null);
+        setMatchResult(null);
+
+        setTimeout(() => {
+          navigate('/login');
+        }, 3000);
+      } else {
+        setMessage(data.message || 'حدث خطأ أثناء التسجيل');
+        setMessageType('error');
+      }
+    } catch (error) {
+      console.error('Registration error:', error);
+      setMessage('تعذّر الاتصال بالخادم');
+      setMessageType('error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ═══ Render ═══
+  
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 py-16">
-      <div className="relative w-full max-w-3xl"
-        style={{ background:'rgba(255,255,255,0.04)', border:'1px solid rgba(255,255,255,0.09)',
-          borderRadius:35, padding:40, backdropFilter:'blur(24px)', WebkitBackdropFilter:'blur(24px)',
-          boxShadow:'0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+    <div className="min-h-screen flex items-center justify-center px-6 py-16"
+      style={{ background: 'linear-gradient(135deg, #0f0c1f 0%, #1a1528 100%)' }}>
+      <div className="relative w-full max-w-4xl"
+        style={{
+          background: 'rgba(255,255,255,0.04)',
+          border: '1px solid rgba(255,255,255,0.09)',
+          borderRadius: 35,
+          padding: 40,
+          backdropFilter: 'blur(24px)',
+          boxShadow: '0 24px 64px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.05)'
+        }}>
 
         {loading && (
-          <div style={{ position:'absolute', inset:-1, borderRadius:36,
-            background:'conic-gradient(from 0deg,transparent 0%,transparent 68%,rgba(198,161,107,0.9) 85%,transparent 100%)',
-            animation:'border-orbit 1.8s linear infinite',
-            WebkitMask:'linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0)',
-            WebkitMaskComposite:'xor', maskComposite:'exclude', padding:1, pointerEvents:'none' }} />
+          <div style={{
+            position: 'absolute',
+            inset: -1,
+            borderRadius: 36,
+            background: 'conic-gradient(from 0deg,transparent 0%,transparent 68%,rgba(198,161,107,0.9) 85%,transparent 100%)',
+            animation: 'border-orbit 1.8s linear infinite',
+            WebkitMask: 'linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0)',
+            WebkitMaskComposite: 'xor',
+            maskComposite: 'exclude',
+            padding: 1,
+            pointerEvents: 'none'
+          }} />
         )}
 
         <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold text-[var(--gold-main)]">طلب عضوية جديدة</h1>
+          <h1 className="text-4xl font-bold" style={{ color: '#c6a16b' }}>طلب عضوية جديدة</h1>
           <p className="mt-3 font-nav text-sm text-gray-400">سيتم مراجعة طلبك واعتماده من الإدارة</p>
         </div>
 
@@ -243,179 +317,192 @@ export default function Register() {
           </div>
           <p className="px-4 py-3 leading-relaxed" style={{ color: 'rgba(253,186,116,0.85)' }}>
             نُرحّب بكم أيها الكرام — غير أننا نعتذر بأدب شديد عن قبول طلبات من خارج
-            {' '}<span className="font-bold" style={{ color: '#fdba74' }}>قبيلة السلامي فخذ العفاريت</span>.
+            {' '}<span className="font-bold" style={{ color: '#fdba74' }}>قبيلة السلامي</span>.
             {' '}العضوية مقتصرة حصراً على أبناء هذا الفخذ الكريم، وذلك حفاظاً على دقة السجل العائلي.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          
+          {message && (
+            <div className={`font-nav text-sm text-center py-2.5 px-4 rounded-2xl ${
+              messageType === 'success' 
+                ? 'bg-green-500/10 border border-green-500/25 text-green-400'
+                : 'bg-red-500/10 border border-red-500/25 text-red-400'
+            }`}>
+              {message}
+            </div>
+          )}
 
-          {error && <Alert type="error">{error}</Alert>}
-          {success && <Alert type="success">{success}</Alert>}
+          {matchResult && (
+            <div className="bg-blue-500/10 border border-blue-500/25 rounded-2xl p-4">
+              <div className="flex items-start gap-3">
+                <span className="text-blue-400 text-xl">ℹ️</span>
+                <div>
+                  <p className="font-semibold text-blue-400 mb-1">تم العثور على مطابقة!</p>
+                  <p className="text-blue-300 text-sm">
+                    والدك <span className="font-semibold">{matchResult.fatherName}</span> قام بإضافتك مسبقاً.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
-          <F label="الاسم الأول *">
-            <input name="firstName" required value={form.firstName}
-              onChange={set} className="form-input" placeholder="اسمك الأول فقط — مثال: محمد" />
-          </F>
+          <div className="bg-amber-900/20 p-6 rounded-2xl border border-amber-700/30">
+            <label className="block text-lg font-semibold mb-3" style={{ color: '#c6a16b' }}>
+              اختر والدك من الشجرة <span className="text-red-400">*</span>
+            </label>
+            
+            {treeLoading ? (
+              <div className="text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500"></div>
+                <p className="mt-2 text-amber-400">جاري تحميل الشجرة...</p>
+              </div>
+            ) : (
+              <TreeNavigator
+                tree={treeData}
+                onSelect={setSelectedFather}
+                selectedNode={selectedFather}
+              />
+            )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <F label="رقم الجوال *">
-              <input name="phone" type="tel" required value={form.phone}
-                onChange={set} className="form-input" placeholder="05xxxxxxxx" maxLength="10" />
-            </F>
-            <F label="رقم الهوية الوطنية *">
-              <input name="nationalId" required value={form.nationalId}
-                onChange={set} className="form-input" placeholder="10 أرقام" maxLength="10" />
-            </F>
+            {selectedFather && (
+              <div className="mt-4 p-4 bg-black/30 rounded-xl border border-amber-700/30">
+                <p className="text-sm text-amber-300">
+                  <span className="font-semibold">الوالد المختار:</span> {selectedFather.name}
+                </p>
+              </div>
+            )}
           </div>
 
-          <F label="تاريخ الميلاد *">
-            <input name="birthDate" type="date" required value={form.birthDate}
-              onChange={set} className="form-input" max={new Date().toISOString().split('T')[0]} />
-          </F>
+          <div>
+            <label className="block mb-1.5 text-sm text-gray-400 font-nav">الاسم الأول *</label>
+            <input type="text" name="firstName" required value={formData.firstName}
+              onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+              placeholder="اسمك الأول فقط — مثال: محمد" />
+          </div>
 
-          <F label="الفخذ *">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              {BRANCHES.map(branch => (
-                <button
-                  key={branch.id}
-                  type="button"
-                  onClick={() => handleBranchSelect(branch.id)}
-                  className={`px-4 py-3 rounded-xl font-nav text-sm transition-all ${
-                    form.selectedBranch === branch.id
-                      ? 'bg-[var(--gold-main)] text-black font-bold'
-                      : 'bg-white/5 text-gray-300 hover:bg-white/10'
-                  }`}
-                >
-                  {branch.label}
-                </button>
-              ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">اسم الأب</label>
+              <input type="text" name="fatherName" value={formData.fatherName}
+                onChange={handleChange} placeholder={selectedFather ? selectedFather.name : ''}
+                className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition bg-gray-800/50" />
             </div>
-          </F>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">اسم الجد</label>
+              <input type="text" name="grandfatherName" value={formData.grandfatherName}
+                onChange={handleChange}
+                className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition" />
+            </div>
+          </div>
 
-          {form.selectedBranch && (
-            <div className="space-y-4 p-4 rounded-xl bg-white/5 border border-white/10">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-[var(--gold-main)]">اختر والدك من الشجرة</h3>
-                {currentPath.length > 2 && (
-                  <button
-                    type="button"
-                    onClick={handleGoBack}
-                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition"
-                  >
-                    ← رجوع
-                  </button>
-                )}
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">رقم الجوال *</label>
+              <input type="tel" name="phone" required inputMode="numeric" value={formData.phone}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="05xxxxxxxx" />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">رقم الهوية *</label>
+              <input type="text" name="nationalId" required inputMode="numeric" value={formData.nationalId}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="10 أرقام" maxLength={10} />
+            </div>
+          </div>
 
-              <div className="flex items-center gap-2 text-sm text-gray-400 flex-wrap">
-                {currentPath.map((node, i) => (
-                  <span key={i} className="flex items-center gap-2">
-                    {node.name}
-                    {i < currentPath.length - 1 && <span>←</span>}
-                  </span>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">تاريخ الميلاد *</label>
+              <input type="date" name="birthDate" required value={formData.birthDate}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition" />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">البريد الإلكتروني</label>
+              <input type="email" name="email" value={formData.email}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="example@email.com" />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">المدينة</label>
+              <input type="text" name="city" value={formData.city}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="مدينة الإقامة" />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">الفخذ</label>
+              <select name="branch" value={formData.branch} onChange={handleChange}
+                className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition">
+                <option value="">-- اختر الفخذ --</option>
+                {branches.map((branch) => (
+                  <option key={branch} value={branch}>{branch}</option>
                 ))}
-              </div>
+              </select>
+            </div>
+          </div>
 
-              {treeLoading ? (
-                <p className="text-center text-gray-400">جارٍ التحميل...</p>
-              ) : childrenAtLevel.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-64 overflow-y-auto">
-                  {childrenAtLevel.map(child => (
-                    <div key={child.id} className="flex items-center justify-between p-3 rounded-lg bg-white/5 border border-white/10">
-                      <div className="flex-1">
-                        <p className="font-nav">{child.name}</p>
-                        <p className="text-xs text-gray-500">{child.isAlive ? 'حي' : 'متوفى'}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleSelectFather(child)}
-                          className="px-3 py-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm transition"
-                        >
-                          هذا والدي
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleNodeSelect(child)}
-                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm transition"
-                        >
-                          عرض أبنائه
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-gray-400">لا يوجد أبناء مسجلين في هذا المستوى</p>
-              )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">المهنة *</label>
+              <select name="job" required value={formData.job} onChange={handleChange}
+                className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition">
+                <option value="">— اختر المهنة —</option>
+                {JOBS.map(j => <option key={j} value={j}>{j}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">الحالة الاجتماعية *</label>
+              <select name="maritalStatus" required value={formData.maritalStatus} onChange={handleChange}
+                className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition">
+                <option value="">— اختر —</option>
+                {MARITAL_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+          </div>
 
-              {matchingStatus && (
-                <div className={`p-3 rounded-lg ${matchingStatus.found ? 'bg-green-900/30 border-green-500/50' : 'bg-orange-900/30 border-orange-500/50'} border`}>
-                  <p className="text-sm">{matchingStatus.message}</p>
-                </div>
-              )}
-
-              {form.selectedFatherId && (
-                <div className="p-3 rounded-lg bg-[var(--gold-main)]/20 border border-[var(--gold-main)]/50">
-                  <p className="text-sm font-bold">الوالد المختار: {form.selectedFatherName}</p>
-                </div>
-              )}
+          {formData.job === 'أخرى' && (
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">اذكر مهنتك</label>
+              <input type="text" name="jobOther" value={formData.jobOther}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="مثال: مقاول" />
             </div>
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <F label="المهنة *">
-              <select name="job" required value={form.job} onChange={set} className="form-input">
-                <option value="">اختر...</option>
-                {JOBS.map(j => <option key={j} value={j}>{j}</option>)}
-              </select>
-            </F>
-            <F label="الحالة الاجتماعية *">
-              <select name="maritalStatus" required value={form.maritalStatus} onChange={set} className="form-input">
-                <option value="">اختر...</option>
-                {MARITAL_STATUS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </F>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">كلمة المرور *</label>
+              <input type="password" name="password" value={formData.password}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="6 أحرف على الأقل" minLength={6} />
+            </div>
+            <div>
+              <label className="block mb-1.5 text-sm text-gray-400 font-nav">تأكيد كلمة المرور *</label>
+              <input type="password" name="confirmPassword" value={formData.confirmPassword}
+                onChange={handleChange} className="w-full px-4 py-2 rounded-xl bg-black/30 border border-gray-700 text-white focus:border-amber-500 focus:outline-none transition"
+                placeholder="أعد كتابة كلمة المرور" />
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <PasswordInput label="كلمة المرور *" name="password" value={form.password}
-              onChange={set} placeholder="6 أحرف على الأقل" required minLength="6" />
-            <PasswordInput label="تأكيد كلمة المرور *" name="confirmPassword" value={form.confirmPassword}
-              onChange={set} placeholder="أعد إدخال كلمة المرور" required minLength="6" />
+          <div className="pt-4 flex justify-center gap-4">
+            <button type="submit" disabled={loading || !selectedFather}
+              className="font-nav bg-[#c6a16b] text-black font-bold flex items-center justify-center overflow-hidden transition-all hover:bg-[#d4b07a] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ height: 56, width: loading ? 56 : '100%', borderRadius: loading ? '50%' : 14 }}>
+              {loading ? <div className="btn-spinner w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" /> : 'إرسال طلب العضوية'}
+            </button>
+            
+            <button type="button" onClick={() => navigate('/login')}
+              className="px-6 py-3 border-2 border-[#c6a16b] text-[#c6a16b] rounded-xl hover:bg-[#c6a16b]/10 font-semibold transition-colors">
+              لديك حساب؟
+            </button>
           </div>
 
-          <button type="submit" disabled={loading}
-            className="w-full py-4 rounded-2xl font-bold text-lg transition disabled:opacity-50"
-            style={{ background: 'linear-gradient(135deg, var(--gold-main), var(--gold-dark))',
-              color: '#000', boxShadow: '0 8px 24px rgba(198,161,107,0.25)' }}>
-            {loading ? 'جارٍ الإرسال...' : 'إرسال الطلب'}
-          </button>
         </form>
       </div>
     </div>
-  )
-}
-
-function F({ label, children }) {
-  return (
-    <div>
-      <label className="block mb-2 font-nav text-sm text-gray-300">{label}</label>
-      {children}
-    </div>
-  )
-}
-
-function Alert({ type, children }) {
-  const colors = type === 'error'
-    ? { bg: 'rgba(220,38,38,0.15)', border: 'rgba(220,38,38,0.4)', text: '#fca5a5' }
-    : { bg: 'rgba(34,197,94,0.15)', border: 'rgba(34,197,94,0.4)', text: '#86efac' }
-  
-  return (
-    <div className="rounded-xl p-4 font-nav text-sm"
-      style={{ background: colors.bg, border: `1px solid ${colors.border}`, color: colors.text }}>
-      {children}
-    </div>
-  )
+  );
 }
