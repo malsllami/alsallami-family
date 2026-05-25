@@ -257,6 +257,68 @@ function approveRequest(body) {
     } catch(e) { Logger.log('خطأ ربط الشجرة: ' + e.message); }
   }
 
+  // ربط تلقائي بالشجرة إذا اختار العضو والده في نموذج التسجيل وكان اسمه موجوداً في أبناء والده
+  if (!autoLinked) {
+    var parentNodeIdFromReg = String(req['رقم عقدة الأب'] || '').trim();
+    if (parentNodeIdFromReg) {
+      try {
+        var treeNodesArr = sheetToObjects('الشجرة العائلية');
+        var treeSheetReg = getSheet('الشجرة العائلية');
+        var tHeadersReg  = treeSheetReg.getDataRange().getValues()[0];
+
+        var parentNodeReg = null;
+        for (var pi3 = 0; pi3 < treeNodesArr.length; pi3++) {
+          if (String(treeNodesArr[pi3]['رقم العقدة']) === parentNodeIdFromReg) {
+            parentNodeReg = treeNodesArr[pi3]; break;
+          }
+        }
+
+        if (parentNodeReg) {
+          var fnReg        = String(colMap['الاسم الأول'] || '');
+          var fatherMIdReg = String(parentNodeReg['رقم العضو'] || '');
+
+          // البحث عن سجل ابن مطابق في جدول الأبناء
+          var childRecsArr = sheetToObjects('الأبناء');
+          var matchedChildRec = null;
+          for (var cri = 0; cri < childRecsArr.length; cri++) {
+            var cr          = childRecsArr[cri];
+            var crNidMatch  = reqNid && String(cr['رقم الهوية'] || '').trim() === reqNid;
+            var crNameMatch = String(cr['الاسم'] || '').split(' ')[0].trim() === fnReg;
+            var crFatherOk  = fatherMIdReg && String(cr['رقم العضو الأب'] || '') === fatherMIdReg;
+            if (crNidMatch || (crFatherOk && crNameMatch)) { matchedChildRec = cr; break; }
+          }
+
+          if (matchedChildRec) {
+            // اسم العضو موجود في أبناء والده — اربط وأنشئ عقدة
+            linkChildRecordToMember(memberId, fnReg, fatherMIdReg, reqNid);
+
+            var alreadyInTree = false;
+            for (var xi3 = 0; xi3 < treeNodesArr.length; xi3++) {
+              if (String(treeNodesArr[xi3]['رقم العضو']) === memberId) { alreadyInTree = true; break; }
+            }
+            if (!alreadyInTree) {
+              var pNameReg  = String(parentNodeReg['اسم العضو'] || '');
+              var genReg    = Number(parentNodeReg['مستوى الجيل'] || 1) + 1;
+              var pathReg   = String(parentNodeReg['المسار'] || pNameReg) + ' ← ' + fnReg;
+              var nodeIdReg = generateId('N');
+              var tColReg   = {
+                'رقم العقدة':  nodeIdReg, 'رقم العضو': memberId, 'اسم العضو': fnReg,
+                'رقم الأب':    parentNodeIdFromReg, 'اسم الأب': pNameReg,
+                'مستوى الجيل': genReg, 'المسار': pathReg, 'حي/ميت': 'حي',
+              };
+              treeSheetReg.appendRow(tHeadersReg.map(function(h) { return tColReg[h] !== undefined ? tColReg[h] : ''; }));
+              formatLastRow(treeSheetReg);
+              syncFatherChildrenToTree(memberId, nodeIdReg, fnReg, genReg, pathReg);
+              autoNodeId = nodeIdReg;
+              autoLinked = true;
+            }
+          }
+          // إذا لم يُوجد سجل مطابق: العضو غير موجود في أبناء والده — يقدم طلب ربط لاحقاً من لوحة التحكم
+        }
+      } catch(e2) { Logger.log('خطأ ربط الشجرة من نموذج التسجيل: ' + e2.message); }
+    }
+  }
+
   return {
     success:      true,
     memberId:     memberId,
