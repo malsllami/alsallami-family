@@ -123,9 +123,10 @@ export default function MemberDashboard() {
   const savedUser = JSON.parse(localStorage.getItem('user'))
   const mustChangePassword = savedUser?.mustChangePassword
 
-  const [memberData,    setMemberData]    = useState(null)
-  const [dataLoading,   setDataLoading]   = useState(true)
-  const [preLinked,     setPreLinked]     = useState(null)
+  const [memberData,         setMemberData]         = useState(null)
+  const [dataLoading,        setDataLoading]        = useState(true)
+  const [preLinked,          setPreLinked]          = useState(null)
+  const [treeRequestStatus,  setTreeRequestStatus]  = useState(null)
 
   /* التواصل */
   const [editContact,    setEditContact]    = useState(false)
@@ -261,6 +262,7 @@ export default function MemberDashboard() {
           const m = { ...data.member, wives: data.wives || [], children: data.children || [] }
           setMemberData(m)
           if (data.preLinked) setPreLinked(data.preLinked)
+          if (data.treeRequestStatus) setTreeRequestStatus(data.treeRequestStatus)
           setDraft({ firstName: m.firstName || '', phone: m.phone || '', email: m.email || '', city: m.city || '', job: m.job || '' })
         }
       } catch (e) { console.error(e) }
@@ -870,7 +872,7 @@ export default function MemberDashboard() {
         </Card>
       </div>
 
-      {/* الشجرة المصغرة */}
+      {/* الشجرة المصغرة — تظهر دائماً */}
       {!dataLoading && (
         <div className="rounded-[28px] p-6"
           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
@@ -887,32 +889,54 @@ export default function MemberDashboard() {
             </div>
             <span className="font-nav text-sm font-semibold text-[var(--gold-main)]">شجرتك العائلية</span>
           </div>
-          <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <p className="font-nav text-[11px] text-gray-300">مسارك في الشجرة الرئيسية:</p>
-            <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>
-              {familyAncestors?.path || 'غير متوفر'}
-            </p>
-            {familyAncestors?.generation ? (
-              <p className="font-nav text-[11px] text-gray-400 mt-2">الجيل {familyAncestors.generation}</p>
-            ) : null}
-          </div>
-          {memberTreeNode?.children?.length > 0 && (
-            <div className="rounded-2xl p-4 mt-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-              <p className="font-nav text-[11px] text-gray-300">أبناؤك المسجلون في الشجرة:</p>
-              <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>
-                {(memberTreeNode.children || []).map(c => c.name).join(' ، ') || 'لا يوجد'}
-              </p>
+
+          {memberTreeNode ? (
+            <>
+              <div className="rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                <p className="font-nav text-[11px] text-gray-300">مسارك في الشجرة الرئيسية:</p>
+                <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>
+                  {familyAncestors?.path || 'غير متوفر'}
+                </p>
+                {familyAncestors?.generation ? (
+                  <p className="font-nav text-[11px] text-gray-400 mt-2">الجيل {familyAncestors.generation}</p>
+                ) : null}
+              </div>
+              {memberTreeNode?.children?.filter(c => !c.isWife).length > 0 && (
+                <div className="rounded-2xl p-4 mt-3" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <p className="font-nav text-[11px] text-gray-300">أبناؤك المسجلون في الشجرة:</p>
+                  <p className="mt-2 font-nav text-sm text-white" style={{ wordBreak: 'break-word' }}>
+                    {memberTreeNode.children.filter(c => !c.isWife).map(c => c.name).join(' ، ')}
+                  </p>
+                </div>
+              )}
+              <div className="flex justify-center mt-3">
+                <a href={`${import.meta.env.BASE_URL}family-tree`}
+                  className="font-nav text-xs transition-colors duration-200"
+                  style={{ color: 'rgba(198,161,107,0.55)' }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-main)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'rgba(198,161,107,0.55)'}>
+                  عرض موقعي في الشجرة الكاملة ←
+                </a>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-2xl p-5 text-center space-y-2"
+              style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)' }}>
+              <p className="font-nav text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>لم تُضف إلى الشجرة العائلية بعد</p>
+              {treeRequestStatus?.status === 'معلق' && (
+                <p className="font-nav text-xs" style={{ color: 'rgba(245,158,11,0.8)' }}>طلبك قيد المراجعة من المدير</p>
+              )}
+              {treeRequestStatus?.status === 'مرفوض' && (
+                <div className="rounded-xl p-3 mt-2 text-right"
+                  style={{ background: 'rgba(239,68,68,0.07)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                  <p className="font-nav text-xs font-semibold" style={{ color: '#f87171' }}>تم رفض طلب الربط بالشجرة</p>
+                  {treeRequestStatus.reason && (
+                    <p className="font-nav text-xs mt-1" style={{ color: 'rgba(248,113,113,0.75)' }}>{treeRequestStatus.reason}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
-          <div className="flex justify-center mt-3">
-            <a href={`${import.meta.env.BASE_URL}family-tree`}
-              className="font-nav text-xs transition-colors duration-200"
-              style={{ color: 'rgba(198,161,107,0.55)' }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-main)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'rgba(198,161,107,0.55)'}>
-              عرض موقعي في الشجرة الكاملة ←
-            </a>
-          </div>
         </div>
       )}
 
@@ -934,12 +958,20 @@ export default function MemberDashboard() {
             </div>
             <span className="font-nav text-sm font-semibold" style={{ color: T.emerald.accent }}>ربطك بالشجرة العائلية</span>
           </div>
-          <button onClick={() => { setShowTreeLink(v => !v); setTreeLinkMsg(null) }}
-            disabled={!canOpenTreeLink}
-            className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ border: `1px solid ${showTreeLink ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showTreeLink ? T.emerald.accent : 'rgba(255,255,255,0.4)', background: showTreeLink ? T.emerald.soft : 'transparent' }}>
-            {showTreeLink ? 'إلغاء' : (canOpenTreeLink ? 'ربط بالشجرة' : (preLinked ? 'أضف أبناءك أولاً' : 'أكمل بياناتك أولاً'))}
-          </button>
+          {memberHasTreePath ? (
+            <button onClick={() => { setShowAddChild(v => !v); setEditingChildId(null) }}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
+              style={{ border: `1px solid ${T.emerald.border}`, color: T.emerald.accent, background: T.emerald.soft }}>
+              + إضافة أبناء
+            </button>
+          ) : (
+            <button onClick={() => { setShowTreeLink(v => !v); setTreeLinkMsg(null) }}
+              disabled={!canOpenTreeLink}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ border: `1px solid ${showTreeLink ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showTreeLink ? T.emerald.accent : 'rgba(255,255,255,0.4)', background: showTreeLink ? T.emerald.soft : 'transparent' }}>
+              {showTreeLink ? 'إلغاء' : (canOpenTreeLink ? 'ربط بالشجرة' : (preLinked ? 'أضف أبناءك أولاً' : 'أكمل بياناتك أولاً'))}
+            </button>
+          )}
         </div>
 
         {!canOpenTreeLink && (
