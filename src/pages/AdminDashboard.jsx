@@ -115,6 +115,8 @@ export default function AdminDashboard() {
   const [amCascade,  setAmCascade]  = useState([])
   const [treeRequestsLoading, setTreeRequestsLoading] = useState(true)
   const [treeActionLoading,   setTreeActionLoading]   = useState(null)
+  const [treeRejectingId,     setTreeRejectingId]     = useState(null)
+  const [treeRejectReason,    setTreeRejectReason]    = useState('')
 
   const [openSec, setOpenSec] = useState({ tempPass: true, regReq: true, treeReq: true, addMember: true })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
@@ -364,6 +366,23 @@ export default function AdminDashboard() {
         setTreeRequests(prev => prev.filter(r => r.id !== requestId))
       else
         alert(result.message || 'حدث خطأ')
+    } catch { alert('تعذّر الاتصال بالخادم') }
+    finally { setTreeActionLoading(null) }
+  }
+
+  const handleConfirmTreeReject = async (requestId) => {
+    try {
+      setTreeActionLoading(requestId + 'rejectTreeRequest')
+      const res = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'rejectTreeRequest', requestId, reason: treeRejectReason }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        setTreeRequests(prev => prev.filter(r => r.id !== requestId))
+        setTreeRejectingId(null)
+        setTreeRejectReason('')
+      } else alert(result.message || 'حدث خطأ')
     } catch { alert('تعذّر الاتصال بالخادم') }
     finally { setTreeActionLoading(null) }
   }
@@ -1334,14 +1353,39 @@ export default function AdminDashboard() {
                         </button>
                       )}
                       <button
-                        onClick={() => handleTreeAction(req.requestId, 'rejectTreeRequest')}
+                        onClick={() => { setTreeRejectingId(treeRejectingId === req.requestId ? null : req.requestId); setTreeRejectReason('') }}
                         disabled={!!treeActionLoading}
                         className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
                         style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
-                        {treeActionLoading === req.requestId + 'rejectTreeRequest' ? '...' : 'رفض'}
+                        {treeRejectingId === req.requestId ? 'إلغاء' : 'رفض'}
                       </button>
                     </div>
                   </div>
+
+                  {/* وضع رفض طلب الشجرة مع سبب */}
+                  {treeRejectingId === req.requestId && (
+                    <div className="space-y-3 pt-3 border-t border-white/[0.06]">
+                      <p className="font-nav text-xs" style={{ color: '#f87171' }}>سبب الرفض — سيظهر للعضو في لوحته</p>
+                      <textarea
+                        className="form-input w-full resize-none font-nav text-sm"
+                        rows={3} style={{ direction: 'rtl' }}
+                        placeholder="مثال: الاسم المختار لا يطابق التسلسل الشجري المعروف..."
+                        value={treeRejectReason}
+                        onChange={e => setTreeRejectReason(e.target.value)} />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleConfirmTreeReject(req.requestId)} disabled={!!treeActionLoading}
+                          className="flex-1 font-nav text-xs py-2.5 rounded-xl font-bold transition-all"
+                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                          {treeActionLoading === req.requestId + 'rejectTreeRequest' ? 'جاري الرفض...' : 'تأكيد الرفض'}
+                        </button>
+                        <button onClick={() => { setTreeRejectingId(null); setTreeRejectReason('') }}
+                          className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+                          إلغاء
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* لوحة تحديد موقع الأب المفقود */}
                   {isNotFound && panelOpen && (
