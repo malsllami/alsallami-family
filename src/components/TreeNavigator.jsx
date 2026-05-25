@@ -24,7 +24,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId }) {
+export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId }) {
   const tree = useMemo(() => {
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
@@ -115,6 +115,19 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               )
             })}
           </select>
+          {onSelectFather && pathNodes[lvl.index] && (
+            <button
+              type="button"
+              onClick={() => onSelectFather(pathNodes[lvl.index])}
+              className="mt-2 w-full font-nav text-xs py-2 rounded-xl transition-all duration-200"
+              style={
+                selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id
+                  ? { background: 'rgba(198,161,107,0.2)', border: '1px solid rgba(198,161,107,0.5)', color: 'var(--gold-main)', fontWeight: 700 }
+                  : { background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.25)', color: 'rgba(198,161,107,0.8)' }
+              }>
+              {selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id ? '✓ هذا والدي' : 'هذا والدي'}
+            </button>
+          )}
         </div>
       ))}
 
