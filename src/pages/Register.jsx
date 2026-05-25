@@ -37,7 +37,6 @@ export default function Register() {
     setTreeLoading(true);
     fetch(import.meta.env.VITE_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'getFamilyTree' }),
     })
       .then(r => r.json())
