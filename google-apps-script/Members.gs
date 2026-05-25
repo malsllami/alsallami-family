@@ -162,12 +162,30 @@ function getMemberData(body) {
     }
   }
 
+  // جلب آخر طلب شجرة مرفوض لهذا العضو (لعرض سبب الرفض)
+  var treeRequestStatus = null;
+  try {
+    var treeReqs = sheetToObjects('طلبات الشجرة');
+    var memberTreeReqs = treeReqs.filter(function(r) {
+      return String(r['رقم العضو'] || '') === memberId;
+    });
+    if (memberTreeReqs.length) {
+      var lastReq = memberTreeReqs[memberTreeReqs.length - 1];
+      treeRequestStatus = {
+        status: String(lastReq['الحالة'] || ''),
+        reason: String(lastReq['سبب الرفض'] || ''),
+        date:   String(lastReq['تاريخ الطلب'] || ''),
+      };
+    }
+  } catch(_) {}
+
   return {
-    success:   true,
-    member:    user,
-    wives:     wives,
-    children:  children,
-    preLinked: preLinked,
+    success:           true,
+    member:            user,
+    wives:             wives,
+    children:          children,
+    preLinked:         preLinked,
+    treeRequestStatus: treeRequestStatus,
   };
 }
 

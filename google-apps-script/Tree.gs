@@ -689,6 +689,7 @@ function addTreeNode(body) {
 
 function rejectTreeRequest(body) {
   var requestId = String(body.requestId || '').trim();
+  var reason    = String(body.reason    || '').trim();
   if (!requestId) return { success: false, message: 'رقم الطلب مطلوب' };
 
   var found = findRow('طلبات الشجرة', 0, requestId);
@@ -697,6 +698,11 @@ function rejectTreeRequest(body) {
   var sheet     = getSheet('طلبات الشجرة');
   var statusCol = found.headers.indexOf('الحالة') + 1;
   sheet.getRange(found.rowIndex, statusCol).setValue('مرفوض');
+
+  if (reason) {
+    var reasonCol = found.headers.indexOf('سبب الرفض') + 1;
+    if (reasonCol > 0) sheet.getRange(found.rowIndex, reasonCol).setValue(reason);
+  }
 
   return { success: true, message: 'تم رفض الطلب' };
 }
