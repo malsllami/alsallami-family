@@ -24,7 +24,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId }) {
+export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, minFatherGen = 6 }) {
   const tree = useMemo(() => {
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
@@ -115,7 +115,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               )
             })}
           </select>
-          {onSelectFather && pathNodes[lvl.index] && (
+          {onSelectFather && pathNodes[lvl.index] && (pathNodes[lvl.index]?.generationLevel ?? 0) >= minFatherGen && (
             <button
               type="button"
               onClick={() => onSelectFather(pathNodes[lvl.index])}
