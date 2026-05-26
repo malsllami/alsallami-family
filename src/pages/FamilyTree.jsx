@@ -38,7 +38,14 @@ const GOLD    = 'rgba(198,161,107,0.72)'
 const WIFE_LC = 'rgba(251,113,133,0.28)'
 const BAR_H     = 60   // ارتفاع شريط الأدوات
 
-const firstName = str => (str || '').split(' ')[0]
+const COMPOUND_PREFIXES = ['عبد', 'أبو', 'أبي', 'ابن', 'بنت', 'أم', 'ام']
+const firstName = str => {
+  const parts = (str || '').split(' ')
+  if (parts.length >= 2 && COMPOUND_PREFIXES.includes(parts[0])) {
+    return parts[0] + ' ' + parts[1]
+  }
+  return parts[0]
+}
 
 /* لوحة ألوان الأجيال — حدود ملونة على خلفية موحدة داكنة */
 const GEN_PALETTE = [
@@ -226,14 +233,34 @@ function CircleNode({ n, active, onClick, dimmed, isMe }) {
         strokeOpacity={strokeOp}
         style={{ filter: glowFilter }}
       />
-      <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
-        fill={alive ? '#ffffff' : 'rgba(255,255,255,0.52)'}
-        fontSize={15}
-        fontWeight="700"
-        fontFamily="Cairo,sans-serif"
-        style={{ userSelect: 'none', pointerEvents: 'none', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.45))' }}>
-        {firstName(name)}
-      </text>
+      {(() => {
+        const display = firstName(name)
+        const isCompound = display.includes(' ')
+        const fill = alive ? '#ffffff' : 'rgba(255,255,255,0.52)'
+        const commonProps = {
+          textAnchor: 'middle',
+          dominantBaseline: 'middle',
+          fill,
+          fontWeight: '700',
+          fontFamily: 'Cairo,sans-serif',
+          style: { userSelect: 'none', pointerEvents: 'none', filter: 'drop-shadow(0 1px 2px rgba(0,0,0,.45))' },
+        }
+        if (isCompound) {
+          const [p1, p2] = display.split(' ')
+          const fs = Math.min(13, Math.max(10, r * 0.38))
+          return (
+            <text x={cx} y={cy} {...commonProps} fontSize={fs}>
+              <tspan x={cx} dy={`-${fs * 0.65}px`}>{p1}</tspan>
+              <tspan x={cx} dy={`${fs * 1.3}px`}>{p2}</tspan>
+            </text>
+          )
+        }
+        return (
+          <text x={cx} y={cy} {...commonProps} fontSize={15}>
+            {display}
+          </text>
+        )
+      })()}
     </g>
   )
 }
