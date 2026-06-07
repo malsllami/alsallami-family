@@ -1205,7 +1205,7 @@ export default function AdminDashboard() {
                       ].map(([field, ph, mode]) => (
                         <input key={field} className="form-input text-xs" placeholder={ph}
                           inputMode={mode} value={editFields[field] || ''}
-                          onChange={e => setEditFields(p => ({ ...p, [field]: e.target.value }))} />
+                          onChange={e => setEditFields(p => ({ ...p, [field]: mode === 'numeric' ? normalizeDigits(e.target.value) : e.target.value }))} />
                       ))}
                     </div>
                     <PhoneInput
@@ -1487,7 +1487,7 @@ export default function AdminDashboard() {
             <AmField label="رقم الهوية (اختياري)">
               <input className="form-input" placeholder="10 أرقام" inputMode="numeric" maxLength={10}
                 value={amData.nationalId}
-                onChange={e => setAmData(p => ({ ...p, nationalId: e.target.value }))} />
+                onChange={e => setAmData(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))} />
             </AmField>
             <AmField label="رقم الجوال (اختياري)">
               <PhoneInput
