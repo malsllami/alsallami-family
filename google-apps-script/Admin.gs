@@ -381,6 +381,52 @@ function approveRequest(body) {
     } catch(e3) { Logger.log('خطأ ربط الشجرة (3): ' + e3.message); }
   }
 
+  // ربط تلقائي (4): اختار "هذا ابني" — المستخدم أب لعقدة موجودة
+  var sonNodeIdFromReg = String(req['رقم عقدة الابن'] || '').trim();
+  if (!autoLinked && sonNodeIdFromReg) {
+    try {
+      var treeS4   = sheetToObjects('الشجرة العائلية');
+      var sheetS4  = getSheet('الشجرة العائلية');
+      var hdrsS4   = sheetS4.getDataRange().getValues()[0];
+      var sonNodeS4 = null;
+      for (var si4 = 0; si4 < treeS4.length; si4++) {
+        if (String(treeS4[si4]['رقم العقدة']) === sonNodeIdFromReg) { sonNodeS4 = treeS4[si4]; break; }
+      }
+      if (sonNodeS4) {
+        var sonParentS4  = String(sonNodeS4['رقم الأب']     || '');
+        var sonGenS4     = Number(sonNodeS4['مستوى الجيل'] || 1);
+        var sonPathS4    = String(sonNodeS4['المسار']       || '');
+        var userGenS4    = sonGenS4 - 1;
+        var userPathS4   = sonPathS4.split(' ← ').slice(0, -1).join(' ← ');
+        var parentS4     = treeS4.find(function(n) { return String(n['رقم العقدة']) === sonParentS4; });
+        var parentNameS4 = parentS4 ? String(parentS4['اسم العضو'] || '') : '';
+        var userNodeS4   = generateId('N');
+        var fnS4         = colMap['الاسم الأول'] || '';
+        var tMapS4 = {
+          'رقم العقدة': userNodeS4, 'رقم العضو': memberId, 'اسم العضو': fnS4,
+          'رقم الأب': sonParentS4, 'اسم الأب': parentNameS4,
+          'مستوى الجيل': userGenS4, 'المسار': userPathS4, 'حي/ميت': 'حي',
+        };
+        sheetS4.appendRow(hdrsS4.map(function(h) { return tMapS4[h] !== undefined ? tMapS4[h] : ''; }));
+        formatLastRow(sheetS4);
+        // إعادة تعيين الابن تحت المستخدم الجديد
+        var sonRowS4 = findRow('الشجرة العائلية', 0, sonNodeIdFromReg);
+        if (sonRowS4) {
+          var setS4 = function(col, val) {
+            var c = sonRowS4.headers.indexOf(col) + 1;
+            if (c > 0) sheetS4.getRange(sonRowS4.rowIndex, c).setValue(val);
+          };
+          setS4('رقم الأب', userNodeS4);
+          setS4('اسم الأب', fnS4);
+        }
+        syncFatherChildrenToTree(memberId, userNodeS4, fnS4, userGenS4, userPathS4);
+        autoNodeId = userNodeS4;
+        autoLinked = true;
+        treeReason = 'ربط تلقائي — العضو أب لعقدة موجودة في الشجرة';
+      }
+    } catch(e4) { Logger.log('خطأ ربط الشجرة (4): ' + e4.message); }
+  }
+
   return {
     success:      true,
     memberId:     memberId,

@@ -175,6 +175,7 @@ export default function MemberDashboard() {
   const [treeLinkMsg,         setTreeLinkMsg]         = useState(null)
   const [selectedLinkFather,  setSelectedLinkFather]  = useState(null)
   const [selectedLinkGrandfa, setSelectedLinkGrandfa] = useState(null)
+  const [selectedLinkSon,     setSelectedLinkSon]     = useState(null)
   const [linkFatherName,      setLinkFatherName]      = useState('')
   const [treeData,            setTreeData]            = useState(null)
   const [treeLoading,         setTreeLoading]         = useState(false)
@@ -458,7 +459,8 @@ export default function MemberDashboard() {
     }
     const hasFather      = Boolean(selectedLinkFather)
     const hasGrandfather = Boolean(selectedLinkGrandfa && linkFatherName.trim())
-    if (!hasFather && !hasGrandfather) return
+    const hasSon         = Boolean(selectedLinkSon)
+    if (!hasFather && !hasGrandfather && !hasSon) return
 
     // Check if grandfather's children already contain the typed father name
     const grandfatherChildMatch = hasGrandfather
@@ -468,7 +470,16 @@ export default function MemberDashboard() {
     try {
       setTreeLinkLoading(true)
       setTreeLinkMsg(null)
-      const payload = hasFather
+      const payload = hasSon
+        ? {
+            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            parentId:        selectedLinkSon.parentId || '',
+            parentName:      selectedLinkSon.parentName || '',
+            generationLevel: (selectedLinkSon.generationLevel || 1) - 1,
+            path:            (selectedLinkSon.computedPath || selectedLinkSon.path || '').split(' ← ').slice(0, -1).join(' ← '),
+            note:            `[SON:${selectedLinkSon.id}]`,
+          }
+        : hasFather
         ? {
             action: 'submitTreeRequest', memberId: savedUser.memberId,
             parentId:        selectedLinkFather.id,
@@ -497,7 +508,7 @@ export default function MemberDashboard() {
       const result = await post(payload)
       setTreeLinkMsg({ success: result.success, text: result.message || (result.success ? 'تم إرسال الطلب بنجاح، في انتظار موافقة المدير' : 'حدث خطأ') })
       if (result.success) {
-        setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setLinkFatherName(''); setShowTreeLink(false)
+        setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setSelectedLinkSon(null); setLinkFatherName(''); setShowTreeLink(false)
       }
     } catch {
       setTreeLinkMsg({ success: false, text: 'تعذّر الاتصال بالخادم' })
@@ -1077,11 +1088,29 @@ export default function MemberDashboard() {
               treeData={treeData}
               onSelect={() => {}}
               selected={null}
-              onSelectFather={node => { setSelectedLinkFather(node); setSelectedLinkGrandfa(null); setLinkFatherName('') }}
+              onSelectFather={node => { setSelectedLinkFather(node); setSelectedLinkGrandfa(null); setSelectedLinkSon(null); setLinkFatherName('') }}
               selectedFatherId={selectedLinkFather?.id}
-              onSelectGrandfather={node => { setSelectedLinkGrandfa(node); setSelectedLinkFather(null) }}
+              onSelectGrandfather={node => { setSelectedLinkGrandfa(node); setSelectedLinkFather(null); setSelectedLinkSon(null) }}
               selectedGrandfatherId={selectedLinkGrandfa?.id}
+              onSelectSelf={null}
+              onSelectSon={node => { setSelectedLinkSon(node); setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setLinkFatherName('') }}
+              selectedSonId={selectedLinkSon?.id}
             />
+          )}
+
+          {/* ابني في الشجرة */}
+          {selectedLinkSon && (
+            <div className="rounded-2xl p-4" style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.22)' }}>
+              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>ابنك المختار من الشجرة:</p>
+              <p className="font-nav text-sm font-semibold mt-1" style={{ color: '#a78bfa' }}>{selectedLinkSon.name}</p>
+              <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                جيله: <span style={{ color: '#a78bfa' }}>{selectedLinkSon.generationLevel}</span>
+                &nbsp;— جيلك: <span style={{ color: '#a78bfa' }}>{(selectedLinkSon.generationLevel || 1) - 1}</span>
+              </p>
+              <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                ✓ ستُضاف كوالد لهذه العقدة في الشجرة
+              </p>
+            </div>
           )}
 
           {/* عرض الوالد المختار */}
@@ -1114,7 +1143,7 @@ export default function MemberDashboard() {
 
           <button
             onClick={handleSubmitTreeLink}
-            disabled={treeLinkLoading || (!selectedLinkFather && !(selectedLinkGrandfa && linkFatherName.trim()))}
+            disabled={treeLinkLoading || (!selectedLinkFather && !selectedLinkSon && !(selectedLinkGrandfa && linkFatherName.trim()))}
             className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
             style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
             {treeLinkLoading ? 'جاري الإرسال...' : 'إرسال الطلب للمدير'}

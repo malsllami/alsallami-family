@@ -204,6 +204,7 @@ function register(body) {
     'الفخذ المختار':        selectedBranch,
     'المسار الشجري':        treePath,
     'بيانات المطابقة':      matchingData ? JSON.stringify(matchingData) : '',
+    'رقم عقدة الابن':       normalizeInput(body.sonNodeId || ''),
     'كلمة المرور المشفرة':  hashPassword(password),
     'حي/ميت':               'حي',
     'الحالة الاجتماعية':    maritalStatus,
@@ -375,6 +376,70 @@ function checkChildMatch(body) {
     Logger.log('خطأ في checkChildMatch: ' + err.message);
     return { success: false, message: 'خطأ في التحقق: ' + err.message };
   }
+}
+
+/* ═══ نسيت كلمة المرور ═══════════════════════════════════════════════════ */
+
+function forgotPassword(body) {
+  var nationalId = normalizeInput(body.nationalId || '').replace(/[^\d]/g, '');
+  var phone      = normalizePhone(normalizeInput(body.phone || ''));
+
+  if (!nationalId || nationalId.length !== 10) {
+    return { success: false, status: 'invalid', message: 'رقم الهوية يجب أن يكون 10 أرقام' };
+  }
+  if (!phone || phone.length < 9) {
+    return { success: false, status: 'invalid', message: 'رقم الجوال غير صحيح' };
+  }
+
+  // 1) تحقق من جدول الأعضاء (معتمد)
+  var members = sheetToObjects('الأعضاء');
+  for (var mi = 0; mi < members.length; mi++) {
+    var m    = members[mi];
+    var mNid = String(m['رقم الهوية']  || '').replace(/[^\d]/g, '').trim();
+    var mPh  = normalizePhone(String(m['رقم الجوال'] || ''));
+    if (mNid !== nationalId || mPh !== phone) continue;
+
+    // عضو معتمد — أنشئ كلمة مرور مؤقتة ثابتة 123456
+    var memberId = String(m['رقم العضو'] || '');
+    var mFound   = findRow('الأعضاء', 0, memberId);
+    if (mFound) {
+      var mSheet      = getSheet('الأعضاء');
+      var mHdrs       = mFound.headers;
+      var mainPassCol = mHdrs.indexOf('كلمة المرور')          + 1;
+      var tempPassCol = mHdrs.indexOf('كلمة المرور المؤقتة') + 1;
+      var tempExpCol  = mHdrs.indexOf('انتهاء المؤقتة')       + 1;
+      var hashed      = hashPassword('123456');
+      var expiry      = new Date();
+      expiry.setDate(expiry.getDate() + 30);
+      // نضع الكلمة في المؤقتة (لتفعيل requireChange) وفي الأساسية (لقبول حقل "الحالية")
+      if (tempPassCol > 0) mSheet.getRange(mFound.rowIndex, tempPassCol).setValue(hashed);
+      if (tempExpCol  > 0) mSheet.getRange(mFound.rowIndex, tempExpCol).setValue(formatDate(expiry));
+      if (mainPassCol > 0) mSheet.getRange(mFound.rowIndex, mainPassCol).setValue(hashed);
+    }
+    return {
+      success: true,
+      status:  'approved',
+      message: 'كلمة مرورك المؤقتة هي: 123456 — ادخل الآن وستُطلب منك تغييرها فوراً',
+    };
+  }
+
+  // 2) تحقق من طلبات التسجيل (معلق أو مرفوض)
+  var reqs = sheetToObjects('طلبات التسجيل');
+  for (var ri = 0; ri < reqs.length; ri++) {
+    var r    = reqs[ri];
+    var rNid = String(r['رقم الهوية']  || '').replace(/[^\d]/g, '').trim();
+    var rPh  = normalizePhone(String(r['رقم الجوال'] || ''));
+    if (rNid !== nationalId || rPh !== phone) continue;
+    var status = String(r['الحالة'] || '');
+    if (status === 'معلق') {
+      return { success: false, status: 'pending',  message: 'طلبك قيد المراجعة من قِبَل المدير، يُرجى الانتظار' };
+    }
+    if (status === 'مرفوض') {
+      return { success: false, status: 'rejected', message: 'تم رفض طلب تسجيلك من قِبَل المدير' };
+    }
+  }
+
+  return { success: false, status: 'not_found', message: 'البيانات غير صحيحة — تحقق من رقم الهوية ورقم الجوال' };
 }
 
 /* ═══ تغيير كلمة المرور ══════════════════════════════════════════════════ */

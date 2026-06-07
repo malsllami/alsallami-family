@@ -601,7 +601,20 @@ function approveTreeRequest(body) {
         setOrphan('حي/ميت',      'حي');
       }
       linkChildRecordToMember(memberId, memberName, fatherMemberId, mbrNid);
-      syncFatherChildrenToTree(memberId, String(orphanNode['رقم العقدة']), memberName, generation, path);
+      var orphanLinkedNodeId = String(orphanNode['رقم العقدة']);
+      syncFatherChildrenToTree(memberId, orphanLinkedNodeId, memberName, generation, path);
+      var sonMatchOrphan = notes.match(/\[SON:([A-Z0-9]+)\]/);
+      if (sonMatchOrphan) {
+        var sonRowOrphan = findRow('الشجرة العائلية', 0, sonMatchOrphan[1]);
+        if (sonRowOrphan) {
+          var setOrphanSon = function(col, val) {
+            var c = sonRowOrphan.headers.indexOf(col) + 1;
+            if (c > 0) treeSheet.getRange(sonRowOrphan.rowIndex, c).setValue(val);
+          };
+          setOrphanSon('رقم الأب', orphanLinkedNodeId);
+          setOrphanSon('اسم الأب', memberName);
+        }
+      }
       return { success: true, message: 'تم ربط بيانات العضو بالعقدة الموجودة في الشجرة (أضافها المدير مسبقاً)' };
     }
 
@@ -625,6 +638,20 @@ function approveTreeRequest(body) {
 
     // إضافة أبناء هذا العضو الذين سُجِّلوا مسبقاً ولا عقدة لهم في الشجرة
     syncFatherChildrenToTree(memberId, nodeId, memberName, generation, path);
+
+    // إعادة تعيين الابن إذا اختار المستخدم "هذا ابني"
+    var sonMatch = notes.match(/\[SON:([A-Z0-9]+)\]/);
+    if (sonMatch) {
+      var sonRowTR = findRow('الشجرة العائلية', 0, sonMatch[1]);
+      if (sonRowTR) {
+        var setSTR = function(col, val) {
+          var c = sonRowTR.headers.indexOf(col) + 1;
+          if (c > 0) treeSheet.getRange(sonRowTR.rowIndex, c).setValue(val);
+        };
+        setSTR('رقم الأب', nodeId);
+        setSTR('اسم الأب', memberName);
+      }
+    }
 
     return { success: true, message: 'تمت إضافة العضو للشجرة العائلية' };
   }
@@ -652,6 +679,20 @@ function approveTreeRequest(body) {
 
     // إضافة أبناء هذا العضو الذين سُجِّلوا مسبقاً ولا عقدة لهم في الشجرة
     syncFatherChildrenToTree(memberId, updatedNodeId, memberName, updatedGen, path);
+
+    // إعادة تعيين الابن إذا اختار المستخدم "هذا ابني"
+    var sonMatchNF = notes.match(/\[SON:([A-Z0-9]+)\]/);
+    if (sonMatchNF) {
+      var sonRowNF = findRow('الشجرة العائلية', 0, sonMatchNF[1]);
+      if (sonRowNF) {
+        var setNFSon = function(col, val) {
+          var c = sonRowNF.headers.indexOf(col) + 1;
+          if (c > 0) treeSheet.getRange(sonRowNF.rowIndex, c).setValue(val);
+        };
+        setNFSon('رقم الأب', updatedNodeId);
+        setNFSon('اسم الأب', memberName);
+      }
+    }
 
     return { success: true, message: 'تم تحديث موقع العضو في الشجرة' };
   }

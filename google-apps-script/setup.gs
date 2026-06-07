@@ -872,6 +872,13 @@ function addMissingColumns() {
       after: 'المهنة',
     },
     {
+      sheet: 'طلبات التسجيل',
+      color: CLR.members,
+      cols:  ['رقم عقدة الابن'],
+      widths:[150],
+      after: 'رقم عقدة الأب',
+    },
+    {
       sheet: 'الأبناء',
       color: CLR.family,
       cols:  ['رقم عقدة الأب'],
