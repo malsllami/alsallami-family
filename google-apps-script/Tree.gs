@@ -210,6 +210,18 @@ function syncFatherChildrenToTree(fatherMemberId, fatherNodeId, fatherNodeName, 
     if (mid) nodesById[mid] = true;
   });
 
+  // فهرس العقد اليتيمة (بدون رقم عضو) تحت هذا الأب — للكشف عن التكرار
+  var normArSync = function(s) {
+    return String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+  };
+  var orphansByName = {};
+  existing.forEach(function(n) {
+    if (String(n['رقم العضو'] || '').trim()) return;
+    if (String(n['رقم الأب']  || '').trim() !== fatherNodeId) return;
+    var fn = normArSync(String(n['اسم العضو'] || '').split(' ')[0]);
+    if (fn) orphansByName[fn] = n;
+  });
+
   childrenAll.filter(function(c) {
     return String(c['رقم العضو الأب'] || '') === fatherMemberId;
   }).forEach(function(c) {
@@ -223,8 +235,30 @@ function syncFatherChildrenToTree(fatherMemberId, fatherNodeId, fatherNodeName, 
     var childName = String(c['الاسم'] || '');
     var childGen  = fatherGen + 1;
     var childPath = fatherPath + ' ← ' + childName;
-    var nodeId    = generateId('N');
     var alive     = c['حي/ميت'] === 'متوفى' ? 'متوفى' : 'حي';
+
+    // إذا وُجدت عقدة يتيمة بنفس الاسم تحت نفس الأب — ربطها بدلاً من إنشاء جديدة
+    var childFN = normArSync(childName.split(' ')[0]);
+    if (orphansByName[childFN]) {
+      var orphan      = orphansByName[childFN];
+      var orphanFound = findRow('الشجرة العائلية', 0, String(orphan['رقم العقدة'] || ''));
+      if (orphanFound) {
+        var setOrphanSync = function(colName, val) {
+          var c2 = orphanFound.headers.indexOf(colName) + 1;
+          if (c2 > 0) treeSheet.getRange(orphanFound.rowIndex, c2).setValue(val);
+        };
+        setOrphanSync('رقم العضو',   preId);
+        setOrphanSync('اسم العضو',   childName);
+        setOrphanSync('مستوى الجيل', childGen);
+        setOrphanSync('المسار',      childPath);
+        setOrphanSync('حي/ميت',      alive);
+      }
+      nodesById[preId] = true;
+      delete orphansByName[childFN];
+      return;
+    }
+
+    var nodeId = generateId('N');
     var tMap = {
       'رقم العقدة':  nodeId,
       'رقم العضو':   preId,
@@ -237,7 +271,7 @@ function syncFatherChildrenToTree(fatherMemberId, fatherNodeId, fatherNodeName, 
     };
     treeSheet.appendRow(treeHdrs.map(function(h) { return tMap[h] !== undefined ? tMap[h] : ''; }));
     formatLastRow(treeSheet);
-    nodesById[preId] = true; // تحديث الفهرس المؤقت
+    nodesById[preId] = true;
   });
 }
 
