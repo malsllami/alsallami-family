@@ -159,8 +159,9 @@ export default function MemberDashboard() {
   const [idLoading,   setIdLoading]   = useState(false)
 
   /* بيانات الميلاد */
+  const MARITAL_STATUS = ['أعزب', 'متزوج', 'مطلق', 'أرمل']
   const [editBirth,     setEditBirth]     = useState(false)
-  const [birthDraft,    setBirthDraft]    = useState({ birthDate: '' })
+  const [birthDraft,    setBirthDraft]    = useState({ birthDate: '', maritalStatus: '' })
   const [birthLoading,  setBirthLoading]  = useState(false)
 
   /* كلمة المرور */
@@ -346,17 +347,16 @@ export default function MemberDashboard() {
 
   /* ── تعديل بيانات الميلاد ── */
   const handleUpdateBirth = async () => {
-    const computedMarital = ((m.wives?.length || 0) > 0) ? 'متزوج' : 'أعزب'
     try {
       setBirthLoading(true)
       const result = await post({
         action: 'updateMemberInfo',
         memberId: savedUser.memberId,
         'تاريخ الميلاد': birthDraft.birthDate,
-        'الحالة الاجتماعية': computedMarital,
+        'الحالة الاجتماعية': birthDraft.maritalStatus,
       })
       if (result.success) {
-        setMemberData(p => ({ ...p, birthDate: birthDraft.birthDate, maritalStatus: computedMarital }))
+        setMemberData(p => ({ ...p, birthDate: birthDraft.birthDate, maritalStatus: birthDraft.maritalStatus }))
         setEditBirth(false)
       } else { alert(result.message) }
     } catch { alert('حدث خطأ') }
@@ -561,7 +561,7 @@ export default function MemberDashboard() {
   const totalChildren = (m.children || []).length
   const incompleteChildren = (m.children || []).filter(c => !c.nationalId || !c.birthDate)
   const visibleWives  = (m.wives    || []).filter(w => w.status !== 'منفصلة' || totalChildren > 0)
-  const maritalStatus = ((m.wives?.length || 0) > 0) ? 'متزوج' : 'أعزب'
+  const maritalStatus = m.maritalStatus || '—'
   const isProfileCompleteForTree = Boolean(
     m.firstName && m.phone && m.nationalId && m.birthDate && m.job && m.maritalStatus && m.fatherName && m.grandfatherName
   )
@@ -714,7 +714,7 @@ export default function MemberDashboard() {
           </svg>
         } action={!dataLoading && (
           <button
-            onClick={() => { setEditBirth(e => !e); setBirthDraft({ birthDate: m.birthDate || '' }) }}
+            onClick={() => { setEditBirth(e => !e); setBirthDraft({ birthDate: m.birthDate || '', maritalStatus: m.maritalStatus || '' }) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
             style={{ border: `1px solid ${editBirth ? T.purple.border : 'rgba(255,255,255,0.1)'}`, color: editBirth ? T.purple.accent : 'rgba(255,255,255,0.4)', background: editBirth ? T.purple.soft : 'transparent' }}>
             {editBirth ? 'إلغاء' : 'تعديل'}
@@ -732,15 +732,17 @@ export default function MemberDashboard() {
               <div>
                 <label className="font-nav text-xs text-gray-500 mb-1.5 block">تاريخ الميلاد</label>
                 <input type="date" value={birthDraft.birthDate}
-                  onChange={e => setBirthDraft({ birthDate: e.target.value })}
+                  onChange={e => setBirthDraft(p => ({ ...p, birthDate: e.target.value }))}
                   className="form-input" />
               </div>
               <div>
                 <label className="font-nav text-xs text-gray-500 mb-1.5 block">الحالة الاجتماعية</label>
-                <div className="form-input flex items-center justify-between" style={{ pointerEvents: 'none' }}>
-                  <span className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>محسوبة من الزوجات تلقائياً</span>
-                  <span style={{ color: T.purple.accent }}>{maritalStatus}</span>
-                </div>
+                <select value={birthDraft.maritalStatus}
+                  onChange={e => setBirthDraft(p => ({ ...p, maritalStatus: e.target.value }))}
+                  className="form-input">
+                  <option value="">— اختر —</option>
+                  {MARITAL_STATUS.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
               <button onClick={handleUpdateBirth} disabled={birthLoading}
                 className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
