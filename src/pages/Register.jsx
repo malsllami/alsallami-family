@@ -23,6 +23,7 @@ export default function Register() {
   const [selectedFather,    setSelectedFather]    = useState(null);
   const [selectedGrandfa,   setSelectedGrandfa]   = useState(null);
   const [selectedSelf,      setSelectedSelf]      = useState(null);
+  const [selectedSon,       setSelectedSon]       = useState(null);
   const [fatherNotInTree,   setFatherNotInTree]   = useState('');
   const [fatherMatch,       setFatherMatch]       = useState(null);  // 'found' | 'notfound' | null
   const [loading,           setLoading]           = useState(false);
@@ -90,16 +91,14 @@ export default function Register() {
     const pathParts = pathStr.split(' ← ').map(s => s.trim()).filter(Boolean);
     const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
     setSelectedFather({ ...node, branch });
-    setSelectedGrandfa(null);
-    setSelectedSelf(null);
+    setSelectedGrandfa(null); setSelectedSelf(null); setSelectedSon(null);
     setFatherNotInTree('');
     checkMatch(formData.firstName, node);
   };
 
   const handleSelectGrandfather = (node) => {
     setSelectedGrandfa(node);
-    setSelectedFather(null);
-    setSelectedSelf(null);
+    setSelectedFather(null); setSelectedSelf(null); setSelectedSon(null);
     setFatherMatch(null);
   };
 
@@ -109,8 +108,30 @@ export default function Register() {
     const pathParts = pathStr.split(' ← ').map(s => s.trim()).filter(Boolean);
     const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
     setSelectedSelf({ ...selfNode, branch, derivedGrandfatherName: grandfatherName });
-    setSelectedFather(null);
-    setSelectedGrandfa(null);
+    setSelectedFather(null); setSelectedGrandfa(null); setSelectedSon(null);
+    setFatherMatch(null);
+  };
+
+  const handleSelectSon = (sonNode, path) => {
+    // path from root to sonNode (inclusive) — user is sonNode's parent
+    const fatherNode      = path.length >= 2 ? path[path.length - 2] : null;
+    const grandfatherNode = path.length >= 3 ? path[path.length - 3] : null;
+    const pathStr = sonNode.computedPath || '';
+    const pathParts = pathStr.split(' ← ').map(s => s.trim()).filter(Boolean);
+    const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
+    // user's path = son's path minus son's own name
+    const userPathParts = pathParts.slice(0, -1);
+    setSelectedSon({
+      ...sonNode,
+      branch,
+      derivedFatherName:       fatherNode      ? fatherNode.name.split(' ')[0]      : (sonNode.parentName || '').split(' ')[0],
+      derivedGrandfatherName:  grandfatherNode  ? grandfatherNode.name.split(' ')[0] : '',
+      derivedGeneration:       (sonNode.generationLevel || 1) - 1,
+      derivedParentId:         sonNode.parentId || '',
+      derivedParentName:       fatherNode ? fatherNode.name : (sonNode.parentName || ''),
+      derivedUserPath:         userPathParts.join(' ← '),
+    });
+    setSelectedFather(null); setSelectedGrandfa(null); setSelectedSelf(null);
     setFatherMatch(null);
   };
 
@@ -121,9 +142,9 @@ export default function Register() {
     if (!/^\d{10}$/.test(formData.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
                                                         { setMessage('رقم الهوية يجب أن يكون 10 أرقام'); return false; }
     if (!formData.birthDate)                            { setMessage('تاريخ الميلاد مطلوب'); return false; }
-    if (!selectedFather && !selectedSelf && !(selectedGrandfa && fatherNotInTree.trim()))
+    if (!selectedFather && !selectedSelf && !selectedSon && !(selectedGrandfa && fatherNotInTree.trim()))
                                                         { setMessage('يجب اختيار والدك من الشجرة، أو اختيار جدك وكتابة اسم والدك'); return false; }
-    if (selectedGrandfa && !fatherNotInTree.trim() && !selectedSelf) { setMessage('يرجى كتابة اسم والدك'); return false; }
+    if (selectedGrandfa && !fatherNotInTree.trim() && !selectedSelf && !selectedSon) { setMessage('يرجى كتابة اسم والدك'); return false; }
     if (!formData.phone.trim())                         { setMessage('رقم الجوال مطلوب'); return false; }
     if (!formData.maritalStatus)                        { setMessage('الحالة الاجتماعية مطلوبة'); return false; }
     if (!formData.job)                                  { setMessage('المهنة مطلوبة'); return false; }
@@ -151,11 +172,13 @@ export default function Register() {
     // Determine effective parent node
     const parentNode = selectedSelf
       ? { id: selectedSelf.parentId || '', generationLevel: (selectedSelf.generationLevel || 1) - 1 }
-      : selectedFather
-        ? selectedFather
-        : grandfaChildMatch
-          ? { ...grandfaChildMatch, branch: selectedGrandfa.branch || '' }
-          : selectedGrandfa;
+      : selectedSon
+        ? { id: selectedSon.derivedParentId, generationLevel: selectedSon.derivedGeneration }
+        : selectedFather
+          ? selectedFather
+          : grandfaChildMatch
+            ? { ...grandfaChildMatch, branch: selectedGrandfa.branch || '' }
+            : selectedGrandfa;
 
     setLoading(true);
     try {
@@ -172,26 +195,27 @@ export default function Register() {
           password:        formData.password,
           email:           formData.email.trim(),
           city:            formData.city.trim(),
-          parentNodeId:    selectedSelf ? (selectedSelf.parentId || '') : parentNode.id,
-          fatherName:      selectedSelf
-            ? (selectedSelf.parentName || '').split(' ')[0]
-            : selectedFather
-              ? selectedFather.name.split(' ')[0]
-              : fatherNotInTree.trim(),
-          grandfatherName: selectedSelf
-            ? (selectedSelf.derivedGrandfatherName || '')
-            : selectedFather
-              ? (selectedFather.parentName || '').split(' ')[0]
-              : (selectedGrandfa?.name || '').split(' ')[0],
-          generation:      selectedSelf
-            ? String(selectedSelf.generationLevel || 1)
-            : String((parentNode.generationLevel || 0) + 1),
-          branch:          selectedSelf
-            ? (selectedSelf.branch || '')
-            : (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
-          matchedInFather: !selectedSelf && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
-          fatherNotInTree: !selectedSelf && Boolean(selectedGrandfa && !grandfaChildMatch),
-          grandfatherId:   !selectedSelf && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
+          parentNodeId:    selectedSelf ? (selectedSelf.parentId || '')
+                         : selectedSon  ? selectedSon.derivedParentId
+                         : parentNode.id,
+          fatherName:      selectedSelf  ? (selectedSelf.parentName || '').split(' ')[0]
+                         : selectedSon   ? selectedSon.derivedFatherName
+                         : selectedFather ? selectedFather.name.split(' ')[0]
+                         : fatherNotInTree.trim(),
+          grandfatherName: selectedSelf  ? (selectedSelf.derivedGrandfatherName || '')
+                         : selectedSon   ? selectedSon.derivedGrandfatherName
+                         : selectedFather ? (selectedFather.parentName || '').split(' ')[0]
+                         : (selectedGrandfa?.name || '').split(' ')[0],
+          generation:      selectedSelf  ? String(selectedSelf.generationLevel || 1)
+                         : selectedSon   ? String(selectedSon.derivedGeneration)
+                         : String((parentNode.generationLevel || 0) + 1),
+          branch:          selectedSelf  ? (selectedSelf.branch || '')
+                         : selectedSon   ? (selectedSon.branch || '')
+                         : (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
+          matchedInFather: !selectedSelf && !selectedSon && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
+          fatherNotInTree: !selectedSelf && !selectedSon && Boolean(selectedGrandfa && !grandfaChildMatch),
+          grandfatherId:   !selectedSelf && !selectedSon && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
+          sonNodeId:       selectedSon ? selectedSon.id : undefined,
         }),
       });
       const data = await res.json();
@@ -314,6 +338,8 @@ export default function Register() {
                 selectedGrandfatherId={selectedGrandfa?.id}
                 onSelectSelf={handleSelectSelf}
                 selectedSelfId={selectedSelf?.id}
+                onSelectSon={handleSelectSon}
+                selectedSonId={selectedSon?.id}
               />
             )}
 
@@ -353,6 +379,23 @@ export default function Register() {
                 </p>
                 <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
                   ✓ موجود في الشجرة — سيتم الربط التلقائي بحسابك عند الموافقة
+                </p>
+              </div>
+            )}
+
+            {/* ابني في الشجرة — هذا ابني */}
+            {selectedSon && (
+              <div className="mt-4 rounded-xl p-3"
+                style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)' }}>
+                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>ابنك الموجود في الشجرة:</p>
+                <p className="font-nav text-sm font-semibold" style={{ color: '#a78bfa' }}>{selectedSon.name}</p>
+                <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  جيله: <span style={{ color: '#a78bfa' }}>{selectedSon.generationLevel}</span>
+                  &nbsp;|&nbsp; جيلك أنت: <span style={{ color: '#a78bfa' }}>{selectedSon.derivedGeneration}</span>
+                  {selectedSon.derivedFatherName && <> &nbsp;|&nbsp; والدك: <span style={{ color: '#a78bfa' }}>{selectedSon.derivedFatherName}</span></>}
+                </p>
+                <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                  ✓ سيتم إضافتك في الشجرة كوالد لهذه العقدة عند الموافقة
                 </p>
               </div>
             )}
