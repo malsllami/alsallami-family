@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import TreeNavigator from '../components/TreeNavigator';
 import PhoneInput from '../components/PhoneInput';
 import DateInput from '../components/DateInput';
+import PasswordInput from '../components/PasswordInput';
 import { normalizeDigits } from '../utils/normalizeInput';
 
 export default function Register() {
@@ -472,12 +473,12 @@ export default function Register() {
           {/* 7. كلمة المرور */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="كلمة المرور *">
-              <input type="password" name="password" value={formData.password}
-                onChange={handleChange} className="form-input" placeholder="6 أحرف على الأقل" minLength={6} />
+              <PasswordInput name="password" value={formData.password}
+                onChange={handleChange} placeholder="6 أحرف على الأقل" minLength={6} />
             </Field>
             <Field label="تأكيد كلمة المرور *">
-              <input type="password" name="confirmPassword" value={formData.confirmPassword}
-                onChange={handleChange} className="form-input" placeholder="أعد كتابة كلمة المرور" />
+              <PasswordInput name="confirmPassword" value={formData.confirmPassword}
+                onChange={handleChange} placeholder="أعد كتابة كلمة المرور" />
             </Field>
           </div>
 
