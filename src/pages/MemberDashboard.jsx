@@ -260,7 +260,7 @@ export default function MemberDashboard() {
     setFamilyAncestors({
       fatherName:      fatherNode?.name || memberNode.parentName || null,
       grandfatherName: grandfatherNode?.name || fatherNode?.parentName || null,
-      path:            memberNode.path       || '',
+      path:            memberNode.path       || ancestorPath.map(n => n.name).join(' ← '),
       generation:      memberNode.generation || memberNode.generationLevel || null,
       ancestorPath:    ancestorPath,
     })
@@ -559,6 +559,7 @@ export default function MemberDashboard() {
   const m = memberData || {}
   const age = calcAge(m.birthDate)
   const totalChildren = (m.children || []).length
+  const incompleteChildren = (m.children || []).filter(c => !c.nationalId || !c.birthDate)
   const visibleWives  = (m.wives    || []).filter(w => w.status !== 'منفصلة' || totalChildren > 0)
   const maritalStatus = ((m.wives?.length || 0) > 0) ? 'متزوج' : 'أعزب'
   const isProfileCompleteForTree = Boolean(
@@ -609,6 +610,30 @@ export default function MemberDashboard() {
           <button onClick={() => setPreLinked(null)}
             className="font-nav text-xs mt-0.5 flex-shrink-0"
             style={{ color: 'rgba(255,255,255,0.25)' }}>✕</button>
+        </div>
+      )}
+
+      {/* تنبيه: أبناء ببيانات ناقصة */}
+      {!dataLoading && incompleteChildren.length > 0 && (
+        <div className="rounded-[20px] px-5 py-4"
+          style={{ background: 'rgba(234,179,8,0.07)', border: '1px solid rgba(234,179,8,0.28)' }}>
+          <p className="font-nav text-sm font-semibold mb-2" style={{ color: '#fbbf24' }}>
+            ⚠ يوجد {incompleteChildren.length === 1 ? 'ابن' : `${incompleteChildren.length} أبناء`} ببيانات ناقصة
+          </p>
+          <ul className="font-nav text-xs space-y-1 mb-3" style={{ color: 'rgba(253,211,77,0.75)' }}>
+            {incompleteChildren.map(c => (
+              <li key={c.id || c.name}>
+                <span style={{ color: 'rgba(255,255,255,0.7)' }}>{c.name}</span>
+                {' — '}
+                {!c.nationalId && !c.birthDate ? 'رقم الهوية وتاريخ الميلاد مفقودان'
+                  : !c.nationalId ? 'رقم الهوية مفقود'
+                  : 'تاريخ الميلاد مفقود'}
+              </li>
+            ))}
+          </ul>
+          <p className="font-nav text-xs" style={{ color: 'rgba(253,211,77,0.55)' }}>
+            يرجى تحديث بيانات أبنائك من قسم «الأبناء» أدناه
+          </p>
         </div>
       )}
 
