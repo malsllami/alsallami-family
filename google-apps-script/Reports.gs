@@ -28,7 +28,7 @@ function sendDailyReport() {
   /* ─── طلبات تحتاج اعتماداً ──────────────────────────────────────────── */
   var pendingApproval = 0;
   var pendingTree     = 0;
-  try { pendingApproval = sheetToObjects('طلبات القبول').filter(function(r)  { return r['الحالة'] === 'معلق'; }).length; } catch(e) {}
+  try { pendingApproval = sheetToObjects('طلبات التسجيل').filter(function(r) { return r['الحالة'] === 'معلق'; }).length; } catch(e) {}
   try { pendingTree     = sheetToObjects('طلبات الشجرة').filter(function(r) { return r['الحالة'] === 'معلق'; }).length; } catch(e) {}
   var totalPending = pendingApproval + pendingTree;
 

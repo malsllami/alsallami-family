@@ -38,6 +38,8 @@ function doPost(e) {
     // ── المصادقة ──────────────────────────────────────────────────────────
     if (action === 'login')              return respond(login(body));
     if (action === 'register')           return respond(register(body));
+    if (action === 'checkRegistrant')   return respond(checkRegistrant(body));
+    if (action === 'checkChildMatch')    return respond(checkChildMatch(body));
     if (action === 'changePassword')     return respond(changePassword(body));
     if (action === 'setTempPassword')    return respond(setTempPassword(body));
     if (action === 'verifyAdminPin') {

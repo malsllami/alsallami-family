@@ -22,11 +22,13 @@ export default function Register() {
   const [treeLoading,       setTreeLoading]       = useState(true);
   const [selectedFather,    setSelectedFather]    = useState(null);
   const [selectedGrandfa,   setSelectedGrandfa]   = useState(null);
+  const [selectedSelf,      setSelectedSelf]      = useState(null);
   const [fatherNotInTree,   setFatherNotInTree]   = useState('');
   const [fatherMatch,       setFatherMatch]       = useState(null);  // 'found' | 'notfound' | null
   const [loading,           setLoading]           = useState(false);
   const [message,           setMessage]           = useState('');
   const [messageType,       setMessageType]       = useState('');
+  const [registrantHint,    setRegistrantHint]    = useState(null);  // { type, text } | null
 
   const NUMERIC_FIELDS = ['nationalId'];
   const handleChange = (e) => {
@@ -34,6 +36,29 @@ export default function Register() {
     const newVal = NUMERIC_FIELDS.includes(name) ? normalizeDigits(value) : value;
     setFormData(prev => ({ ...prev, [name]: newVal }));
     if (name === 'firstName' && selectedFather) checkMatch(newVal, selectedFather);
+    if (name === 'nationalId') {
+      const digits = newVal.replace(/\D/g, '');
+      if (digits.length === 10) {
+        fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'checkRegistrant', nationalId: digits }),
+        })
+          .then(r => r.json())
+          .then(d => {
+            if (!d.success || !d.found) { setRegistrantHint(null); return; }
+            if (d.type === 'child_record') {
+              setRegistrantHint({ type: 'child', text: `تم العثور على بياناتك في سجلات الأبناء — ابحث عن والدك "${d.fatherName}" واضغط "هذا والدي"` });
+            } else if (d.type === 'admin_member') {
+              setRegistrantHint({ type: 'admin', text: `وُجد حسابك في النظام — بياناتك ستُكمَل تلقائياً عند الموافقة` });
+            } else if (d.type === 'already_registered') {
+              setRegistrantHint({ type: 'error', text: 'هذا الرقم مسجَّل مسبقاً، يرجى تسجيل الدخول' });
+            }
+          })
+          .catch(() => setRegistrantHint(null));
+      } else {
+        setRegistrantHint(null);
+      }
+    }
   };
 
   // تحميل الشجرة
@@ -66,6 +91,7 @@ export default function Register() {
     const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
     setSelectedFather({ ...node, branch });
     setSelectedGrandfa(null);
+    setSelectedSelf(null);
     setFatherNotInTree('');
     checkMatch(formData.firstName, node);
   };
@@ -73,6 +99,18 @@ export default function Register() {
   const handleSelectGrandfather = (node) => {
     setSelectedGrandfa(node);
     setSelectedFather(null);
+    setSelectedSelf(null);
+    setFatherMatch(null);
+  };
+
+  const handleSelectSelf = (selfNode, path) => {
+    const grandfatherName = path.length >= 3 ? (path[path.length - 3].name || '').split(' ')[0] : '';
+    const pathStr = selfNode.computedPath || selfNode.path || '';
+    const pathParts = pathStr.split(' ← ').map(s => s.trim()).filter(Boolean);
+    const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
+    setSelectedSelf({ ...selfNode, branch, derivedGrandfatherName: grandfatherName });
+    setSelectedFather(null);
+    setSelectedGrandfa(null);
     setFatherMatch(null);
   };
 
@@ -83,9 +121,9 @@ export default function Register() {
     if (!/^\d{10}$/.test(formData.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
                                                         { setMessage('رقم الهوية يجب أن يكون 10 أرقام'); return false; }
     if (!formData.birthDate)                            { setMessage('تاريخ الميلاد مطلوب'); return false; }
-    if (!selectedFather && !(selectedGrandfa && fatherNotInTree.trim()))
+    if (!selectedFather && !selectedSelf && !(selectedGrandfa && fatherNotInTree.trim()))
                                                         { setMessage('يجب اختيار والدك من الشجرة، أو اختيار جدك وكتابة اسم والدك'); return false; }
-    if (selectedGrandfa && !fatherNotInTree.trim())     { setMessage('يرجى كتابة اسم والدك'); return false; }
+    if (selectedGrandfa && !fatherNotInTree.trim() && !selectedSelf) { setMessage('يرجى كتابة اسم والدك'); return false; }
     if (!formData.phone.trim())                         { setMessage('رقم الجوال مطلوب'); return false; }
     if (!formData.maritalStatus)                        { setMessage('الحالة الاجتماعية مطلوبة'); return false; }
     if (!formData.job)                                  { setMessage('المهنة مطلوبة'); return false; }
@@ -111,11 +149,13 @@ export default function Register() {
     }
 
     // Determine effective parent node
-    const parentNode = selectedFather
-      ? selectedFather
-      : grandfaChildMatch
-        ? { ...grandfaChildMatch, branch: selectedGrandfa.branch || '' }
-        : selectedGrandfa;
+    const parentNode = selectedSelf
+      ? { id: selectedSelf.parentId || '', generationLevel: (selectedSelf.generationLevel || 1) - 1 }
+      : selectedFather
+        ? selectedFather
+        : grandfaChildMatch
+          ? { ...grandfaChildMatch, branch: selectedGrandfa.branch || '' }
+          : selectedGrandfa;
 
     setLoading(true);
     try {
@@ -132,15 +172,26 @@ export default function Register() {
           password:        formData.password,
           email:           formData.email.trim(),
           city:            formData.city.trim(),
-          parentNodeId:    parentNode.id,
-          fatherName:      selectedFather
-            ? selectedFather.name.split(' ')[0]
-            : fatherNotInTree.trim(),
-          generation:      String((parentNode.generationLevel || 0) + 1),
-          branch:          (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
-          matchedInFather: fatherMatch === 'found' || Boolean(grandfaChildMatch),
-          fatherNotInTree: Boolean(selectedGrandfa && !grandfaChildMatch),
-          grandfatherId:   selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
+          parentNodeId:    selectedSelf ? (selectedSelf.parentId || '') : parentNode.id,
+          fatherName:      selectedSelf
+            ? (selectedSelf.parentName || '').split(' ')[0]
+            : selectedFather
+              ? selectedFather.name.split(' ')[0]
+              : fatherNotInTree.trim(),
+          grandfatherName: selectedSelf
+            ? (selectedSelf.derivedGrandfatherName || '')
+            : selectedFather
+              ? (selectedFather.parentName || '').split(' ')[0]
+              : (selectedGrandfa?.name || '').split(' ')[0],
+          generation:      selectedSelf
+            ? String(selectedSelf.generationLevel || 1)
+            : String((parentNode.generationLevel || 0) + 1),
+          branch:          selectedSelf
+            ? (selectedSelf.branch || '')
+            : (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
+          matchedInFather: !selectedSelf && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
+          fatherNotInTree: !selectedSelf && Boolean(selectedGrandfa && !grandfaChildMatch),
+          grandfatherId:   !selectedSelf && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
         }),
       });
       const data = await res.json();
@@ -213,6 +264,17 @@ export default function Register() {
           </Field>
 
           {/* 2. رقم الهوية + تاريخ الميلاد */}
+          {registrantHint && (
+            <div className="font-nav text-sm px-4 py-3 rounded-2xl"
+              style={registrantHint.type === 'error'
+                ? { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }
+                : registrantHint.type === 'admin'
+                  ? { background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.3)', color: '#2dd4bf' }
+                  : { background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)', color: '#fdba74' }
+              }>
+              {registrantHint.text}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="رقم الهوية *">
               <input name="nationalId" required inputMode="numeric" value={formData.nationalId}
@@ -234,7 +296,7 @@ export default function Register() {
               اختر والدك من الشجرة *
             </p>
             <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              ابدأ باختيار الفخذ ثم تدرّج إلى والدك — اضغط &quot;هذا والدي&quot; عند العثور عليه
+              ابدأ باختيار الفخذ ثم تدرّج — اضغط &quot;هذا والدي&quot; عند والدك، أو &quot;هذا أنا&quot; إن كان اسمك موجوداً مسبقاً في الشجرة
             </p>
 
             {treeLoading ? (
@@ -250,6 +312,8 @@ export default function Register() {
                 selectedFatherId={selectedFather?.id}
                 onSelectGrandfather={handleSelectGrandfather}
                 selectedGrandfatherId={selectedGrandfa?.id}
+                onSelectSelf={handleSelectSelf}
+                selectedSelfId={selectedSelf?.id}
               />
             )}
 
@@ -274,6 +338,22 @@ export default function Register() {
                     ⚠ اسمك غير موجود في قائمة أبناء هذا الوالد — سيُرسل الطلب للمدير للمراجعة
                   </p>
                 )}
+              </div>
+            )}
+
+            {/* موقعي في الشجرة — هذا أنا */}
+            {selectedSelf && (
+              <div className="mt-4 rounded-xl p-3"
+                style={{ background: 'rgba(20,184,166,0.06)', border: '1px solid rgba(20,184,166,0.25)' }}>
+                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>موقعك في الشجرة:</p>
+                <p className="font-nav text-sm font-semibold" style={{ color: '#2dd4bf' }}>{selectedSelf.name}</p>
+                <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                  الجيل: <span style={{ color: '#2dd4bf' }}>{selectedSelf.generationLevel}</span>
+                  {selectedSelf.parentName && <> &nbsp;|&nbsp; الوالد: <span style={{ color: '#2dd4bf' }}>{selectedSelf.parentName}</span></>}
+                </p>
+                <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                  ✓ موجود في الشجرة — سيتم الربط التلقائي بحسابك عند الموافقة
+                </p>
               </div>
             )}
 

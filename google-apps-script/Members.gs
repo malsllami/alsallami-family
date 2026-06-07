@@ -347,6 +347,7 @@ function addChild(body) {
   var map = {};
   map['رقم السجل']      = id;
   map['رقم العضو الأب'] = memberId;
+  map['رقم عقدة الأب']  = fatherNode ? String(fatherNode['رقم العقدة'] || '') : '';
   map['الاسم']          = name;
   map['الجنس']          = String(body.gender    || 'ذكر').trim();
   map['تاريخ الميلاد']  = String(body.birthDate || '').trim();

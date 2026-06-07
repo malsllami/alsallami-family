@@ -60,14 +60,16 @@ function getSheetDefs() {
         'الفخذ', 'الجيل', 'رقم الجوال', 'البريد الإلكتروني',
         'تاريخ الميلاد', 'المدينة', 'المهنة', 'الحالة الاجتماعية',
         'الحالة', 'تاريخ الطلب', 'ملاحظات',
-        'رقم الهوية', 'رقم عقدة الأب', 'كلمة المرور المشفرة', 'حي/ميت'
+        'رقم الهوية', 'رقم عقدة الأب', 'كلمة المرور المشفرة', 'حي/ميت',
+        'اسم الوالد', 'الفخذ المختار', 'المسار الشجري', 'بيانات المطابقة'
       ],
       widths: [
         120, 160, 150, 150,
         160, 120, 140, 210,
         140, 140, 150, 140,
         120, 160, 280,
-        140, 150, 220, 100
+        140, 150, 220, 100,
+        160, 140, 320, 280
       ],
     },
 
@@ -83,8 +85,8 @@ function getSheetDefs() {
     {
       name:  'الأبناء',
       color: CLR.family,
-      headers: ['رقم السجل', 'رقم العضو الأب', 'الاسم', 'الجنس', 'تاريخ الميلاد', 'حي/ميت', 'المهنة', 'رقم عضو الابن', 'ملاحظات'],
-      widths:  [120, 150, 190, 100, 150, 100, 130, 140, 280],
+      headers: ['رقم السجل', 'رقم العضو الأب', 'رقم عقدة الأب', 'الاسم', 'الجنس', 'تاريخ الميلاد', 'حي/ميت', 'المهنة', 'رقم الهوية', 'رقم عضو الابن', 'ملاحظات'],
+      widths:  [120, 150, 150, 190, 100, 150, 100, 130, 140, 140, 280],
     },
 
     /* ─── 5. الشجرة العائلية ─────────────────────────────────────────────── */
@@ -847,6 +849,99 @@ function addMaritalStatusColumn() {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   إضافة الأعمدة الجديدة بأمان — لا تحذف بيانات موجودة
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function addMissingColumns() {
+  var ss      = SpreadsheetApp.openById(SPREADSHEET_ID);
+  var results = [];
+
+  // تعريف الأعمدة المطلوبة لكل جدول
+  var needed = [
+    {
+      sheet: 'طلبات التسجيل',
+      color: CLR.members,
+      cols:  ['اسم الوالد', 'الفخذ المختار', 'المسار الشجري', 'بيانات المطابقة'],
+      widths:[160, 140, 320, 280],
+    },
+    {
+      sheet: 'طلبات التسجيل',
+      color: CLR.members,
+      cols:  ['الحالة الاجتماعية'],
+      widths:[140],
+      after: 'المهنة',
+    },
+    {
+      sheet: 'الأبناء',
+      color: CLR.family,
+      cols:  ['رقم عقدة الأب'],
+      widths:[150],
+      after: 'رقم العضو الأب',
+    },
+  ];
+
+  needed.forEach(function(def) {
+    var sheet = ss.getSheetByName(def.sheet);
+    if (!sheet) { results.push('❌ جدول غير موجود: ' + def.sheet); return; }
+
+    var headers   = sheet.getDataRange().getValues()[0];
+    var lastRow   = Math.max(sheet.getLastRow(), 1);
+    var addedCols = [];
+
+    def.cols.forEach(function(colName, idx) {
+      if (headers.indexOf(colName) > -1) return; // موجود مسبقاً
+
+      var insertAt;
+      if (def.after) {
+        // أضفه بعد العمود المحدد
+        var afterIdx = headers.indexOf(def.after);
+        insertAt = afterIdx > -1 ? afterIdx + 2 : headers.length + 1;
+        sheet.insertColumnAfter(afterIdx > -1 ? afterIdx + 1 : headers.length);
+        headers.splice(afterIdx > -1 ? afterIdx + 1 : headers.length, 0, colName);
+      } else {
+        // أضفه في نهاية الجدول
+        insertAt = headers.length + 1;
+        headers.push(colName);
+      }
+
+      // تنسيق رأس العمود
+      var hCell = sheet.getRange(1, insertAt);
+      hCell.setValue(colName);
+      hCell.setBackground(def.color);
+      hCell.setFontColor('#FFFFFF');
+      hCell.setFontWeight('bold');
+      hCell.setFontSize(14);
+      hCell.setHorizontalAlignment('center');
+      hCell.setVerticalAlignment('middle');
+      hCell.setWrapStrategy(SpreadsheetApp.WrapStrategy.CLIP);
+
+      // عرض العمود
+      sheet.setColumnWidth(insertAt, def.widths[idx] || 160);
+
+      // تنسيق خلايا البيانات
+      if (lastRow > 1) {
+        var dRange = sheet.getRange(2, insertAt, lastRow - 1, 1);
+        dRange.setHorizontalAlignment('center');
+        dRange.setVerticalAlignment('middle');
+        dRange.setFontSize(12);
+        dRange.setWrap(true);
+      }
+
+      addedCols.push(colName);
+    });
+
+    if (addedCols.length > 0) {
+      results.push('✅ ' + def.sheet + ': أُضيف ' + addedCols.join('، '));
+    } else {
+      results.push('☑️ ' + def.sheet + ': جميع الأعمدة موجودة مسبقاً');
+    }
+  });
+
+  SpreadsheetApp.flush();
+  Browser.msgBox('نتيجة إضافة الأعمدة', results.join('\n'), Browser.Buttons.OK);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    القائمة المخصصة
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -866,6 +961,8 @@ function onOpen() {
     .addSeparator()
     .addItem('🔧  إضافة عمود الحالة الاجتماعية',        'addMaritalStatusColumn')
     .addItem('🧹  تنظيف جدول الأعضاء (ترتيب + إصلاح العمر والتاريخ)', 'cleanMembersSheet')
+    .addSeparator()
+    .addItem('➕  إضافة الأعمدة الجديدة (آمن — لا يحذف بيانات)', 'addMissingColumns')
     .addToUi();
 }
 

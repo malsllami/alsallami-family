@@ -165,8 +165,29 @@ function approveRequest(body) {
   var tempHash    = hasPreset ? '' : hashPassword(tempPass);
   var tempExpiry  = hasPreset ? '' : formatDate(new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000));
 
-  var memberSheet = getSheet('الأعضاء');
+  var memberSheet   = getSheet('الأعضاء');
   var memberHeaders = memberSheet.getDataRange().getValues()[0];
+
+  // ══ تحقق من وجود عضو مضاف من المدير بنفس رقم الهوية (دون تسجيل) ══
+  var existingAdminRowIdx = -1;
+  if (reqNid && !preAssignedId) {
+    var nidColIdx2  = memberHeaders.indexOf('رقم الهوية');
+    var phColIdx2   = memberHeaders.indexOf('رقم الجوال');
+    var pwColIdx2   = memberHeaders.indexOf('كلمة المرور');
+    var allMVals    = memberSheet.getDataRange().getValues();
+    for (var mri = 1; mri < allMVals.length; mri++) {
+      if (!allMVals[mri][0]) continue;
+      var mNid2  = String(nidColIdx2  > -1 ? allMVals[mri][nidColIdx2]  : '').replace(/[^\d]/g,'').trim();
+      var mPhone2 = String(phColIdx2  > -1 ? allMVals[mri][phColIdx2]   : '').trim();
+      var mPass2  = String(pwColIdx2  > -1 ? allMVals[mri][pwColIdx2]   : '').trim();
+      if (mNid2 === reqNid && (!mPhone2 || !mPass2)) {
+        memberId            = String(allMVals[mri][0]).trim(); // استخدم رقم العضو الموجود
+        existingAdminRowIdx = mri + 1;                        // رقم الصف (1-based)
+        break;
+      }
+    }
+  }
+
   // احسب العمر من تاريخ الميلاد كرقم ثابت
   var reqBday  = req['تاريخ الميلاد'];
   var reqAge   = '';
@@ -204,18 +225,33 @@ function approveRequest(body) {
     'الحالة الاجتماعية':   String(req['الحالة الاجتماعية']  || ''),
   };
 
-  var newRow = memberHeaders.map(function(h) {
-    return colMap[h] !== undefined ? colMap[h] : '';
-  });
-
-  // اكتب في أول صف فارغ من الأعلى (تجنباً للمعادلات التي تملأ نهاية الجدول)
-  var colAVals2 = memberSheet.getRange(1, 1, memberSheet.getMaxRows(), 1).getValues();
-  var targetRow2 = 2;
-  for (var ri2 = 1; ri2 < colAVals2.length; ri2++) {
-    if (String(colAVals2[ri2][0]).trim() === '') { targetRow2 = ri2 + 1; break; }
+  if (existingAdminRowIdx > 0) {
+    // تحديث الصف الموجود — دمج البيانات الجديدة مع الموجودة
+    var existingVals = memberSheet.getRange(existingAdminRowIdx, 1, 1, memberHeaders.length).getValues()[0];
+    var ALWAYS_UPDATE = ['كلمة المرور', 'كلمة المرور المؤقتة', 'انتهاء المؤقتة',
+                         'رقم الجوال', 'البريد الإلكتروني', 'الدور', 'حالة الحساب',
+                         'تاريخ التسجيل', 'رقم العضو'];
+    var mergedRow = memberHeaders.map(function(h, hi) {
+      var newVal = colMap[h];
+      var oldVal = existingVals[hi];
+      if (ALWAYS_UPDATE.indexOf(h) > -1) return newVal !== undefined ? newVal : oldVal;
+      return (newVal !== undefined && String(newVal) !== '') ? newVal : oldVal;
+    });
+    memberSheet.getRange(existingAdminRowIdx, 1, 1, mergedRow.length).setValues([mergedRow]);
+    formatLastRow(memberSheet);
+  } else {
+    // إنشاء صف جديد
+    var newRow = memberHeaders.map(function(h) {
+      return colMap[h] !== undefined ? colMap[h] : '';
+    });
+    var colAVals2 = memberSheet.getRange(1, 1, memberSheet.getMaxRows(), 1).getValues();
+    var targetRow2 = 2;
+    for (var ri2 = 1; ri2 < colAVals2.length; ri2++) {
+      if (String(colAVals2[ri2][0]).trim() === '') { targetRow2 = ri2 + 1; break; }
+    }
+    memberSheet.getRange(targetRow2, 1, 1, newRow.length).setValues([newRow]);
+    formatLastRow(memberSheet);
   }
-  memberSheet.getRange(targetRow2, 1, 1, newRow.length).setValues([newRow]);
-  formatLastRow(memberSheet);
 
   // ربط تلقائي بالشجرة إذا كان رقم الهوية مسجل مسبقاً من قبل الأب
   var autoNodeId   = '';
@@ -317,6 +353,32 @@ function approveRequest(body) {
         }
       } catch(e2) { Logger.log('خطأ ربط الشجرة من نموذج التسجيل: ' + e2.message); }
     }
+  }
+
+  // ربط تلقائي (3): عقدة أضافها المدير مباشرة — تطابق الاسم ورقم عقدة الأب
+  if (!autoLinked && parentNodeIdFromReg && colMap['الاسم الأول']) {
+    try {
+      var treeNodesL = sheetToObjects('الشجرة العائلية');
+      var treeSheetL = getSheet('الشجرة العائلية');
+      for (var li = 0; li < treeNodesL.length; li++) {
+        var tn = treeNodesL[li];
+        if (!String(tn['رقم العضو'] || '').trim() &&
+            String(tn['اسم العضو'] || '').trim() === colMap['الاسم الأول'] &&
+            String(tn['رقم الأب']  || '').trim() === parentNodeIdFromReg) {
+          var lRow = findRow('الشجرة العائلية', 0, String(tn['رقم العقدة']));
+          if (lRow) {
+            var mCol = lRow.headers.indexOf('رقم العضو') + 1;
+            if (mCol > 0) {
+              treeSheetL.getRange(lRow.rowIndex, mCol).setValue(memberId);
+              autoNodeId = String(tn['رقم العقدة']);
+              autoLinked = true;
+              treeReason = 'ربط تلقائي بعقدة أضافها المدير مسبقاً';
+            }
+          }
+          break;
+        }
+      }
+    } catch(e3) { Logger.log('خطأ ربط الشجرة (3): ' + e3.message); }
   }
 
   return {

@@ -110,7 +110,12 @@ function getFamilyTree(body) {
     if (member['المدينة'])           node.location  = String(member['المدينة']);
     if (member['الحالة الاجتماعية']) node.marital   = String(member['الحالة الاجتماعية']);
     if (member['رقم الجوال'])        node.phone     = String(member['رقم الجوال']);
-    if (member['تاريخ الميلاد'])     node.birthDate = String(member['تاريخ الميلاد']);
+    if (member['تاريخ الميلاد']) {
+      var bd = member['تاريخ الميلاد'];
+      node.birthDate = (bd instanceof Date)
+        ? Utilities.formatDate(bd, 'Asia/Riyadh', 'yyyy-MM-dd')
+        : String(bd);
+    }
   });
 
   // ربط عقد الشجرة بآبائهم

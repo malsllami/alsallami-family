@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { normalizeDigits } from '../utils/normalizeInput'
 
 const HIJRI_MONTHS = [
   'محرم', 'صفر', 'ربيع الأول', 'ربيع الثاني',
@@ -157,9 +158,9 @@ export default function DateInput({ value, onChange, required }) {
             onChg={m => { setGMonth(m); applyGregorian(gYear, m, gDay) }}
           />
           <input
-            type="number" min={1900} max={THIS_YEAR}
-            value={gYear}
-            onChange={e => { const y = +e.target.value; setGYear(y); if (y >= 1900 && y <= THIS_YEAR + 1) applyGregorian(y, gMonth, gDay) }}
+            type="text" inputMode="numeric" maxLength={4}
+            value={gYear > 0 ? gYear : ''}
+            onChange={e => { const y = parseInt(normalizeDigits(e.target.value), 10) || 0; setGYear(y); if (y >= 1900 && y <= THIS_YEAR + 1) applyGregorian(y, gMonth, gDay) }}
             style={NUM}
             placeholder="السنة م"
           />
@@ -177,9 +178,9 @@ export default function DateInput({ value, onChange, required }) {
               onChg={m => { setHMonth(m); applyHijri(hYear, m, hDay) }}
             />
             <input
-              type="number" min={1200} max={APPROX_HIJRI_YEAR + 1}
-              value={hYear}
-              onChange={e => { const y = +e.target.value; setHYear(y); if (y >= 1200) applyHijri(y, hMonth, hDay) }}
+              type="text" inputMode="numeric" maxLength={4}
+              value={hYear > 0 ? hYear : ''}
+              onChange={e => { const y = parseInt(normalizeDigits(e.target.value), 10) || 0; setHYear(y); if (y >= 1200) applyHijri(y, hMonth, hDay) }}
               style={NUM}
               placeholder="السنة هـ"
             />

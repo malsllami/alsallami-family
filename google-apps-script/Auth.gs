@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Auth.gs — المصادقة وإدارة كلمات المرور
+   تم التحديث: إضافة دعم النموذج الجديد مع اختيار الوالد من الشجرة
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ═══ تطبيع المدخلات (أرقام عربية ← إنجليزية + تنظيف) ══════════════════ */
@@ -123,30 +124,40 @@ function findRowByPhone(normalizedPhone) {
   return null;
 }
 
-/* ═══ تسجيل عضو جديد ════════════════════════════════════════════════════ */
+/* ═══ تسجيل عضو جديد — مُحدَّث ═══════════════════════════════════════════ */
 
 function register(body) {
-  var firstName      = normalizeInput(body['الاسم الأول'] || body.firstName       || '');
-  var fatherName     = normalizeInput(body['اسم الأب']    || body.fatherName      || '');
-  var grandName      = normalizeInput(body['اسم الجد']    || body.grandfatherName || '');
-  var rawPhone       =                body['رقم الجوال']  || body.phone           || '';
-  var parentNodeId   = normalizeInput(body.parentNodeId   || '');
+  // البيانات الأساسية
+  var firstName      = normalizeInput(body['الاسم الأول'] || body.firstName || '');
+  var rawPhone       = body['رقم الجوال']  || body.phone || '';
   var rawNationalId  = normalizeInput(body['رقم الهوية'] || body.nationalId || '');
   var nationalId     = rawNationalId.replace(/[^\d]/g, '');
+  var birthDate      = normalizeInput(body.birthDate || body['تاريخ الميلاد'] || '');
   var rawJob         = normalizeInput(body.job || body['المهنة'] || '');
   var jobOther       = normalizeInput(body.jobOther || '');
   var job            = rawJob === 'أخرى' ? jobOther : rawJob;
   var maritalStatus  = normalizeInput(body.maritalStatus || body['الحالة الاجتماعية'] || '');
   var password       = String(body.password || '');
-  var birthDate      = normalizeInput(body.birthDate || body['تاريخ الميلاد'] || '');
 
-  if (!firstName)       return { success: false, message: 'الاسم الأول مطلوب' };
-  if (!rawPhone)        return { success: false, message: 'رقم الجوال مطلوب' };
-  if (!nationalId)      return { success: false, message: 'رقم الهوية مطلوب' };
+  // البيانات الجديدة من النموذج المعدل
+  var parentNodeId    = normalizeInput(body.parentNodeId || '');
+  var parentName      = normalizeInput(body.parentName || '');
+  var selectedBranch  = normalizeInput(body.selectedBranch || '');
+  var treePath        = String(body.treePath || '');
+  var matchingData    = body.matchingData || null;
+
+  // البيانات القديمة (للتوافق مع النماذج القديمة)
+  var fatherName     = normalizeInput(body['اسم الأب'] || body.fatherName || '');
+  var grandName      = normalizeInput(body['اسم الجد'] || body.grandfatherName || '');
+
+  // التحقق
+  if (!firstName) return { success: false, message: 'الاسم الأول مطلوب' };
+  if (!rawPhone) return { success: false, message: 'رقم الجوال مطلوب' };
+  if (!nationalId) return { success: false, message: 'رقم الهوية مطلوب' };
   if (!/^\d{10}$/.test(nationalId)) return { success: false, message: 'رقم الهوية يجب أن يكون 10 أرقام' };
-  if (!birthDate)       return { success: false, message: 'تاريخ الميلاد مطلوب' };
-  if (!job)             return { success: false, message: 'المهنة مطلوبة' };
-  if (!maritalStatus)   return { success: false, message: 'الحالة الاجتماعية مطلوبة' };
+  if (!birthDate) return { success: false, message: 'تاريخ الميلاد مطلوب' };
+  if (!job) return { success: false, message: 'المهنة مطلوبة' };
+  if (!maritalStatus) return { success: false, message: 'الحالة الاجتماعية مطلوبة' };
   if (!password || password.length < 6) return { success: false, message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' };
 
   var phone = normalizePhone(normalizeInput(rawPhone));
@@ -170,29 +181,34 @@ function register(body) {
   var requestId = generateId('REG');
   var today     = formatDate(new Date());
 
-  // بناء الصف بناءً على رؤوس الأعمدة الفعلية (يدعم الأعمدة القديمة والجديدة)
+  // بناء الصف بناءً على رؤوس الأعمدة الفعلية
   var headers = sheet.getDataRange().getValues()[0];
   var colMap = {
-    'رقم الطلب':           requestId,
-    'الاسم الأول':         firstName,
-    'اسم الأب':            fatherName,
-    'اسم الجد':            grandName,
-    'الفخذ':               normalizeInput(body.branch      || body['الفخذ']             || ''),
-    'الجيل':               normalizeInput(body.generation  || body['الجيل']             || ''),
-    'رقم الجوال':          phone,
-    'البريد الإلكتروني':   normalizeInput(body.email       || body['البريد الإلكتروني'] || ''),
-    'تاريخ الميلاد':       birthDate,
-    'المدينة':             normalizeInput(body.city        || body['المدينة']           || ''),
-    'المهنة':              job,
-    'الحالة':              'معلق',
-    'تاريخ الطلب':         today,
-    'ملاحظات':             '',
-    'رقم الهوية':          nationalId,
-    'رقم عقدة الأب':       parentNodeId,
-    'كلمة المرور المشفرة': hashPassword(password),
-    'حي/ميت':              'حي',
-    'الحالة الاجتماعية':   maritalStatus,
+    'رقم الطلب':            requestId,
+    'الاسم الأول':          firstName,
+    'اسم الأب':             fatherName,
+    'اسم الجد':             grandName,
+    'الفخذ':                normalizeInput(body.branch || body['الفخذ'] || selectedBranch),
+    'الجيل':                normalizeInput(body.generation || body['الجيل'] || ''),
+    'رقم الجوال':           phone,
+    'البريد الإلكتروني':    normalizeInput(body.email || body['البريد الإلكتروني'] || ''),
+    'تاريخ الميلاد':        birthDate,
+    'المدينة':              normalizeInput(body.city || body['المدينة'] || ''),
+    'المهنة':               job,
+    'الحالة':               'معلق',
+    'تاريخ الطلب':          today,
+    'ملاحظات':              '',
+    'رقم الهوية':           nationalId,
+    'رقم عقدة الأب':        parentNodeId,
+    'اسم الوالد':           parentName,
+    'الفخذ المختار':        selectedBranch,
+    'المسار الشجري':        treePath,
+    'بيانات المطابقة':      matchingData ? JSON.stringify(matchingData) : '',
+    'كلمة المرور المشفرة':  hashPassword(password),
+    'حي/ميت':               'حي',
+    'الحالة الاجتماعية':    maritalStatus,
   };
+
   var row = headers.map(function(h) {
     return colMap[h] !== undefined ? colMap[h] : '';
   });
@@ -205,6 +221,160 @@ function register(body) {
     requestId: requestId,
     message:   'تم إرسال طلب التسجيل بنجاح، سيتم مراجعته من قِبَل المدير',
   };
+}
+
+/* ═══ التحقق من وجود رقم هوية في النظام قبل التسجيل ═══════════════════ */
+
+function checkRegistrant(body) {
+  try {
+    var nationalId = String(body.nationalId || '').replace(/[^\d]/g, '').trim();
+    if (nationalId.length !== 10) return { success: true, found: false };
+
+    // 1) تحقق من جدول الأبناء — تم إضافته من قِبَل والده
+    var childRecs = sheetToObjects('الأبناء');
+    for (var ci = 0; ci < childRecs.length; ci++) {
+      var cr   = childRecs[ci];
+      var crNid = String(cr['رقم الهوية'] || '').replace(/[^\d]/g, '').trim();
+      if (crNid !== nationalId) continue;
+
+      var fMId      = String(cr['رقم العضو الأب']  || '').trim();
+      var fNodeId   = String(cr['رقم عقدة الأب']   || '').trim();
+      var childPreId = String(cr['رقم عضو الابن']  || '').trim();
+
+      // إذا كان للابن رقم عضو مسبق → تحقق أنه لم يُسجَّل بعد
+      if (childPreId) {
+        var mems = sheetToObjects('الأعضاء');
+        for (var mi = 0; mi < mems.length; mi++) {
+          if (String(mems[mi]['رقم العضو'] || '') === childPreId &&
+              String(mems[mi]['رقم الجوال'] || '').trim()) {
+            return { success: true, found: true, type: 'already_registered',
+                     message: 'هذا الرقم مسجَّل مسبقاً، يرجى تسجيل الدخول' };
+          }
+        }
+      }
+
+      // ابحث عن معلومات عقدة الأب في الشجرة
+      var treeNodes  = sheetToObjects('الشجرة العائلية');
+      var fatherNode = null;
+      for (var ti = 0; ti < treeNodes.length; ti++) {
+        var tn = treeNodes[ti];
+        if ((fNodeId  && String(tn['رقم العقدة'] || '') === fNodeId) ||
+            (fMId     && String(tn['رقم العضو']  || '') === fMId)) {
+          fatherNode = tn; break;
+        }
+      }
+
+      return {
+        success:        true,
+        found:          true,
+        type:           'child_record',
+        childName:      String(cr['الاسم'] || '').trim(),
+        fatherMemberId: fMId,
+        fatherNodeId:   fatherNode ? String(fatherNode['رقم العقدة'] || '') : fNodeId,
+        fatherName:     fatherNode ? String(fatherNode['اسم العضو']  || '') : '',
+        fatherPath:     fatherNode ? String(fatherNode['المسار']     || '') : '',
+      };
+    }
+
+    // 2) تحقق من جدول الأعضاء — أضافه المدير دون تسجيل (بدون جوال أو كلمة مرور)
+    var members = sheetToObjects('الأعضاء');
+    for (var mi2 = 0; mi2 < members.length; mi2++) {
+      var m    = members[mi2];
+      var mNid  = String(m['رقم الهوية']  || '').replace(/[^\d]/g, '').trim();
+      var mPh   = String(m['رقم الجوال']  || '').trim();
+      var mPw   = String(m['كلمة المرور'] || '').trim();
+      if (mNid === nationalId && (!mPh || !mPw)) {
+        return {
+          success:    true,
+          found:      true,
+          type:       'admin_member',
+          memberId:   String(m['رقم العضو']  || ''),
+          firstName:  String(m['الاسم الأول'] || ''),
+          fatherName: String(m['اسم الأب']   || ''),
+          message:    'وُجد حسابك في النظام — بياناتك ستُكمَل تلقائياً عند قبول الطلب',
+        };
+      }
+    }
+
+    return { success: true, found: false };
+  } catch (err) {
+    Logger.log('خطأ checkRegistrant: ' + err.message);
+    return { success: true, found: false };
+  }
+}
+
+/* ═══ التحقق من مطابقة الابن — جديد ════════════════════════════════════ */
+
+function checkChildMatch(body) {
+  try {
+    var fatherNodeId = String(body.fatherNodeId || '').trim();
+    var firstName    = String(body.firstName || '').trim();
+    var nationalId   = String(body.nationalId || '').trim();
+    var birthDate    = String(body.birthDate || '').trim();
+
+    if (!fatherNodeId) return { success: false, message: 'رقم عقدة الوالد مطلوب' };
+    if (!firstName)    return { success: false, message: 'الاسم مطلوب' };
+
+    // ابحث في جدول الأبناء: أولاً بعمود رقم عقدة الأب (الصفوف الجديدة)
+    // ثم fallback لعمود رقم العضو الأب عبر الشجرة (الصفوف القديمة)
+    var treeNodes  = sheetToObjects('الشجرة العائلية');
+    var fatherNode = null;
+    for (var t = 0; t < treeNodes.length; t++) {
+      if (String(treeNodes[t]['رقم العقدة'] || '').trim() === fatherNodeId) {
+        fatherNode = treeNodes[t];
+        break;
+      }
+    }
+    var fatherMemberId = fatherNode ? String(fatherNode['رقم العضو'] || '').trim() : '';
+
+    var children = sheetToObjects('الأبناء');
+    var matches  = [];
+
+    for (var i = 0; i < children.length; i++) {
+      var child = children[i];
+      var childNodeRef   = String(child['رقم عقدة الأب']  || '').trim();
+      var childMemberRef = String(child['رقم العضو الأب'] || '').trim();
+      var matchesFather  = (childNodeRef && childNodeRef === fatherNodeId) ||
+                           (fatherMemberId && childMemberRef === fatherMemberId);
+      if (!matchesFather) continue;
+
+      var childName = String(child['الاسم']         || '').trim();
+      var childNid  = String(child['رقم الهوية']    || '').trim();
+      var childBd   = String(child['تاريخ الميلاد'] || '').trim();
+
+      // مطابقة دقيقة: اسم + هوية + تاريخ ميلاد
+      if (childName === firstName && childNid && childNid === nationalId && childBd && childBd === birthDate) {
+        return { success: true, found: true, child: child, matchType: 'exact' };
+      }
+
+      // اسم + هوية
+      if (childName === firstName && childNid && childNid === nationalId) {
+        matches.push({ child: child, matchType: 'name_nid' });
+        continue;
+      }
+
+      // اسم + تاريخ ميلاد
+      if (childName === firstName && childBd && childBd === birthDate) {
+        matches.push({ child: child, matchType: 'name_bd' });
+        continue;
+      }
+
+      // اسم فقط (أضعف)
+      if (childName === firstName) {
+        matches.push({ child: child, matchType: 'name_only' });
+      }
+    }
+
+    if (matches.length > 0) {
+      return { success: true, found: true, child: matches[0].child, matchType: matches[0].matchType };
+    }
+
+    return { success: true, found: false, message: 'لم يتم العثور على مطابقة' };
+
+  } catch (err) {
+    Logger.log('خطأ في checkChildMatch: ' + err.message);
+    return { success: false, message: 'خطأ في التحقق: ' + err.message };
+  }
 }
 
 /* ═══ تغيير كلمة المرور ══════════════════════════════════════════════════ */
@@ -281,7 +451,6 @@ function verifyAdminPin(body) {
   var pin = normalizeInput(body.pin || '');
   if (!pin) return { success: false, message: 'رمز المدير مطلوب' };
 
-  // يقرأ الجدول مباشرة ويقبل أي مفتاح يحتوي على "لوحة" أو هو "رمز المدير" تحديداً
   var correct = '';
   try {
     var sheet = getSheet('الإعدادات');
@@ -298,7 +467,7 @@ function verifyAdminPin(body) {
   } catch(e) { Logger.log('خطأ قراءة الإعدادات: ' + e.message); }
 
   if (!correct) return { success: false, message: 'لم يُعثر على رمز في الإعدادات' };
-  if (pin !== correct) return { success: false, message: 'خطأ — الرمز المخزن: [' + correct + '] (طول:' + correct.length + ') | الإدخال: [' + pin + '] (طول:' + pin.length + ')' };
+  if (pin !== correct) return { success: false, message: 'الرمز غير صحيح' };
   return { success: true, message: 'تم التحقق بنجاح' };
 }
 
