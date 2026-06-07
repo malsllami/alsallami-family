@@ -24,7 +24,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, minFatherGen = 1 }) {
+export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, onSelectSelf, selectedSelfId, minFatherGen = 1 }) {
   const tree = useMemo(() => {
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
@@ -115,7 +115,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               )
             })}
           </select>
-          {(onSelectFather || onSelectGrandfather) && pathNodes[lvl.index] && (pathNodes[lvl.index]?.generationLevel ?? 0) >= minFatherGen && (
+          {(onSelectFather || onSelectGrandfather || onSelectSelf) && pathNodes[lvl.index] && (pathNodes[lvl.index]?.generationLevel ?? 0) >= minFatherGen && (
             <div className="flex gap-2 mt-2">
               {onSelectFather && (
                 <button
@@ -147,6 +147,22 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                       : { background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.25)', color: 'rgba(251,146,60,0.75)' }
                   }>
                   {selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id ? '✓ هذا جدي' : 'هذا جدي'}
+                </button>
+              )}
+              {onSelectSelf && !pathNodes[lvl.index]?.memberId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
+                    onSelectSelf({ ...pathNodes[lvl.index], computedPath }, pathNodes.slice(0, lvl.index + 1))
+                  }}
+                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  style={
+                    selectedSelfId && selectedSelfId === pathNodes[lvl.index]?.id
+                      ? { background: 'rgba(20,184,166,0.2)', border: '1px solid rgba(20,184,166,0.5)', color: '#2dd4bf', fontWeight: 700 }
+                      : { background: 'rgba(20,184,166,0.06)', border: '1px solid rgba(20,184,166,0.25)', color: 'rgba(20,184,166,0.75)' }
+                  }>
+                  {selectedSelfId && selectedSelfId === pathNodes[lvl.index]?.id ? '✓ هذا أنا' : 'هذا أنا'}
                 </button>
               )}
             </div>
