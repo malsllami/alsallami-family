@@ -24,7 +24,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, onSelectSelf, selectedSelfId, minFatherGen = 1 }) {
+export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, onSelectSelf, selectedSelfId, onSelectSon, selectedSonId, minFatherGen = 1 }) {
   const tree = useMemo(() => {
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
@@ -163,6 +163,22 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                       : { background: 'rgba(20,184,166,0.06)', border: '1px solid rgba(20,184,166,0.25)', color: 'rgba(20,184,166,0.75)' }
                   }>
                   {selectedSelfId && selectedSelfId === pathNodes[lvl.index]?.id ? '✓ هذا أنا' : 'هذا أنا'}
+                </button>
+              )}
+              {onSelectSon && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
+                    onSelectSon({ ...pathNodes[lvl.index], computedPath }, pathNodes.slice(0, lvl.index + 1))
+                  }}
+                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  style={
+                    selectedSonId && selectedSonId === pathNodes[lvl.index]?.id
+                      ? { background: 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.5)', color: '#a78bfa', fontWeight: 700 }
+                      : { background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)', color: 'rgba(167,139,250,0.75)' }
+                  }>
+                  {selectedSonId && selectedSonId === pathNodes[lvl.index]?.id ? '✓ هذا ابني' : 'هذا ابني'}
                 </button>
               )}
             </div>
