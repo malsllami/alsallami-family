@@ -111,7 +111,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               var isCurrent = currentMemberId && n.memberId === currentMemberId
               return (
                 <option key={n.id} value={n.id} disabled={isCurrent}>
-                  {n.name}{n.location ? ` — ${n.location}` : ''}{n.alive === false ? ' (متوفى)' : ''}{isCurrent ? ' (أنت)' : ''}
+                  {n.name}{n.alive === false ? ' (متوفى)' : ' (حي)'}{isCurrent ? ' (أنت)' : ''}
                 </option>
               )
             })}
@@ -150,7 +150,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                   {selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id ? '✓ هذا جدي' : 'هذا جدي'}
                 </button>
               )}
-              {onSelectSelf && !pathNodes[lvl.index]?.memberId && (pathNodes[lvl.index]?.generationLevel ?? 0) >= 6 && (
+              {onSelectSelf && !pathNodes[lvl.index]?.registered && (pathNodes[lvl.index]?.generationLevel ?? 0) >= 6 && (
                 <button
                   type="button"
                   onClick={() => {
