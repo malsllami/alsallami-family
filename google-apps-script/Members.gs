@@ -300,6 +300,38 @@ function addChild(body) {
   for (var ti = 0; ti < treeNodes.length; ti++) {
     if (String(treeNodes[ti]['رقم العضو'] || '') === memberId) { fatherNode = treeNodes[ti]; break; }
   }
+  // إذا لم يُوجد برقم العضو — ابحث بالاسم (حالة عقدة أضافها المدير بدون ربط رقم عضو)
+  if (!fatherNode) {
+    var allMbrs = sheetToObjects('الأعضاء');
+    var mbr = null;
+    for (var mi = 0; mi < allMbrs.length; mi++) {
+      if (String(allMbrs[mi]['رقم العضو'] || '') === memberId) { mbr = allMbrs[mi]; break; }
+    }
+    if (mbr) {
+      var mbFirstName = String(mbr['الاسم الأول'] || '').trim();
+      var mbFatherName = String(mbr['اسم الأب'] || '').trim();
+      for (var ti2 = 0; ti2 < treeNodes.length; ti2++) {
+        var tn2 = treeNodes[ti2];
+        if (!String(tn2['رقم العضو'] || '').trim() &&
+            String(tn2['اسم العضو'] || '').trim() === mbFirstName) {
+          // تحقق إضافي بالأب إن أمكن
+          var tnParentName = String(tn2['اسم الأب'] || '').trim();
+          if (!mbFatherName || !tnParentName || tnParentName === mbFatherName) {
+            fatherNode = tn2;
+            // اكتب رقم العضو في عقدة الشجرة لتجنب التكرار مستقبلاً
+            try {
+              var lRow2 = findRow('الشجرة العائلية', 0, String(tn2['رقم العقدة']));
+              if (lRow2) {
+                var mCol2 = lRow2.headers.indexOf('رقم العضو') + 1;
+                if (mCol2 > 0) getSheet('الشجرة العائلية').getRange(lRow2.rowIndex, mCol2).setValue(memberId);
+              }
+            } catch(e) { Logger.log('خطأ كتابة رقم العضو في الشجرة: ' + e.message); }
+            break;
+          }
+        }
+      }
+    }
+  }
   if (!fatherNode) return { success: false, message: 'يجب أن تكون مرتبطاً في الشجرة أولاً حتى يمكن إضافة الابن في التسلسل' };
 
   var sheet      = getSheet('الأبناء');
@@ -324,7 +356,20 @@ function addChild(body) {
   var childNodeId = '';
   var isFemale   = String(body.gender || '').trim() === 'أنثى';
   var hasNidBody = nationalId !== '';
-  if (fatherNode && (!isFemale || hasNidBody)) {
+
+  // إذا كان رقم العضو المحجوز للابن موجوداً مسبقاً في الشجرة → لا تُنشئ عقدة مكررة
+  var alreadyInTreeAsChild = false;
+  if (preAssignedMemberId) {
+    for (var tc = 0; tc < treeNodes.length; tc++) {
+      if (String(treeNodes[tc]['رقم العضو'] || '') === preAssignedMemberId) {
+        alreadyInTreeAsChild = true;
+        childNodeId = String(treeNodes[tc]['رقم العقدة'] || '');
+        break;
+      }
+    }
+  }
+
+  if (fatherNode && !alreadyInTreeAsChild && (!isFemale || hasNidBody)) {
     var treeSheet = getSheet('الشجرة العائلية');
     var treeHdrs  = treeSheet.getDataRange().getValues()[0];
     childNodeId   = generateId('N');

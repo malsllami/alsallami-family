@@ -258,6 +258,23 @@ function approveRequest(body) {
   var autoLinked   = false;
   var treeReason   = '';
 
+  // ربط تلقائي (0): اختار "هذا أنا" — العضو موجود في الشجرة بالفعل، اربط مباشرة بالعقدة الذاتية
+  var selfNodeId = String(req['رقم العقدة الذاتية'] || '').trim();
+  if (!autoLinked && selfNodeId) {
+    try {
+      var selfRow0 = findRow('الشجرة العائلية', 0, selfNodeId);
+      if (selfRow0) {
+        var mCol0 = selfRow0.headers.indexOf('رقم العضو') + 1;
+        if (mCol0 > 0) {
+          getSheet('الشجرة العائلية').getRange(selfRow0.rowIndex, mCol0).setValue(memberId);
+          autoNodeId = selfNodeId;
+          autoLinked = true;
+          treeReason = 'ربط مباشر بالعقدة الذاتية (هذا أنا)';
+        }
+      }
+    } catch(e0) { Logger.log('خطأ ربط الشجرة (0): ' + e0.message); }
+  }
+
   if (preAssignedId && reqNid) {
     try {
       var treeSheet2 = getSheet('الشجرة العائلية');
