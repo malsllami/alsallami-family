@@ -90,6 +90,75 @@ function getAdminStats(body) {
   };
 }
 
+/* ═══ إحصائيات الشجرة العائلية بالأجيال ══════════════════════════════════ */
+
+function getTreeStats() {
+  var treeNodes = sheetToObjects('الشجرة العائلية');
+  var members   = sheetToObjects('الأعضاء');
+  var now       = new Date();
+
+  // فهرس الأعضاء برقم العضو للوصول السريع لتاريخ الميلاد
+  var memberById = {};
+  members.forEach(function(m) {
+    var mid = String(m['رقم العضو'] || '').trim();
+    if (mid) memberById[mid] = m;
+  });
+
+  var genMap          = {};
+  var totalRegistered = 0;
+  var totalAlive      = 0;
+  var totalDead       = 0;
+
+  treeNodes.forEach(function(n) {
+    var gen      = parseInt(n['مستوى الجيل'] || 0, 10);
+    var memberId = String(n['رقم العضو'] || '').trim();
+    var isAlive  = String(n['حي/ميت'] || 'حي') === 'حي';
+
+    if (!genMap[gen]) genMap[gen] = { total: 0, alive: 0, dead: 0, ages: [] };
+
+    genMap[gen].total++;
+    if (isAlive) { genMap[gen].alive++; totalAlive++; }
+    else         { genMap[gen].dead++;  totalDead++;  }
+
+    if (memberId) {
+      totalRegistered++;
+      var m2 = memberById[memberId];
+      if (m2) {
+        var bd = m2['تاريخ الميلاد'];
+        if (bd) {
+          try {
+            var birthDate = (bd instanceof Date) ? bd : new Date(String(bd));
+            if (!isNaN(birthDate.getTime())) {
+              var age = Math.floor((now - birthDate) / (365.25 * 24 * 3600 * 1000));
+              if (age > 0 && age < 120) genMap[gen].ages.push(age);
+            }
+          } catch(_) {}
+        }
+      }
+    }
+  });
+
+  var generations = Object.keys(genMap)
+    .map(function(k) { return parseInt(k, 10); })
+    .sort(function(a, b) { return a - b; })
+    .map(function(g) {
+      var d      = genMap[g];
+      var avgAge = d.ages.length > 0
+        ? Math.round(d.ages.reduce(function(s, a) { return s + a; }, 0) / d.ages.length)
+        : null;
+      return { gen: g, total: d.total, alive: d.alive, dead: d.dead, avgAge: avgAge };
+    });
+
+  return {
+    success:         true,
+    totalNodes:      treeNodes.length,
+    totalRegistered: totalRegistered,
+    totalAlive:      totalAlive,
+    totalDead:       totalDead,
+    generations:     generations,
+  };
+}
+
 /* ═══ جلب طلبات التسجيل المعلقة ═════════════════════════════════════════ */
 
 function getPendingRequests(body) {

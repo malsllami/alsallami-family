@@ -71,9 +71,11 @@ export default function AdminDashboard() {
     }
   }
 
-  const [stats,       setStats]       = useState(null)
-  const [statsLoading,setStatsLoading]= useState(true)
-  const [animated,    setAnimated]    = useState(0)
+  const [stats,          setStats]          = useState(null)
+  const [statsLoading,   setStatsLoading]   = useState(true)
+  const [animated,       setAnimated]       = useState(0)
+  const [treeStats,      setTreeStats]      = useState(null)
+  const [treeStatsLoading, setTreeStatsLoading] = useState(true)
 
   const [showPw,  setShowPw]  = useState(false)
   const [pwData,  setPwData]  = useState({ current: '', next: '', confirm: '' })
@@ -134,6 +136,22 @@ export default function AdminDashboard() {
         if (data.success) setStats({ ...data.stats, charts: data.charts })
       } catch (e) { console.error(e) }
       finally    { setStatsLoading(false) }
+    }
+    load()
+  }, [])
+
+  /* جلب إحصائيات الشجرة */
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res  = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST',
+          body: JSON.stringify({ action: 'getTreeStats' }),
+        })
+        const data = await res.json()
+        if (data.success) setTreeStats(data)
+      } catch (e) { console.error(e) }
+      finally { setTreeStatsLoading(false) }
     }
     load()
   }, [])
@@ -949,6 +967,123 @@ export default function AdminDashboard() {
           </div>
 
         </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          إحصائيات الشجرة العائلية
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7"
+        style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">إحصائيات الشجرة العائلية</p>
+            <p className="font-nav text-xs text-gray-600">توزيع الأعضاء على الأجيال مع متوسط الأعمار</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.25)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="var(--gold-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+        </div>
+
+        {treeStatsLoading ? (
+          <div className="space-y-3">
+            {[1,2,3].map(i => (
+              <div key={i} className="h-12 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+            ))}
+          </div>
+        ) : treeStats ? (
+          <>
+            {/* الإجماليات */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              {[
+                { label: 'إجمالي الشجرة',   value: treeStats.totalNodes,      color: 'var(--gold-main)',  bg: 'rgba(198,161,107,0.1)',  border: 'rgba(198,161,107,0.25)' },
+                { label: 'مسجلون في الموقع', value: treeStats.totalRegistered, color: '#a78bfa',            bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)' },
+                { label: 'أحياء',            value: treeStats.totalAlive,      color: '#4ade80',            bg: 'rgba(74,222,128,0.08)',  border: 'rgba(74,222,128,0.22)' },
+                { label: 'متوفون',           value: treeStats.totalDead,       color: '#9ca3af',            bg: 'rgba(156,163,175,0.08)', border: 'rgba(156,163,175,0.18)' },
+              ].map(c => (
+                <div key={c.label} className="rounded-2xl p-4 text-center"
+                  style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <p className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: c.color }}>
+                    {c.value?.toLocaleString('ar') ?? '—'}
+                  </p>
+                  <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* جدول الأجيال */}
+            <div className="overflow-x-auto">
+              <table className="w-full font-nav text-sm" style={{ borderCollapse: 'separate', borderSpacing: '0 6px' }}>
+                <thead>
+                  <tr>
+                    {['الجيل', 'الإجمالي', 'أحياء', 'متوفون', 'متوسط العمر'].map(h => (
+                      <th key={h} className="text-center pb-2 font-semibold"
+                        style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600 }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(treeStats.generations || []).map(g => {
+                    const pctAlive = g.total > 0 ? Math.round((g.alive / g.total) * 100) : 0
+                    return (
+                      <tr key={g.gen}>
+                        {/* الجيل */}
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-nav text-xs font-bold px-2.5 py-1 rounded-full"
+                            style={{ background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
+                            {g.gen}
+                          </span>
+                        </td>
+                        {/* الإجمالي */}
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-bold text-white">{g.total}</span>
+                        </td>
+                        {/* أحياء */}
+                        <td className="text-center py-2.5 px-2">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="font-bold" style={{ color: '#4ade80' }}>{g.alive}</span>
+                            <div className="w-12 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                              <div className="h-full rounded-full" style={{ width: `${pctAlive}%`, background: '#4ade80' }} />
+                            </div>
+                            <span className="text-[10px]" style={{ color: 'rgba(74,222,128,0.6)' }}>{pctAlive}%</span>
+                          </div>
+                        </td>
+                        {/* متوفون */}
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-bold" style={{ color: '#6b7280' }}>{g.dead}</span>
+                        </td>
+                        {/* متوسط العمر */}
+                        <td className="text-center py-2.5 px-2">
+                          {g.avgAge != null ? (
+                            <span className="font-nav text-xs px-2.5 py-1 rounded-full"
+                              style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.2)' }}>
+                              {g.avgAge} سنة
+                            </span>
+                          ) : (
+                            <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.25)' }}>
+            تعذّر تحميل إحصائيات الشجرة
+          </p>
+        )}
       </div>
 
       {/* ══════════════════════════════════════

@@ -9,10 +9,10 @@ var SS_ID = '1ZZkmGrwXT_yVGIRmWl373uuvo2YqbG5P4yX8TkCIS2Y';
 
 // طلبات القراءة الروتينية — لا تُحسب في العداد اليومي
 var READ_ONLY_ACTIONS = {
-  'getFamilyTree': true, 'getAdminStats': true, 'getPendingRequests': true,
-  'getTreeRequests': true, 'getAllMembers': true, 'getOnlineUsers': true,
-  'getFunds': true, 'getFundMembers': true, 'getArticles': true,
-  'getMemberData': true, 'verifyViewerCode': true, 'getSettings': true,
+  'getFamilyTree': true, 'getAdminStats': true, 'getTreeStats': true,
+  'getPendingRequests': true, 'getTreeRequests': true, 'getAllMembers': true,
+  'getOnlineUsers': true, 'getFunds': true, 'getFundMembers': true,
+  'getArticles': true, 'getMemberData': true, 'verifyViewerCode': true, 'getSettings': true,
 };
 
 function trackApiCall(action) {
@@ -71,6 +71,7 @@ function doPost(e) {
 
     // ── الإدارة ───────────────────────────────────────────────────────────
     if (action === 'getAdminStats')      return respond(getAdminStats(body));
+    if (action === 'getTreeStats')       return respond(getTreeStats(body));
     if (action === 'getPendingRequests') return respond(getPendingRequests(body));
     if (action === 'approveRequest')          return respond(approveRequest(body));
     if (action === 'rejectRequest')           return respond(rejectRequest(body));
