@@ -16,9 +16,8 @@ export default function Login() {
   const [mode, setMode] = useState('login')
 
   /* ── login ── */
-  const [phone,       setPhone]       = useState('')
-  const [countryCode, setCountryCode] = useState('+966')
-  const [password,    setPassword]    = useState('')
+  const [nationalId, setNationalId] = useState('')
+  const [password,   setPassword]   = useState('')
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState('')
   const [isRejected,     setIsRejected]     = useState(false)
@@ -48,9 +47,9 @@ export default function Login() {
     try {
       setLoading(true)
       const result = await post({
-        action:   'login',
-        phone:    countryCode + phone.trim(),
-        password: password.trim(),
+        action:     'login',
+        nationalId: nationalId.trim(),
+        password:   password.trim(),
       })
       if (result.success) {
         if (result.requireChange) {
@@ -199,8 +198,23 @@ export default function Login() {
                 </div>
               )}
 
-              <PhoneInput value={phone} onChange={setPhone} countryCode={countryCode}
-                onCountryChange={setCountryCode} label="رقم الجوال" placeholder="5xxxxxxxx" />
+              <div>
+                <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  رقم الهوية الوطنية
+                </label>
+                <input
+                  type="text" inputMode="numeric" maxLength={10}
+                  value={nationalId}
+                  onChange={e => setNationalId(e.target.value.replace(/\D/g, ''))}
+                  placeholder="10 أرقام" dir="ltr"
+                  className="font-nav w-full px-4 text-center text-base outline-none"
+                  style={{
+                    height: 52, borderRadius: 14,
+                    background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                    color: '#fff', letterSpacing: 3,
+                  }}
+                />
+              </div>
 
               <PasswordInput value={password} onChange={e => setPassword(e.target.value)}
                 placeholder="كلمة المرور" />

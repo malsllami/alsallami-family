@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 
 const RAW_TREE = {
   id:'root', name:'إبراهيم العفريتي', gender:'male', alive:false,
@@ -32,7 +32,23 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
     return addLevels(raw, raw.generationLevel || 0)
   }, [treeData])
 
+  // المستويات الثابتة: أي مستوى فيه خيار واحد فقط يُثبَّت تلقائياً
+  const fixedPath = useMemo(() => {
+    const fp = []
+    let options = tree.children || []
+    while (options.length === 1) {
+      fp.push(options[0])
+      options = options[0].children || []
+    }
+    return fp
+  }, [tree])
+
   const [pathNodes, setPathNodes] = useState([])
+
+  // تهيئة المسار بالمستويات الثابتة عند تغيير الشجرة
+  useEffect(() => {
+    setPathNodes(prev => [...fixedPath, ...prev.slice(fixedPath.length)])
+  }, [fixedPath])
 
   const handleChange = (levelIndex, nodeId) => {
     const parentNode = levelIndex === 0 ? tree : pathNodes[levelIndex - 1]
@@ -68,7 +84,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
         index:      i,
         options,
         genNum,
-        label:      i === 0
+        label:      i === fixedPath.length
           ? `الجيل ${genNum} — اختر الفخذ`
           : `الجيل ${genNum} — أبناء ${prevName}`,
         selectedId: pathNodes[i]?.id || '',
@@ -80,8 +96,9 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
       options = sel.children || []
     }
 
-    return levels
-  }, [tree, pathNodes, selectedSelfId, selectedSonId])
+    // إخفاء المستويات الثابتة — تُعرض كترويسة ثابتة فقط
+    return levels.filter(l => l.index >= fixedPath.length)
+  }, [tree, pathNodes, selectedSelfId, selectedSonId, fixedPath])
 
   const lastNode   = pathNodes[pathNodes.length - 1] ?? null
   const isSelf     = Boolean(selectedSelfId && lastNode?.id === selectedSelfId)
@@ -89,6 +106,45 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
   return (
     <div className="space-y-3">
+
+      {/* الأجداد الثابتون — لا يحتاج المستخدم لاختيارهم */}
+      {fixedPath.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-1 pb-2"
+          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 4 }}>
+          <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>الجذر:</span>
+          {/* الجذر — يظهر فقط إن لم يكن عقدة اصطناعية */}
+          {tree.name !== 'الشجرة' && (
+            <span className="flex items-center gap-1">
+              <span className="font-nav text-xs font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                {tree.name}
+              </span>
+              <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
+                {tree.generationLevel ?? 0}
+              </span>
+              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>←</span>
+            </span>
+          )}
+          {fixedPath.map((n, i) => (
+            <span key={n.id} className="flex items-center gap-1">
+              <span className="font-nav text-xs font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                {n.name}
+              </span>
+              <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
+                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
+                {n.generationLevel}
+              </span>
+              {i < fixedPath.length - 1 && (
+                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>←</span>
+              )}
+            </span>
+          ))}
+          <span className="font-nav text-[9px] px-2 py-0.5 rounded-full mr-1"
+            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            ثابت
+          </span>
+        </div>
+      )}
 
       {displayLevels.map(lvl => (
         <div key={lvl.index}>

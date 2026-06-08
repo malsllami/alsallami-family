@@ -35,37 +35,40 @@ function normalizePhone(phone) {
 /* ═══ تسجيل الدخول ════════════════════════════════════════════════════════ */
 
 function login(body) {
-  // يقبل: phone أو memberId
-  var identifier = normalizeInput(body.phone || body.memberId || '');
-  var password   = normalizeInput(body.password || '');
+  // يقبل: nationalId أو memberId
+  var nationalId = normalizeInput(body.nationalId || '').replace(/[^\d]/g, '');
+  var memberId   = normalizeInput(body.memberId   || '');
+  var password   = normalizeInput(body.password   || '');
 
-  if (!identifier || !password) {
-    return { success: false, message: 'رقم الجوال وكلمة المرور مطلوبان' };
+  if ((!nationalId && !memberId) || !password) {
+    return { success: false, message: 'رقم الهوية وكلمة المرور مطلوبان' };
   }
 
-  // ابحث أولاً برقم الجوال (عمود 6 = رقم الجوال)
-  var found = findRowByPhone(normalizePhone(identifier));
+  // ابحث برقم الهوية أولاً
+  var found = nationalId ? findRowByNationalId(nationalId) : null;
 
-  // إذا ما وُجد بالجوال — ابحث برقم العضو (عمود 0)
-  if (!found) found = findRow('الأعضاء', 0, identifier);
+  // إذا ما وُجد — ابحث برقم العضو
+  if (!found && memberId) found = findRow('الأعضاء', 0, memberId);
 
   if (!found) {
-    // فحص إن كان الجوال موجوداً في طلب مرفوض
-    try {
-      var reqsAll = sheetToObjects('طلبات التسجيل');
-      for (var rci = 0; rci < reqsAll.length; rci++) {
-        var rc = reqsAll[rci];
-        if (String(rc['الحالة'] || '') === 'مرفوض' &&
-            normalizePhone(String(rc['رقم الجوال'] || '')) === normalizePhone(identifier)) {
-          return {
-            success:  false,
-            rejected: true,
-            reason:   String(rc['ملاحظات'] || ''),
-            message:  'تم رفض طلب تسجيلك',
-          };
+    // فحص إن كان رقم الهوية موجوداً في طلب مرفوض
+    if (nationalId) {
+      try {
+        var reqsAll = sheetToObjects('طلبات التسجيل');
+        for (var rci = 0; rci < reqsAll.length; rci++) {
+          var rc = reqsAll[rci];
+          var rcNid = String(rc['رقم الهوية'] || '').replace(/[^\d]/g, '').trim();
+          if (String(rc['الحالة'] || '') === 'مرفوض' && rcNid === nationalId) {
+            return {
+              success:  false,
+              rejected: true,
+              reason:   String(rc['ملاحظات'] || ''),
+              message:  'تم رفض طلب تسجيلك',
+            };
+          }
         }
-      }
-    } catch(_) {}
+      } catch(_) {}
+    }
     return { success: false, message: 'بيانات الدخول غير صحيحة' };
   }
 
@@ -118,6 +121,24 @@ function findRowByPhone(normalizedPhone) {
     if (!data[i][0]) continue; // صف فارغ
     var stored = normalizePhone(String(data[i][col] || ''));
     if (stored === normalizedPhone) {
+      return { rowIndex: i + 1, rowData: data[i], headers: headers };
+    }
+  }
+  return null;
+}
+
+// بحث برقم الهوية في عمود رقم الهوية
+function findRowByNationalId(nationalId) {
+  var sheet   = getSheet('الأعضاء');
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var col     = headers.indexOf('رقم الهوية');
+  if (col === -1) return null;
+
+  for (var i = 1; i < data.length; i++) {
+    if (!data[i][0]) continue;
+    var stored = String(data[i][col] || '').replace(/[^\d]/g, '').trim();
+    if (stored && stored === nationalId) {
       return { rowIndex: i + 1, rowData: data[i], headers: headers };
     }
   }
