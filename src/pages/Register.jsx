@@ -216,7 +216,8 @@ export default function Register() {
           matchedInFather: !selectedSelf && !selectedSon && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
           fatherNotInTree: !selectedSelf && !selectedSon && Boolean(selectedGrandfa && !grandfaChildMatch),
           grandfatherId:   !selectedSelf && !selectedSon && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
-          sonNodeId:       selectedSon ? selectedSon.id : undefined,
+          sonNodeId:       selectedSon  ? selectedSon.id  : undefined,
+          selfNodeId:      selectedSelf ? selectedSelf.id : undefined,
         }),
       });
       const data = await res.json();
