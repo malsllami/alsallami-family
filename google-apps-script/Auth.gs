@@ -168,13 +168,24 @@ function register(body) {
     return { success: false, message: 'رقم الجوال مسجّل مسبقاً' };
   }
 
-  // تحقق من طلب معلق بنفس الرقم
-  var pending = sheetToObjects('طلبات التسجيل');
-  var hasPending = pending.some(function(r) {
-    return normalizePhone(String(r['رقم الجوال'] || '')) === phone && r['الحالة'] === 'معلق';
-  });
-  if (hasPending) {
-    return { success: false, message: 'يوجد طلب تسجيل معلق لهذا الرقم، انتظر مراجعة المدير' };
+  // تحقق من وجود طلب سابق بنفس رقم الهوية أو الجوال
+  var prevReqs = sheetToObjects('طلبات التسجيل');
+  for (var pi = 0; pi < prevReqs.length; pi++) {
+    var pr = prevReqs[pi];
+    var prNid = String(pr['رقم الهوية'] || '').replace(/[^\d]/g, '').trim();
+    var prPh  = normalizePhone(String(pr['رقم الجوال'] || ''));
+    if (prNid !== nationalId && prPh !== phone) continue;
+    var prStatus = String(pr['الحالة'] || '');
+    if (prStatus === 'معلق') {
+      return { success: false, status: 'pending', message: 'طلبك قيد المراجعة من قِبَل المدير، يُرجى الانتظار' };
+    }
+    if (prStatus === 'مرفوض') {
+      var reason = String(pr['ملاحظات'] || '').trim();
+      var rejMsg = reason
+        ? 'تم رفض طلب تسجيلك من قِبَل المدير — السبب: ' + reason
+        : 'تم رفض طلب تسجيلك من قِبَل المدير';
+      return { success: false, status: 'rejected', message: rejMsg };
+    }
   }
 
   var sheet     = getSheet('طلبات التسجيل');
