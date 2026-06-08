@@ -486,7 +486,7 @@ export default function Register() {
           </div>
 
           <div className="pt-4 space-y-3">
-            <button type="submit" disabled={loading || (!selectedFather && !(selectedGrandfa && fatherNotInTree.trim()))}
+            <button type="submit" disabled={loading || (!selectedFather && !selectedSelf && !selectedSon && !(selectedGrandfa && fatherNotInTree.trim()))}
               className="font-nav bg-[var(--gold-main)] text-black font-bold flex items-center justify-center overflow-hidden transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed w-full"
               style={{ height: 56, borderRadius: loading ? '50%' : 14,
                 transition: 'border-radius 0.5s cubic-bezier(0.23,1,0.32,1)' }}>

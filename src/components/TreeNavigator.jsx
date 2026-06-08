@@ -76,11 +76,12 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
       const sel = pathNodes[i]
       if (!sel) break
+      if ((selectedSelfId && sel.id === selectedSelfId) || (selectedSonId && sel.id === selectedSonId)) break
       options = sel.children || []
     }
 
     return levels
-  }, [tree, pathNodes])
+  }, [tree, pathNodes, selectedSelfId, selectedSonId])
 
   const lastNode   = pathNodes[pathNodes.length - 1] ?? null
   const myGenLevel = lastNode ? lastNode.generationLevel + 1 : null

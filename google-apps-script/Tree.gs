@@ -435,6 +435,21 @@ function approveTreeRequest(body) {
   var existing    = sheetToObjects('الشجرة العائلية');
   var treeHeaders = treeSheet.getDataRange().getValues()[0];
 
+  /* ─── حالة "هذا أنا" — ربط مباشر بالعقدة الذاتية ─────────────────── */
+  var selfMatchTR = notes.match(/\[SELF:([A-Z0-9]+)\]/);
+  if (selfMatchTR) {
+    var selfNodeIdTR = selfMatchTR[1];
+    var selfRowTR = findRow('الشجرة العائلية', 0, selfNodeIdTR);
+    if (selfRowTR) {
+      var mColTR = selfRowTR.headers.indexOf('رقم العضو') + 1;
+      if (mColTR > 0) {
+        treeSheet.getRange(selfRowTR.rowIndex, mColTR).setValue(memberId);
+        return { success: true, message: 'تم ربطك مباشرة بعقدتك في الشجرة' };
+      }
+    }
+    return { success: false, message: 'لم يتم العثور على العقدة المحددة في الشجرة' };
+  }
+
   /* ─── حالة "الأب غير موجود" ─────────────────────────────────────────── */
   if (parentId === 'NOTFOUND') {
     var ancestorId = String(body.ancestorId || '').trim();
