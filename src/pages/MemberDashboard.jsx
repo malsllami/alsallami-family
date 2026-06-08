@@ -176,6 +176,7 @@ export default function MemberDashboard() {
   const [selectedLinkFather,  setSelectedLinkFather]  = useState(null)
   const [selectedLinkGrandfa, setSelectedLinkGrandfa] = useState(null)
   const [selectedLinkSon,     setSelectedLinkSon]     = useState(null)
+  const [selectedLinkSelf,    setSelectedLinkSelf]    = useState(null)
   const [linkFatherName,      setLinkFatherName]      = useState('')
   const [treeData,            setTreeData]            = useState(null)
   const [treeLoading,         setTreeLoading]         = useState(false)
@@ -451,6 +452,12 @@ export default function MemberDashboard() {
     } catch { alert('حدث خطأ') }
   }
 
+  /* ── handler اختيار "هذا أنا" في طلب ربط الشجرة ── */
+  const handleLinkSelectSelf = (node) => {
+    setSelectedLinkSelf(node)
+    setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setSelectedLinkSon(null); setLinkFatherName('')
+  }
+
   /* ── إرسال طلب ربط الشجرة ── */
   const handleSubmitTreeLink = async () => {
     if (!isProfileCompleteForTree) {
@@ -460,7 +467,8 @@ export default function MemberDashboard() {
     const hasFather      = Boolean(selectedLinkFather)
     const hasGrandfather = Boolean(selectedLinkGrandfa && linkFatherName.trim())
     const hasSon         = Boolean(selectedLinkSon)
-    if (!hasFather && !hasGrandfather && !hasSon) return
+    const hasSelf        = Boolean(selectedLinkSelf)
+    if (!hasFather && !hasGrandfather && !hasSon && !hasSelf) return
 
     // Check if grandfather's children already contain the typed father name
     const grandfatherChildMatch = hasGrandfather
@@ -470,7 +478,16 @@ export default function MemberDashboard() {
     try {
       setTreeLinkLoading(true)
       setTreeLinkMsg(null)
-      const payload = hasSon
+      const payload = hasSelf
+        ? {
+            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            parentId:        selectedLinkSelf.id,
+            parentName:      (selectedLinkSelf.parentName || selectedLinkSelf.name || '').split(' ')[0],
+            generationLevel: selectedLinkSelf.generationLevel || 1,
+            path:            selectedLinkSelf.computedPath || selectedLinkSelf.path || '',
+            note:            `[SELF:${selectedLinkSelf.id}]`,
+          }
+        : hasSon
         ? {
             action: 'submitTreeRequest', memberId: savedUser.memberId,
             parentId:        selectedLinkSon.parentId || '',
@@ -508,7 +525,7 @@ export default function MemberDashboard() {
       const result = await post(payload)
       setTreeLinkMsg({ success: result.success, text: result.message || (result.success ? 'تم إرسال الطلب بنجاح، في انتظار موافقة المدير' : 'حدث خطأ') })
       if (result.success) {
-        setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setSelectedLinkSon(null); setLinkFatherName(''); setShowTreeLink(false)
+        setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setSelectedLinkSon(null); setSelectedLinkSelf(null); setLinkFatherName(''); setShowTreeLink(false)
       }
     } catch {
       setTreeLinkMsg({ success: false, text: 'تعذّر الاتصال بالخادم' })
@@ -1077,7 +1094,8 @@ export default function MemberDashboard() {
 
         <SlidePanel open={showTreeLink}>
           <p className="font-nav text-xs leading-5 pb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
-            ابحث عن والدك في الشجرة واضغط <span style={{ color: 'rgba(198,161,107,0.9)' }}>هذا والدي</span>.
+            إذا كان اسمك مضافاً مسبقاً في الشجرة اضغط <span style={{ color: '#2dd4bf' }}>هذا أنا</span>.
+            وإلا ابحث عن والدك واضغط <span style={{ color: 'rgba(198,161,107,0.9)' }}>هذا والدي</span>.
             إذا لم يكن والدك موجوداً، اختر جدك واضغط <span style={{ color: '#fb923c' }}>هذا جدي</span> ثم اكتب اسم والدك.
           </p>
 
@@ -1092,10 +1110,26 @@ export default function MemberDashboard() {
               selectedFatherId={selectedLinkFather?.id}
               onSelectGrandfather={node => { setSelectedLinkGrandfa(node); setSelectedLinkFather(null); setSelectedLinkSon(null) }}
               selectedGrandfatherId={selectedLinkGrandfa?.id}
-              onSelectSelf={null}
-              onSelectSon={node => { setSelectedLinkSon(node); setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setLinkFatherName('') }}
+              onSelectSelf={handleLinkSelectSelf}
+              selectedSelfId={selectedLinkSelf?.id}
+              onSelectSon={node => { setSelectedLinkSon(node); setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setSelectedLinkSelf(null); setLinkFatherName('') }}
               selectedSonId={selectedLinkSon?.id}
             />
+          )}
+
+          {/* موقعي في الشجرة — هذا أنا */}
+          {selectedLinkSelf && (
+            <div className="rounded-2xl p-4" style={{ background: 'rgba(20,184,166,0.05)', border: '1px solid rgba(20,184,166,0.22)' }}>
+              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>موقعك في الشجرة:</p>
+              <p className="font-nav text-sm font-semibold mt-1" style={{ color: '#2dd4bf' }}>{selectedLinkSelf.name}</p>
+              <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                الجيل: <span style={{ color: '#2dd4bf' }}>{selectedLinkSelf.generationLevel}</span>
+                {selectedLinkSelf.parentName && <> &nbsp;|&nbsp; الوالد: <span style={{ color: '#2dd4bf' }}>{selectedLinkSelf.parentName}</span></>}
+              </p>
+              <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                ✓ موجود في الشجرة — سيتم الربط بحسابك عند الموافقة
+              </p>
+            </div>
           )}
 
           {/* ابني في الشجرة */}
@@ -1143,7 +1177,7 @@ export default function MemberDashboard() {
 
           <button
             onClick={handleSubmitTreeLink}
-            disabled={treeLinkLoading || (!selectedLinkFather && !selectedLinkSon && !(selectedLinkGrandfa && linkFatherName.trim()))}
+            disabled={treeLinkLoading || (!selectedLinkFather && !selectedLinkSon && !selectedLinkSelf && !(selectedLinkGrandfa && linkFatherName.trim()))}
             className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
             style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
             {treeLinkLoading ? 'جاري الإرسال...' : 'إرسال الطلب للمدير'}
