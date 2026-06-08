@@ -84,7 +84,8 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
   }, [tree, pathNodes, selectedSelfId, selectedSonId])
 
   const lastNode   = pathNodes[pathNodes.length - 1] ?? null
-  const myGenLevel = lastNode ? lastNode.generationLevel + 1 : null
+  const isSelf     = Boolean(selectedSelfId && lastNode?.id === selectedSelfId)
+  const myGenLevel = lastNode ? (isSelf ? lastNode.generationLevel : lastNode.generationLevel + 1) : null
 
   return (
     <div className="space-y-3">
@@ -196,25 +197,33 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
           <div>
             <p className="font-nav text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>سلسلة انتسابك</p>
             <div className="flex flex-wrap items-center gap-1">
-              {pathNodes.map((n, i) => (
-                <span key={n.id} className="flex items-center gap-1">
-                  <span className="font-nav text-xs font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
-                    {n.name.split(' ')[0]}
+              {pathNodes.map((n, i) => {
+                const isLastAndSelf = isSelf && i === pathNodes.length - 1
+                return (
+                  <span key={n.id} className="flex items-center gap-1">
+                    <span className="font-nav text-xs font-semibold"
+                      style={{ color: isLastAndSelf ? 'var(--gold-main)' : 'rgba(255,255,255,0.75)' }}>
+                      {isLastAndSelf ? 'أنت' : n.name.split(' ')[0]}
+                    </span>
+                    <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
+                      style={isLastAndSelf
+                        ? { background: 'rgba(198,161,107,0.25)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.4)', fontWeight: 700 }
+                        : { background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)' }}>
+                      {n.generationLevel}
+                    </span>
+                    {!isLastAndSelf && <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>←</span>}
                   </span>
-                  <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
-                    style={{ background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)' }}>
-                    {n.generationLevel}
+                )
+              })}
+              {!isSelf && (
+                <span className="flex items-center gap-1">
+                  <span className="font-nav text-xs font-bold" style={{ color: 'var(--gold-main)' }}>أنت</span>
+                  <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full font-bold"
+                    style={{ background: 'rgba(198,161,107,0.25)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.4)' }}>
+                    {myGenLevel}
                   </span>
-                  <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>←</span>
                 </span>
-              ))}
-              <span className="flex items-center gap-1">
-                <span className="font-nav text-xs font-bold" style={{ color: 'var(--gold-main)' }}>أنت</span>
-                <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                  style={{ background: 'rgba(198,161,107,0.25)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.4)' }}>
-                  {myGenLevel}
-                </span>
-              </span>
+              )}
             </div>
           </div>
 
@@ -230,7 +239,9 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                 الجيل {myGenLevel}
               </p>
               <p className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
-                أبوك في الشجرة: {lastNode.name.split(' ')[0]}
+                {isSelf
+                  ? `أنت: ${lastNode.name.split(' ')[0]} في الشجرة`
+                  : `أبوك في الشجرة: ${lastNode.name.split(' ')[0]}`}
               </p>
             </div>
           </div>
