@@ -519,6 +519,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     location:   profile.city          || node.location,
     phone:      profile.phone         || node.phone,
     nationalId: profile.nationalId    || null,
+    birthDate:  profile.birthDate     || node.birthDate || null,
     generation: node.generationLevel  || null,
     name:       node.name,
   } : {
@@ -528,6 +529,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     location:   node.location,
     phone:      node.phone,
     nationalId: null,
+    birthDate:  node.birthDate || null,
     generation: node.generationLevel || null,
     name:       node.name,
   }
@@ -723,17 +725,27 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                 <span className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.38)' }}>{lineage}</span>
               )}
             </div>
-            <div className="divide-y divide-white/[0.06]">
-              <PR label="الحال" value={display.alive ? 'حي' : 'متوفى'} color={display.alive ? '#4ade80' : '#9ca3af'} />
-              {!isWifeDaughter && <>
-                <PR label="الحالة الاجتماعية" value={display.marital ? mapMarital(display.marital) : '—'} />
-                <PR label="المهنة"  value={display.job      || '—'} />
-                <PR label="المدينة" value={display.location || '—'} color={display.location ? '#a78bfa' : undefined} />
-                {isLoggedIn && <PR label="الجوال"     value={display.phone      || '—'} />}
-                {isLoggedIn && display.nationalId && <PR label="رقم الهوية" value={display.nationalId} />}
-              </>}
-            </div>
-            {!isLoggedIn && node.memberId && (
+            {(() => {
+              const age = parseAgeFromDate(display.birthDate)
+              return (
+                <div className="divide-y divide-white/[0.06]">
+                  <PR label="الحال" value={display.alive ? 'حي' : 'متوفى'} color={display.alive ? '#4ade80' : '#9ca3af'} />
+                  {age !== null && <PR label="العمر" value={`${age} سنة`} />}
+                  {!isWifeDaughter && (display.alive ? (
+                    <>
+                      <PR label="الحالة الاجتماعية" value={display.marital ? mapMarital(display.marital) : '—'} />
+                      <PR label="المهنة"  value={display.job      || '—'} />
+                      <PR label="المدينة" value={display.location || '—'} color={display.location ? '#a78bfa' : undefined} />
+                      {isLoggedIn && <PR label="الجوال"     value={display.phone      || '—'} />}
+                      {isLoggedIn && display.nationalId && <PR label="رقم الهوية" value={display.nationalId} />}
+                    </>
+                  ) : (
+                    display.location && <PR label="المدينة" value={display.location} color="#a78bfa" />
+                  ))}
+                </div>
+              )
+            })()}
+            {!isLoggedIn && node.memberId && display.alive && (
               <p className="font-nav text-[10px] text-center mt-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
                 سجّل دخولك لرؤية رقم الجوال والهوية
               </p>
