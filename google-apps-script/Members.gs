@@ -369,6 +369,34 @@ function addChild(body) {
     }
   }
 
+  // بحث احتياطي: عقدة بنفس الاسم الأول تحت نفس الأب (ولو مختلفة رقم العضو)
+  if (!alreadyInTreeAsChild && fatherNode) {
+    var normArAC = function(s) {
+      return String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+    };
+    var childFirstName = normArAC(name.split(' ')[0]);
+    var fatherNodeIdAC = String(fatherNode['رقم العقدة'] || '');
+    for (var tc2 = 0; tc2 < treeNodes.length; tc2++) {
+      var tn2 = treeNodes[tc2];
+      if (String(tn2['رقم الأب'] || '').trim() !== fatherNodeIdAC) continue;
+      if (normArAC(String(tn2['اسم العضو'] || '').split(' ')[0]) !== childFirstName) continue;
+      // عقدة موجودة بنفس الاسم — ربط رقم العضو بها بدلاً من إنشاء عقدة مكررة
+      alreadyInTreeAsChild = true;
+      childNodeId = String(tn2['رقم العقدة'] || '');
+      var storedMid = String(tn2['رقم العضو'] || '').trim();
+      if (preAssignedMemberId && storedMid !== preAssignedMemberId) {
+        try {
+          var dupRow = findRow('الشجرة العائلية', 0, childNodeId);
+          if (dupRow) {
+            var dupMCol = dupRow.headers.indexOf('رقم العضو') + 1;
+            if (dupMCol > 0) getSheet('الشجرة العائلية').getRange(dupRow.rowIndex, dupMCol).setValue(preAssignedMemberId);
+          }
+        } catch(e) { Logger.log('خطأ ربط عقدة الابن: ' + e.message); }
+      }
+      break;
+    }
+  }
+
   if (fatherNode && !alreadyInTreeAsChild && (!isFemale || hasNidBody)) {
     var treeSheet = getSheet('الشجرة العائلية');
     var treeHdrs  = treeSheet.getDataRange().getValues()[0];

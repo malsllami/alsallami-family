@@ -1038,3 +1038,57 @@ function removeFemalNodesWithoutId() {
 
   Logger.log('تم حذف ' + deleted + ' عقدة أنثى بدون هوية من جدول الشجرة');
 }
+
+/* ═══ تشغل مرة واحدة — تنظيف عقد الشجرة المكررة ══════════════════════════
+   شغّل هذه الدالة من محرر GAS > Run > cleanupDuplicateTreeNodes
+   تحذف العقدة المكررة (الأحدث بدون رقم عضو أو بنفس الأب والاسم)          */
+
+function cleanupDuplicateTreeNodes() {
+  var treeSheet = getSheet('الشجرة العائلية');
+  var treeData  = treeSheet.getDataRange().getValues();
+  var headers   = treeData[0];
+
+  var nodeIdCol = headers.indexOf('رقم العقدة');
+  var memberCol = headers.indexOf('رقم العضو');
+  var nameCol   = headers.indexOf('اسم العضو');
+  var fatherCol = headers.indexOf('رقم الأب');
+
+  var normAr = function(s) {
+    return String(s || '').replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي').trim();
+  };
+
+  // بناء فهرس: parentId+firstName → قائمة بمؤشرات الصفوف
+  var groups = {};
+  for (var i = 1; i < treeData.length; i++) {
+    var row      = treeData[i];
+    var nid      = String(row[nodeIdCol] || '').trim();
+    var parentId = String(row[fatherCol]  || '').trim();
+    var fn       = normAr(String(row[nameCol] || '').split(' ')[0]);
+    if (!nid || !fn) continue;
+    var key = parentId + '||' + fn;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push({ rowIdx: i + 1, memberId: String(row[memberCol] || '').trim(), nodeId: nid });
+  }
+
+  var rowsToDelete = [];
+  Object.keys(groups).forEach(function(key) {
+    var g = groups[key];
+    if (g.length < 2) return;
+    // احتفظ بالعقدة ذات رقم العضو (الأولى بترتيب الأولوية)، احذف الباقي
+    g.sort(function(a, b) {
+      var aMid = a.memberId ? 1 : 0;
+      var bMid = b.memberId ? 1 : 0;
+      return bMid - aMid; // الأولوية لمن عنده رقم عضو
+    });
+    for (var di = 1; di < g.length; di++) {
+      rowsToDelete.push(g[di].rowIdx);
+      Logger.log('حذف مكرر: nodeId=' + g[di].nodeId + ' memberId=' + g[di].memberId);
+    }
+  });
+
+  // حذف من الأسفل لأعلى لتجنب اختلاف المؤشرات
+  rowsToDelete.sort(function(a, b) { return b - a; });
+  rowsToDelete.forEach(function(rowIdx) { treeSheet.deleteRow(rowIdx); });
+
+  Logger.log('تم حذف ' + rowsToDelete.length + ' عقدة مكررة من جدول الشجرة');
+}
