@@ -149,7 +149,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                   {selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id ? '✓ هذا جدي' : 'هذا جدي'}
                 </button>
               )}
-              {onSelectSelf && !pathNodes[lvl.index]?.memberId && (
+              {onSelectSelf && !pathNodes[lvl.index]?.memberId && (pathNodes[lvl.index]?.generationLevel ?? 0) >= 6 && (
                 <button
                   type="button"
                   onClick={() => {
@@ -165,7 +165,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                   {selectedSelfId && selectedSelfId === pathNodes[lvl.index]?.id ? '✓ هذا أنا' : 'هذا أنا'}
                 </button>
               )}
-              {onSelectSon && (
+              {onSelectSon && (pathNodes[lvl.index]?.generationLevel ?? 0) >= 6 && (
                 <button
                   type="button"
                   onClick={() => {
