@@ -79,11 +79,6 @@ export default function AdminDashboard() {
   const [pwData,  setPwData]  = useState({ current: '', next: '', confirm: '' })
   const [pwLoading,setPwLoading] = useState(false)
 
-  const [tempMemberId, setTempMemberId] = useState('')
-  const [tempPassword, setTempPassword] = useState('')
-  const [tempLoading,  setTempLoading]  = useState(false)
-  const [tempResult,   setTempResult]   = useState(null)
-
   const [regRequests,        setRegRequests]        = useState([])
   const [regRequestsLoading, setRegRequestsLoading] = useState(true)
   const [regActionLoading,   setRegActionLoading]   = useState(null)
@@ -121,8 +116,10 @@ export default function AdminDashboard() {
   const [treeActionLoading,   setTreeActionLoading]   = useState(null)
   const [treeRejectingId,     setTreeRejectingId]     = useState(null)
   const [treeRejectReason,    setTreeRejectReason]    = useState('')
+  const [expandedRegId,       setExpandedRegId]       = useState(null)
+  const [expandedTreeId,      setExpandedTreeId]      = useState(null)
 
-  const [openSec, setOpenSec] = useState({ tempPass: true, regReq: true, treeReq: true, addMember: true })
+  const [openSec, setOpenSec] = useState({ regReq: true, treeReq: true, addMember: true })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
 
   /* جلب إحصائيات المنصة */
@@ -465,29 +462,6 @@ export default function AdminDashboard() {
       }
     } catch { setAmResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
     finally  { setAmLoading(false) }
-  }
-
-  /* توليد كلمة مرور عشوائية */
-  const genTempPassword = () => {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789'
-    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-  }
-
-  /* تعيين كلمة مرور مؤقتة لعضو */
-  const handleSetTempPassword = async () => {
-    if (!tempMemberId || !tempPassword) return alert('أدخل رقم العضوية وكلمة المرور المؤقتة')
-    try {
-      setTempLoading(true)
-      setTempResult(null)
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'setTempPassword', memberId: tempMemberId, tempPassword }),
-      })
-      const result = await res.json()
-      setTempResult(result)
-      if (result.success) { setTempMemberId(''); setTempPassword('') }
-    } catch { setTempResult({ success: false, message: 'حدث خطأ أثناء الاتصال بالخادم' }) }
-    finally  { setTempLoading(false) }
   }
 
   /* تغيير كلمة المرور */
@@ -978,108 +952,6 @@ export default function AdminDashboard() {
       </div>
 
       {/* ══════════════════════════════════════
-          كلمة مرور مؤقتة لعضو
-         ══════════════════════════════════════ */}
-      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(249,115,22,0.07)', border: '1px solid rgba(249,115,22,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-
-        <button className="flex items-start justify-between w-full text-right"
-          onClick={() => toggleSec('tempPass')}>
-          <div>
-            <p className="font-nav text-sm text-gray-400 mb-1">كلمة مرور مؤقتة للعضو</p>
-            {openSec.tempPass && <p className="font-nav text-xs text-gray-600">أدخل رقم العضوية وكلمة مرور مؤقتة — سيُطلب من العضو تغييرها عند أول دخول</p>}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.22)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-                stroke="#eab308" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
-              style={{ transform: openSec.tempPass ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </button>
-        {openSec.tempPass && <div className="mt-6">
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-          {/* رقم العضوية */}
-          <div>
-            <label className="block font-nav text-xs text-gray-500 mb-2">رقم العضوية</label>
-            <input
-              type="text"
-              placeholder="مثال: 1042"
-              value={tempMemberId}
-              onChange={e => { setTempMemberId(e.target.value); setTempResult(null) }}
-              className="form-input"
-            />
-          </div>
-
-          {/* كلمة المرور المؤقتة */}
-          <div>
-            <label className="block font-nav text-xs text-gray-500 mb-2">كلمة المرور المؤقتة</label>
-            <div className="flex gap-2">
-              <PasswordInput
-                placeholder="اكتب أو ولّد تلقائياً"
-                value={tempPassword}
-                onChange={e => { setTempPassword(e.target.value); setTempResult(null) }}
-                style={{ flex: 1 }}
-              />
-              <button
-                type="button"
-                onClick={() => { setTempPassword(genTempPassword()); setTempResult(null) }}
-                title="توليد عشوائي"
-                className="flex-shrink-0 px-4 rounded-2xl font-nav text-sm transition-all duration-200 hover:opacity-80"
-                style={{
-                  background: 'rgba(234,179,8,0.1)',
-                  border:     '1.5px solid rgba(234,179,8,0.28)',
-                  color:      '#eab308',
-                }}
-              >
-                توليد
-              </button>
-            </div>
-          </div>
-
-        </div>
-
-        {/* نتيجة العملية */}
-        {tempResult && (
-          <div
-            className="mt-4 px-4 py-3 rounded-2xl font-nav text-sm"
-            style={{
-              background: tempResult.success ? 'rgba(34,197,94,0.08)'  : 'rgba(239,68,68,0.08)',
-              border:     tempResult.success ? '1px solid rgba(34,197,94,0.22)' : '1px solid rgba(239,68,68,0.22)',
-              color:      tempResult.success ? '#4ade80' : '#f87171',
-            }}
-          >
-            {tempResult.message}
-          </div>
-        )}
-
-        {/* زر التطبيق */}
-        <button
-          onClick={handleSetTempPassword}
-          disabled={tempLoading}
-          className="mt-5 font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-          style={{
-            background: 'rgba(234,179,8,0.12)',
-            border:     '1px solid rgba(234,179,8,0.32)',
-            color:      '#eab308',
-          }}
-        >
-          {tempLoading ? 'جاري التطبيق...' : 'تطبيق كلمة المرور المؤقتة'}
-        </button>
-
-        </div>}
-
-      </div>
-
-      {/* ══════════════════════════════════════
           طلبات التسجيل المعلقة
          ══════════════════════════════════════ */}
       <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
@@ -1139,7 +1011,8 @@ export default function AdminDashboard() {
 
                 {/* ── معلومات الطلب + أزرار العرض العادي ── */}
                 <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex-1 min-w-0 space-y-1 cursor-pointer select-none"
+                    onClick={() => setExpandedRegId(expandedRegId === req.requestId ? null : req.requestId)}>
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-bold text-sm text-white">
                         {[req.name, req.fatherName, req.grandName].filter(Boolean).join(' ')}
@@ -1154,6 +1027,10 @@ export default function AdminDashboard() {
                           {req.branch}
                         </span>
                       )}
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2"
+                        style={{ transform: expandedRegId === req.requestId ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s', flexShrink: 0 }}>
+                        <polyline points="6 9 12 15 18 9"/>
+                      </svg>
                     </div>
                     <p className="font-nav text-xs text-gray-400">
                       الجوال: <span className="text-white">{req.phone}</span>
@@ -1254,6 +1131,87 @@ export default function AdminDashboard() {
                   </div>
                 )}
 
+                {/* ── لوحة التفاصيل الموسعة ── */}
+                {expandedRegId === req.requestId && (
+                  <div className="pt-4 border-t border-white/[0.06] space-y-4">
+
+                    {/* شارة الشجرة */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/\[SON:[A-Z0-9]+\]/.test(req.notes || '') ? (
+                        <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                          style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
+                          موجود في الشجرة
+                        </span>
+                      ) : req.parentNodeId ? (
+                        <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                          style={{ background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.28)', color: '#eab308' }}>
+                          والده في الشجرة — سيُضاف
+                        </span>
+                      ) : (
+                        <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                          style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.28)', color: '#fb923c' }}>
+                          يحتاج إضافة للشجرة
+                        </span>
+                      )}
+                    </div>
+
+                    {/* تسلسل عائلي */}
+                    {[req.branch, req.grandName, req.fatherName, req.name].some(Boolean) && (
+                      <div>
+                        <p className="font-nav text-[10px] text-gray-500 mb-2">التسلسل العائلي</p>
+                        <div className="flex items-center gap-1 flex-wrap" style={{ direction: 'rtl' }}>
+                          {[req.branch, req.grandName, req.fatherName, req.name].filter(Boolean).map((node, idx, arr) => (
+                            <span key={idx} className="flex items-center gap-1">
+                              <span className="font-nav text-xs px-2.5 py-1 rounded-xl"
+                                style={{
+                                  background: idx === arr.length - 1 ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.04)',
+                                  border: idx === arr.length - 1 ? '1px solid rgba(99,102,241,0.35)' : '1px solid rgba(255,255,255,0.07)',
+                                  color: idx === arr.length - 1 ? '#a5b4fc' : 'rgba(255,255,255,0.55)',
+                                  fontWeight: idx === arr.length - 1 ? 700 : 400,
+                                }}>
+                                {node}
+                              </span>
+                              {idx < arr.length - 1 && <span className="font-nav text-[10px] text-gray-600">←</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* بيانات تفصيلية */}
+                    {[
+                      { label: 'الجيل', value: req.generation },
+                      { label: 'تاريخ الميلاد', value: req.birthDate },
+                      { label: 'المدينة', value: req.city },
+                      { label: 'البريد الإلكتروني', value: req.email },
+                    ].some(f => f.value) && (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {[
+                          { label: 'الجيل', value: req.generation },
+                          { label: 'تاريخ الميلاد', value: req.birthDate },
+                          { label: 'المدينة', value: req.city },
+                          { label: 'البريد الإلكتروني', value: req.email },
+                        ].filter(f => f.value).map(field => (
+                          <div key={field.label} className="rounded-xl px-3 py-2"
+                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <p className="font-nav text-[10px] text-gray-500 mb-0.5">{field.label}</p>
+                            <p className="font-nav text-xs text-white">{field.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {req.notes && !/\[SON:/.test(req.notes) && (
+                      <div className="rounded-xl px-3 py-2"
+                        style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <p className="font-nav text-[10px] text-gray-500 mb-0.5">ملاحظات</p>
+                        <p className="font-nav text-xs text-gray-300">{req.notes}</p>
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
               </div>
             ))}
           </div>
@@ -1311,7 +1269,8 @@ export default function AdminDashboard() {
                   <div className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
                     style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isNotFound ? 'rgba(251,146,60,0.2)' : 'rgba(16,185,129,0.12)'}` }}>
 
-                    <div className="flex-1 min-w-0">
+                    <div className="flex-1 min-w-0 cursor-pointer select-none"
+                      onClick={() => setExpandedTreeId(expandedTreeId === req.requestId ? null : req.requestId)}>
                       <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                         <p className="font-bold text-sm text-white">{req.memberName}</p>
                         <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
@@ -1328,6 +1287,10 @@ export default function AdminDashboard() {
                               الجيل {req.generation}
                             </span>
                         }
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2"
+                          style={{ transform: expandedTreeId === req.requestId ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s', flexShrink: 0 }}>
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
                       </div>
                       <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
                         {isNotFound
@@ -1425,6 +1388,79 @@ export default function AdminDashboard() {
                             : `تأكيد: إضافة "${req.parentName}" تحت ${adminAncestor.parentName} — الجيل ${adminAncestor.generationLevel}`}
                         </button>
                       )}
+                    </div>
+                  )}
+
+                  {/* ── لوحة التفاصيل الموسعة ── */}
+                  {expandedTreeId === req.requestId && (
+                    <div className="rounded-2xl p-4 mt-1.5 space-y-4"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(16,185,129,0.1)' }}>
+
+                      {/* شارة الشجرة */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/\[SON:[A-Z0-9]+\]/.test(req.notes || '') ? (
+                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                            style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
+                            موجود في الشجرة
+                          </span>
+                        ) : isNotFound ? (
+                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                            style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.28)', color: '#fb923c' }}>
+                            يحتاج تحديد موقع الأب
+                          </span>
+                        ) : (
+                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
+                            والده موجود في الشجرة
+                          </span>
+                        )}
+                      </div>
+
+                      {/* مسار التسلسل */}
+                      <div>
+                        <p className="font-nav text-[10px] text-gray-500 mb-2">مسار التسلسل في الشجرة</p>
+                        <div className="flex items-center gap-1 flex-wrap" style={{ direction: 'rtl' }}>
+                          {(req.path ? req.path.split(' ← ') : []).concat(req.memberName).filter(Boolean).map((node, idx, arr) => (
+                            <span key={idx} className="flex items-center gap-1">
+                              <span className="font-nav text-xs px-2.5 py-1 rounded-xl"
+                                style={{
+                                  background: idx === arr.length - 1 ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.04)',
+                                  border: idx === arr.length - 1 ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(255,255,255,0.07)',
+                                  color: idx === arr.length - 1 ? '#34d399' : 'rgba(255,255,255,0.55)',
+                                  fontWeight: idx === arr.length - 1 ? 700 : 400,
+                                }}>
+                                {node}
+                              </span>
+                              {idx < arr.length - 1 && <span className="font-nav text-[10px] text-gray-600">←</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* بيانات تفصيلية */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'رقم العضو', value: req.memberId },
+                          { label: 'الجيل', value: req.generation ? `الجيل ${req.generation}` : '' },
+                          { label: 'الأب المقترح', value: req.parentName },
+                          { label: 'تاريخ الطلب', value: req.date },
+                        ].filter(f => f.value).map(field => (
+                          <div key={field.label} className="rounded-xl px-3 py-2"
+                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <p className="font-nav text-[10px] text-gray-500 mb-0.5">{field.label}</p>
+                            <p className="font-nav text-xs text-white">{field.value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {req.notes && !/\[SON:/.test(req.notes) && (
+                        <div className="rounded-xl px-3 py-2"
+                          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <p className="font-nav text-[10px] text-gray-500 mb-0.5">ملاحظات</p>
+                          <p className="font-nav text-xs text-gray-300">{req.notes}</p>
+                        </div>
+                      )}
+
                     </div>
                   )}
                 </div>
