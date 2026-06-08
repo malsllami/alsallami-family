@@ -226,7 +226,7 @@ export default function Register() {
         setTimeout(() => navigate('/login'), 3000);
       } else {
         setMessage(data.message || 'حدث خطأ');
-        setMessageType('error');
+        setMessageType(data.status === 'pending' ? 'pending' : 'error');
       }
     } catch {
       setMessage('تعذّر الاتصال بالخادم');
@@ -277,7 +277,9 @@ export default function Register() {
             <div className="font-nav text-sm text-center py-2.5 px-4 rounded-2xl"
               style={messageType === 'success'
                 ? { background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }
-                : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
+                : messageType === 'pending'
+                  ? { background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.28)', color: '#eab308' }
+                  : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
               {message}
             </div>
           )}
