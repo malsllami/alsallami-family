@@ -116,6 +116,8 @@ function getFamilyTree(body) {
         ? Utilities.formatDate(bd, 'Asia/Riyadh', 'yyyy-MM-dd')
         : String(bd);
     }
+    // العضو "مسجَّل فعلاً" إذا كان لديه تاريخ ميلاد — حقل لا يضيفه المدير في نموذج الإضافة
+    node.registered = String(member['تاريخ الميلاد'] || '').trim() !== '';
   });
 
   // ربط عقد الشجرة بآبائهم
