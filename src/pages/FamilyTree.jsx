@@ -750,6 +750,24 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                 سجّل دخولك لرؤية رقم الجوال والهوية
               </p>
             )}
+            {isAdmin && !isWifeDaughter && (
+              <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[11px] select-all" style={{ color: 'rgba(255,255,255,0.35)', letterSpacing: '0.02em' }}>
+                    {node.id}
+                  </span>
+                  <span className="font-nav text-[10px] text-gray-600">رقم العقدة</span>
+                </div>
+                {node.memberId && (
+                  <div className="flex items-center justify-between">
+                    <span className="font-mono text-[11px] select-all" style={{ color: '#34d399', letterSpacing: '0.02em' }}>
+                      {node.memberId}
+                    </span>
+                    <span className="font-nav text-[10px] text-gray-600">رقم العضو</span>
+                  </div>
+                )}
+              </div>
+            )}
           </>
         )}
       </div>

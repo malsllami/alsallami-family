@@ -1336,6 +1336,15 @@ export default function AdminDashboard() {
                       </div>
                     )}
 
+                    {/* رقم عقدة الأب في الشجرة */}
+                    {req.parentNodeId && (
+                      <div className="rounded-xl px-3 py-2"
+                        style={{ background: 'rgba(234,179,8,0.04)', border: '1px solid rgba(234,179,8,0.18)' }}>
+                        <p className="font-nav text-[10px] mb-0.5" style={{ color: '#ca8a04' }}>رقم عقدة الأب في الشجرة</p>
+                        <p className="font-mono text-xs select-all" style={{ color: '#eab308', letterSpacing: '0.02em' }}>{req.parentNodeId}</p>
+                      </div>
+                    )}
+
                     {req.notes && !/\[SON:/.test(req.notes) && (
                       <div className="rounded-xl px-3 py-2"
                         style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -1587,6 +1596,15 @@ export default function AdminDashboard() {
                           </div>
                         ))}
                       </div>
+
+                      {/* رقم عقدة الأب في الشجرة */}
+                      {!isNotFound && req.parentId && (
+                        <div className="rounded-xl px-3 py-2"
+                          style={{ background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.18)' }}>
+                          <p className="font-nav text-[10px] mb-0.5" style={{ color: 'rgba(16,185,129,0.7)' }}>رقم عقدة الأب في الشجرة</p>
+                          <p className="font-mono text-xs select-all" style={{ color: '#34d399', letterSpacing: '0.02em' }}>{req.parentId}</p>
+                        </div>
+                      )}
 
                       {req.notes && !/\[SON:/.test(req.notes) && (
                         <div className="rounded-xl px-3 py-2"
