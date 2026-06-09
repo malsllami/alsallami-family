@@ -109,51 +109,50 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
       {/* الأجداد الثابتون — لا يحتاج المستخدم لاختيارهم */}
       {fixedPath.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 px-1 pb-2"
-          style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', marginBottom: 4 }}>
-          <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.25)' }}>الجذر:</span>
-          {/* الجذر — يظهر فقط إن لم يكن عقدة اصطناعية */}
-          {tree.name !== 'الشجرة' && (
-            <span className="flex items-center gap-1">
-              <span className="font-nav text-xs font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                {tree.name}
+        <div className="rounded-xl px-3 py-2.5"
+          style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 6 }}>
+          <p className="font-nav text-xs mb-2 font-semibold" style={{ color: 'rgba(255,255,255,0.45)' }}>سلسلة الأجداد</p>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* الجذر — يظهر فقط إن لم يكن عقدة اصطناعية */}
+            {tree.name !== 'الشجرة' && (
+              <span className="flex items-center gap-1.5">
+                <span className="font-nav text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  {tree.name}
+                </span>
+                <span className="font-nav text-xs px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.3)' }}>
+                  {tree.generationLevel ?? 0}
+                </span>
+                <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>←</span>
               </span>
-              <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
-                {tree.generationLevel ?? 0}
+            )}
+            {fixedPath.map((n, i) => (
+              <span key={n.id} className="flex items-center gap-1.5">
+                <span className="font-nav text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                  {n.name}
+                </span>
+                <span className="font-nav text-xs px-2 py-0.5 rounded-full font-bold"
+                  style={{ background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.3)' }}>
+                  {n.generationLevel}
+                </span>
+                {i < fixedPath.length - 1 && (
+                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>←</span>
+                )}
               </span>
-              <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>←</span>
-            </span>
-          )}
-          {fixedPath.map((n, i) => (
-            <span key={n.id} className="flex items-center gap-1">
-              <span className="font-nav text-xs font-medium" style={{ color: 'rgba(255,255,255,0.45)' }}>
-                {n.name}
-              </span>
-              <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
-                style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.3)' }}>
-                {n.generationLevel}
-              </span>
-              {i < fixedPath.length - 1 && (
-                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 10 }}>←</span>
-              )}
-            </span>
-          ))}
-          <span className="font-nav text-[9px] px-2 py-0.5 rounded-full mr-1"
-            style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            ثابت
-          </span>
+            ))}
+          </div>
         </div>
       )}
 
       {displayLevels.map(lvl => (
-        <div key={lvl.index}>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="font-nav text-[10px] font-bold px-2 py-0.5 rounded-full"
-              style={{ background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', letterSpacing: '0.02em' }}>
+        <div key={lvl.index} className="rounded-xl p-3"
+          style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div className="flex items-center gap-2.5 mb-2.5">
+            <span className="font-nav text-sm font-bold px-3 py-1 rounded-full"
+              style={{ background: 'rgba(198,161,107,0.18)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.35)' }}>
               جيل {lvl.genNum}
             </span>
-            <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="font-nav text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.7)' }}>
               {lvl.index === 0 ? 'اختر الفخذ' : `أبناء ${pathNodes[lvl.index - 1]?.name?.split(' ')[0] || ''}`}
             </p>
           </div>
@@ -161,7 +160,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
             value={lvl.selectedId}
             onChange={e => handleChange(lvl.index, e.target.value)}
             className="form-input w-full"
-            style={{ direction: 'rtl', cursor: 'pointer' }}
+            style={{ direction: 'rtl', cursor: 'pointer', fontSize: 15 }}
           >
             <option value="">— اختر —</option>
             {lvl.options.map(n => {
@@ -174,7 +173,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
             })}
           </select>
           {(onSelectFather || onSelectGrandfather || onSelectSelf) && pathNodes[lvl.index] && (pathNodes[lvl.index]?.generationLevel ?? 0) >= minFatherGen && (
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-3">
               {onSelectFather && (
                 <button
                   type="button"
@@ -182,11 +181,11 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                     const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
                     onSelectFather({ ...pathNodes[lvl.index], computedPath }, pathNodes)
                   }}
-                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  className="flex-1 font-nav text-sm py-2.5 rounded-xl transition-all duration-200 font-semibold"
                   style={
                     selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id
-                      ? { background: 'rgba(198,161,107,0.2)', border: '1px solid rgba(198,161,107,0.5)', color: 'var(--gold-main)', fontWeight: 700 }
-                      : { background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.25)', color: 'rgba(198,161,107,0.8)' }
+                      ? { background: 'rgba(198,161,107,0.22)', border: '2px solid rgba(198,161,107,0.6)', color: 'var(--gold-main)', fontWeight: 700 }
+                      : { background: 'rgba(198,161,107,0.08)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }
                   }>
                   {selectedFatherId && selectedFatherId === pathNodes[lvl.index]?.id ? '✓ هذا والدي' : 'هذا والدي'}
                 </button>
@@ -198,11 +197,11 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                     const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
                     onSelectGrandfather({ ...pathNodes[lvl.index], computedPath }, pathNodes)
                   }}
-                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  className="flex-1 font-nav text-sm py-2.5 rounded-xl transition-all duration-200 font-semibold"
                   style={
                     selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id
-                      ? { background: 'rgba(251,146,60,0.2)', border: '1px solid rgba(251,146,60,0.5)', color: '#fb923c', fontWeight: 700 }
-                      : { background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.25)', color: 'rgba(251,146,60,0.75)' }
+                      ? { background: 'rgba(251,146,60,0.22)', border: '2px solid rgba(251,146,60,0.6)', color: '#fb923c', fontWeight: 700 }
+                      : { background: 'rgba(251,146,60,0.08)', border: '1px solid rgba(251,146,60,0.3)', color: '#fb923c' }
                   }>
                   {selectedGrandfatherId && selectedGrandfatherId === pathNodes[lvl.index]?.id ? '✓ هذا جدي' : 'هذا جدي'}
                 </button>
@@ -214,11 +213,11 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                     const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
                     onSelectSelf({ ...pathNodes[lvl.index], computedPath }, pathNodes.slice(0, lvl.index + 1))
                   }}
-                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  className="flex-1 font-nav text-sm py-2.5 rounded-xl transition-all duration-200 font-semibold"
                   style={
                     selectedSelfId && selectedSelfId === pathNodes[lvl.index]?.id
-                      ? { background: 'rgba(20,184,166,0.2)', border: '1px solid rgba(20,184,166,0.5)', color: '#2dd4bf', fontWeight: 700 }
-                      : { background: 'rgba(20,184,166,0.06)', border: '1px solid rgba(20,184,166,0.25)', color: 'rgba(20,184,166,0.75)' }
+                      ? { background: 'rgba(20,184,166,0.22)', border: '2px solid rgba(20,184,166,0.6)', color: '#2dd4bf', fontWeight: 700 }
+                      : { background: 'rgba(20,184,166,0.08)', border: '1px solid rgba(20,184,166,0.3)', color: '#2dd4bf' }
                   }>
                   {selectedSelfId && selectedSelfId === pathNodes[lvl.index]?.id ? '✓ هذا أنا' : 'هذا أنا'}
                 </button>
@@ -230,11 +229,11 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                     const computedPath = pathNodes.slice(0, lvl.index + 1).map(n => n.name.split(' ')[0]).join(' ← ')
                     onSelectSon({ ...pathNodes[lvl.index], computedPath }, pathNodes.slice(0, lvl.index + 1))
                   }}
-                  className="flex-1 font-nav text-xs py-2 rounded-xl transition-all duration-200"
+                  className="flex-1 font-nav text-sm py-2.5 rounded-xl transition-all duration-200 font-semibold"
                   style={
                     selectedSonId && selectedSonId === pathNodes[lvl.index]?.id
-                      ? { background: 'rgba(167,139,250,0.2)', border: '1px solid rgba(167,139,250,0.5)', color: '#a78bfa', fontWeight: 700 }
-                      : { background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)', color: 'rgba(167,139,250,0.75)' }
+                      ? { background: 'rgba(167,139,250,0.22)', border: '2px solid rgba(167,139,250,0.6)', color: '#a78bfa', fontWeight: 700 }
+                      : { background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa' }
                   }>
                   {selectedSonId && selectedSonId === pathNodes[lvl.index]?.id ? '✓ هذا ابني' : 'هذا ابني'}
                 </button>
@@ -247,35 +246,35 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
       {/* ملخص الاختيار — سلسلة الانتساب */}
       {lastNode && (
         <div className="rounded-2xl p-4 mt-1 space-y-3"
-          style={{ background: 'rgba(198,161,107,0.05)', border: '1px solid rgba(198,161,107,0.2)' }}>
+          style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.25)' }}>
 
           {/* سلسلة الأجيال */}
           <div>
-            <p className="font-nav text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>سلسلة انتسابك</p>
-            <div className="flex flex-wrap items-center gap-1">
+            <p className="font-nav text-sm font-semibold mb-2.5" style={{ color: 'rgba(255,255,255,0.6)' }}>سلسلة انتسابك</p>
+            <div className="flex flex-wrap items-center gap-1.5">
               {pathNodes.map((n, i) => {
                 const isLastAndSelf = isSelf && i === pathNodes.length - 1
                 return (
-                  <span key={n.id} className="flex items-center gap-1">
-                    <span className="font-nav text-xs font-semibold"
-                      style={{ color: isLastAndSelf ? 'var(--gold-main)' : 'rgba(255,255,255,0.75)' }}>
+                  <span key={n.id} className="flex items-center gap-1.5">
+                    <span className="font-nav text-sm font-bold"
+                      style={{ color: isLastAndSelf ? 'var(--gold-main)' : 'rgba(255,255,255,0.85)' }}>
                       {isLastAndSelf ? 'أنت' : n.name.split(' ')[0]}
                     </span>
-                    <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full"
+                    <span className="font-nav text-xs px-2 py-0.5 rounded-full font-bold"
                       style={isLastAndSelf
-                        ? { background: 'rgba(198,161,107,0.25)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.4)', fontWeight: 700 }
-                        : { background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)' }}>
+                        ? { background: 'rgba(198,161,107,0.3)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.5)' }
+                        : { background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.25)' }}>
                       {n.generationLevel}
                     </span>
-                    {!isLastAndSelf && <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>←</span>}
+                    {!isLastAndSelf && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>←</span>}
                   </span>
                 )
               })}
               {!isSelf && (
-                <span className="flex items-center gap-1">
-                  <span className="font-nav text-xs font-bold" style={{ color: 'var(--gold-main)' }}>أنت</span>
-                  <span className="font-nav text-[9px] px-1.5 py-0.5 rounded-full font-bold"
-                    style={{ background: 'rgba(198,161,107,0.25)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.4)' }}>
+                <span className="flex items-center gap-1.5">
+                  <span className="font-nav text-sm font-bold" style={{ color: 'var(--gold-main)' }}>أنت</span>
+                  <span className="font-nav text-xs px-2 py-0.5 rounded-full font-bold"
+                    style={{ background: 'rgba(198,161,107,0.3)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.5)' }}>
                     {myGenLevel}
                   </span>
                 </span>
@@ -284,20 +283,20 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
           </div>
 
           {/* رقم جيلك */}
-          <div className="flex items-center gap-2 pt-2"
-            style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm"
-              style={{ background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.3)' }}>
+          <div className="flex items-center gap-3 pt-2.5"
+            style={{ borderTop: '1px solid rgba(198,161,107,0.15)' }}>
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg"
+              style={{ background: 'rgba(198,161,107,0.18)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.4)', flexShrink: 0 }}>
               {myGenLevel}
             </div>
             <div>
-              <p className="font-nav text-xs font-semibold" style={{ color: 'var(--gold-main)' }}>
+              <p className="font-nav text-sm font-bold" style={{ color: 'var(--gold-main)' }}>
                 الجيل {myGenLevel}
               </p>
-              <p className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="font-nav text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
                 {isSelf
                   ? `أنت: ${lastNode.name.split(' ')[0]} في الشجرة`
-                  : `أبوك في الشجرة: ${lastNode.name.split(' ')[0]}`}
+                  : `والدك في الشجرة: ${lastNode.name.split(' ')[0]}`}
               </p>
             </div>
           </div>
@@ -306,7 +305,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
       {/* رسالة إذا وصل لآخر مستوى */}
       {lastNode && !(lastNode.children?.length) && (
-        <p className="font-nav text-[11px] text-center" style={{ color: 'rgba(255,255,255,0.25)' }}>
+        <p className="font-nav text-xs text-center py-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
           هذا آخر مستوى متاح — استخدم زر &quot;هذا والدي&quot; أو &quot;هذا جدي&quot; في الصف أعلاه
         </p>
       )}
