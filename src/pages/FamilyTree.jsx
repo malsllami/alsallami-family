@@ -65,6 +65,13 @@ function flatByDepth(node, targetDepth, currentDepth) {
   if (currentDepth === targetDepth) return [node]
   return (node.children || []).flatMap(c => flatByDepth(c, targetDepth, currentDepth + 1))
 }
+// يجد عمق نقطة تفرع الفخوذ: يسير في الذكور الوحيدين حتى يصل لعقدة ذات أبناء متعددة
+function findBranchPointDepth(node, depth) {
+  if (!node) return depth || 0
+  const kids = (node.children || []).filter(c => c.gender === 'male')
+  if (kids.length !== 1) return depth || 0
+  return findBranchPointDepth(kids[0], (depth || 0) + 1)
+}
 function findNodeById(node, id) {
   if (node.id === id) return node
   for (const c of (node.children || [])) {
@@ -330,18 +337,22 @@ function computeTreeStats(root) {
     }))
     .sort((a, b) => a.gen - b.gen)
 
-  const branches = []
-  ;(root.children || []).forEach(mid => {
-    ;(mid.children || []).forEach(branch => {
-      let maxGen = branch.generation || 3
-      function walkBranch(n, ig) {
-        const g = n.generation || ig
-        if (g > maxGen) maxGen = g
-        ;(n.children || []).forEach(c => walkBranch(c, g + 1))
-      }
-      walkBranch(branch, branch.generation || 3)
-      branches.push({ name: branch.name, maxGen, span: maxGen - (branch.generation || 3) + 1 })
-    })
+  const bpd = findBranchPointDepth(root, 0)
+  const branchNodes = flatByDepth(root, bpd + 1, 0).filter(n => n.gender === 'male')
+  const branches = branchNodes.map(branch => {
+    const baseGen = branch.generation || (bpd + 2)
+    let maxGen = baseGen
+    let total = 0, alive = 0
+    function walkBranch(n) {
+      if (n.isWife) return
+      total++
+      if (n.alive === true) alive++
+      const g = n.generation || 0
+      if (g > maxGen) maxGen = g
+      ;(n.children || []).forEach(walkBranch)
+    }
+    walkBranch(branch)
+    return { name: branch.name, maxGen, span: maxGen - baseGen + 1, total, alive }
   })
 
   const total = all.length
@@ -453,16 +464,21 @@ function StatsPanel({ stats, onClose }) {
               <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>عمق كل فخذ</p>
               <div className="space-y-2">
                 {stats.branches.map(b => (
-                  <div key={b.name} className="flex items-center justify-between rounded-xl px-4 py-3"
+                  <div key={b.name} className="rounded-xl px-4 py-3"
                     style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(16,185,129,0.12)' }}>
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center justify-between mb-1.5">
                       <span className="font-bold text-sm text-white">فخذ {b.name}</span>
-                      <span className="font-nav text-xs text-gray-500">يصل للجيل {b.maxGen}</span>
+                      <span className="font-nav text-[11px] px-2.5 py-1 rounded-full font-bold flex-shrink-0"
+                        style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
+                        {b.span} {b.span === 1 ? 'جيل' : 'أجيال'}
+                      </span>
                     </div>
-                    <span className="font-nav text-[11px] px-2.5 py-1 rounded-full font-bold flex-shrink-0"
-                      style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }}>
-                      {b.span} {b.span === 1 ? 'جيل' : 'أجيال'}
-                    </span>
+                    <div className="flex items-center gap-3 font-nav text-[11px]">
+                      <span className="text-gray-400">{b.total} شخص</span>
+                      <span style={{ color: '#4ade80' }}>{b.alive} حي</span>
+                      <span className="text-gray-600">{b.total - b.alive} متوفٍ</span>
+                      <span className="text-gray-500 mr-auto">حتى الجيل {b.maxGen}</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -811,6 +827,7 @@ export default function FamilyTree({ viewerMode = false }) {
   const initDone  = useRef(false)
 
   const treeStats = useMemo(() => computeTreeStats(treeRoot), [treeRoot])
+  const branchPointDepth = useMemo(() => findBranchPointDepth(treeRoot, 0), [treeRoot])
 
   /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
   useEffect(() => {
@@ -835,8 +852,8 @@ export default function FamilyTree({ viewerMode = false }) {
   }, [branch, treeRoot])
 
   const { nodes, lines, wives, wLines, svgW, svgH } = useMemo(() => {
-    // بدون فخذ: اعرض أول 3 مستويات فقط (إبراهيم→أحمد→الفخوذ) — الكل: كامل الشجرة
-    const renderRoot      = !branch ? shallowTree(effectiveRoot, 2) : effectiveRoot
+    // بدون فخذ: اعرض من الجذر حتى مستوى الفخوذ ديناميكياً — الكل: كامل الشجرة
+    const renderRoot      = !branch ? shallowTree(effectiveRoot, branchPointDepth + 1) : effectiveRoot
     const nl              = buildNodes(renderRoot, PAD, 0, !showWives, showWives)
     const byId            = Object.fromEntries(nl.map(n => [n.id, n]))
     const ll              = buildLines(renderRoot, byId, !showWives)
@@ -848,7 +865,7 @@ export default function FamilyTree({ viewerMode = false }) {
       svgW: Math.max(0, ...allX) + PAD,
       svgH: Math.max(0, ...allY) + PAD,
     }
-  }, [effectiveRoot, showWives, branch])
+  }, [effectiveRoot, showWives, branch, branchPointDepth])
 
   /* ── موقع العضو الحالي في الشجرة ── */
   const myNode = useMemo(() => {
@@ -900,12 +917,12 @@ export default function FamilyTree({ viewerMode = false }) {
   }
 
 
-  // الفخوذ دائماً المستوى 2 (أحفاد أحمد المباشرون)
+  // الفخوذ: المستوى الأول بعد نقطة التفرع (ديناميكي)
   const branches = useMemo(() => {
-    return flatByDepth(treeRoot, 2, 0)
+    return flatByDepth(treeRoot, branchPointDepth + 1, 0)
       .filter(c => c.gender === 'male')
       .map(c => ({ id: c.id, name: c.name }))
-  }, [treeRoot])
+  }, [treeRoot, branchPointDepth])
 
   /* ══════════════════ Pan / Zoom ══════════════════ */
   const svgRef  = useRef(null)
@@ -1121,7 +1138,7 @@ export default function FamilyTree({ viewerMode = false }) {
               maxWidth: 'clamp(100px, 30vw, 160px)',
             }}
           >
-            <option value="" style={{ background: '#1a2533' }}>🌳 إبراهيم + الفخوذ</option>
+            <option value="" style={{ background: '#1a2533' }}>🌳 {treeRoot?.name || 'الجذر'} + الفخوذ</option>
             <option value="all" style={{ background: '#1a2533' }}>🌐 الكل</option>
             {branches.map(b => (
               <option key={b.id} value={b.id} style={{ background: '#1a2533' }}>فخذ {b.name}</option>
