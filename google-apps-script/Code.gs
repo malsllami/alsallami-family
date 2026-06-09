@@ -92,6 +92,8 @@ function doPost(e) {
     if (action === 'updateWifeStatus')       return respond(updateWifeStatus(body));
     if (action === 'updateChildStatus')      return respond(updateChildStatus(body));
     if (action === 'addTreeNode')            return respond(addTreeNode(body));
+    if (action === 'addRootAncestor')        return respond(addRootAncestor(body));
+    if (action === 'insertAncestorAbove')    return respond(insertAncestorAbove(body));
 
     // ── مشاهد الشجرة ─────────────────────────────────────────────────────
     if (action === 'verifyViewerCode')  return respond(verifyViewerCode(body));

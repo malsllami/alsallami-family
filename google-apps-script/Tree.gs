@@ -884,6 +884,195 @@ function addTreeNode(body) {
   return { success: true, nodeId: nodeId, path: path, message: 'تمت إضافة العقدة بنجاح' };
 }
 
+/* ═══ إضافة جد فوق جذر الشجرة مع تحديث مستويات الجيل (المدير فقط) ══════ */
+
+function addRootAncestor(body) {
+  var name        = String(body.name        || '').trim();
+  var memberId    = String(body.memberId    || '').trim();
+  var aliveStatus = String(body.aliveStatus || 'متوفى').trim();
+
+  if (!name) return { success: false, message: 'الاسم مطلوب' };
+
+  var treeSheet = getSheet('الشجرة العائلية');
+  var data      = treeSheet.getDataRange().getValues();
+  var headers   = data[0];
+
+  var idxNodeId     = headers.indexOf('رقم العقدة');
+  var idxParentId   = headers.indexOf('رقم الأب');
+  var idxParentName = headers.indexOf('اسم الأب');
+  var idxGen        = headers.indexOf('مستوى الجيل');
+  var idxPath       = headers.indexOf('المسار');
+  var idxMemberId   = headers.indexOf('رقم العضو');
+
+  if (memberId) {
+    var dup = data.slice(1).find(function(r) {
+      return String(r[idxMemberId] || '').trim() === memberId;
+    });
+    if (dup) return { success: false, message: 'هذا العضو موجود في الشجرة مسبقاً' };
+  }
+
+  // إيجاد الجذر الحالي — العقدة الوحيدة التي لا أب لها
+  var rootNodeId = '';
+  for (var i = 1; i < data.length; i++) {
+    if (!data[i][idxNodeId]) continue;
+    if (!String(data[i][idxParentId] || '').trim()) {
+      rootNodeId = String(data[i][idxNodeId]);
+      break;
+    }
+  }
+  if (!rootNodeId) return { success: false, message: 'لم يتم العثور على جذر الشجرة' };
+
+  var newNodeId = generateId('N');
+
+  // تحديث جميع العقد دفعةً واحدة:
+  // +1 لمستوى الجيل، إضافة اسم الجد في بداية المسار، ربط الجذر القديم بالجديد
+  var updatedRows = data.slice(1).map(function(row) {
+    if (!row[idxNodeId]) return row;
+    var r        = row.slice();
+    r[idxGen]    = Number(row[idxGen] || 1) + 1;
+    var oldPath  = String(row[idxPath] || '');
+    r[idxPath]   = name + (oldPath ? ' ← ' + oldPath : '');
+    if (String(row[idxNodeId]) === rootNodeId) {
+      r[idxParentId]   = newNodeId;
+      r[idxParentName] = name;
+    }
+    return r;
+  });
+
+  treeSheet.getRange(2, 1, updatedRows.length, headers.length).setValues(updatedRows);
+
+  // إضافة عقدة الجد الجديد (الجذر الجديد) بدون أب
+  var newRow = headers.map(function(h) {
+    var map = {
+      'رقم العقدة':  newNodeId,
+      'رقم العضو':   memberId,
+      'اسم العضو':   name,
+      'رقم الأب':    '',
+      'اسم الأب':    '',
+      'مستوى الجيل': 1,
+      'المسار':      name,
+      'حي/ميت':      aliveStatus,
+    };
+    return map[h] !== undefined ? map[h] : '';
+  });
+  treeSheet.appendRow(newRow);
+  formatLastRow(treeSheet);
+
+  var updatedCount = updatedRows.filter(function(r) { return r[idxNodeId]; }).length;
+  return {
+    success: true,
+    nodeId:  newNodeId,
+    message: 'تمت إضافة الجد "' + name + '" وتحديث مستويات الجيل لـ ' + updatedCount + ' عقدة بنجاح',
+  };
+}
+
+/* ═══ إدراج جد وسيط فوق أي عقدة موجودة (المدير فقط) ═══════════════════ */
+
+function insertAncestorAbove(body) {
+  var targetNodeId = String(body.targetNodeId || '').trim();
+  var name         = String(body.name         || '').trim();
+  var aliveStatus  = String(body.aliveStatus  || 'متوفى').trim();
+
+  if (!targetNodeId) return { success: false, message: 'يجب تحديد العقدة المستهدفة' };
+  if (!name)         return { success: false, message: 'الاسم مطلوب' };
+
+  var treeSheet = getSheet('الشجرة العائلية');
+  var data      = treeSheet.getDataRange().getValues();
+  var headers   = data[0];
+
+  var idxNodeId     = headers.indexOf('رقم العقدة');
+  var idxParentId   = headers.indexOf('رقم الأب');
+  var idxParentName = headers.indexOf('اسم الأب');
+  var idxGen        = headers.indexOf('مستوى الجيل');
+  var idxPath       = headers.indexOf('المسار');
+  var idxName       = headers.indexOf('اسم العضو');
+
+  // إيجاد العقدة المستهدفة
+  var targetRow = null;
+  for (var i = 1; i < data.length; i++) {
+    if (!data[i][idxNodeId]) continue;
+    if (String(data[i][idxNodeId]) === targetNodeId) { targetRow = data[i]; break; }
+  }
+  if (!targetRow) return { success: false, message: 'العقدة المحددة غير موجودة' };
+
+  var targetParentId   = String(targetRow[idxParentId]   || '');
+  var targetParentName = String(targetRow[idxParentName] || '');
+  var targetGen        = Number(targetRow[idxGen]        || 1);
+  var targetPath       = String(targetRow[idxPath]       || '');
+  var targetName       = String(targetRow[idxName]       || '');
+
+  // حساب مسار العقدة الجديدة:
+  // مسار الهدف = "... ← أب ← الهدف"  →  مسار الجديد = "... ← أب ← الجديد"
+  var suffix      = ' ← ' + targetName;
+  var parentPath  = (targetPath !== targetName && targetPath.slice(-suffix.length) === suffix)
+                    ? targetPath.slice(0, -suffix.length)
+                    : '';
+  var newNodePath    = parentPath ? parentPath + ' ← ' + name : name;
+  var newTargetPath  = newNodePath + ' ← ' + targetName;
+  var newNodeId      = generateId('N');
+
+  // جمع جميع عقد الشجرة الفرعية للهدف (BFS)
+  var subtreeIds = {};
+  subtreeIds[targetNodeId] = true;
+  var queue = [targetNodeId];
+  while (queue.length > 0) {
+    var cur = queue.shift();
+    for (var j = 1; j < data.length; j++) {
+      if (!data[j][idxNodeId]) continue;
+      if (String(data[j][idxParentId] || '') === cur) {
+        var cid = String(data[j][idxNodeId]);
+        if (!subtreeIds[cid]) { subtreeIds[cid] = true; queue.push(cid); }
+      }
+    }
+  }
+
+  // تحديث الشجرة الفرعية: جيل +1، مسار محدَّث، وربط الهدف بالعقدة الجديدة
+  var updatedRows = data.slice(1).map(function(row) {
+    var nid = String(row[idxNodeId] || '').trim();
+    if (!nid || !subtreeIds[nid]) return row;
+
+    var r       = row.slice();
+    r[idxGen]   = Number(row[idxGen] || 1) + 1;
+    var oldPath = String(row[idxPath] || '');
+    if (oldPath === targetPath) {
+      r[idxPath] = newTargetPath;
+    } else if (oldPath.indexOf(targetPath + ' ← ') === 0) {
+      r[idxPath] = newTargetPath + oldPath.slice(targetPath.length);
+    }
+    if (nid === targetNodeId) {
+      r[idxParentId]   = newNodeId;
+      r[idxParentName] = name;
+    }
+    return r;
+  });
+
+  treeSheet.getRange(2, 1, updatedRows.length, headers.length).setValues(updatedRows);
+
+  // إضافة العقدة الجديدة (تأخذ مكان الهدف السابق أمام أبيه)
+  var newRow = headers.map(function(h) {
+    var map = {
+      'رقم العقدة':  newNodeId,
+      'رقم العضو':   '',
+      'اسم العضو':   name,
+      'رقم الأب':    targetParentId,
+      'اسم الأب':    targetParentName,
+      'مستوى الجيل': targetGen,
+      'المسار':      newNodePath,
+      'حي/ميت':      aliveStatus,
+    };
+    return map[h] !== undefined ? map[h] : '';
+  });
+  treeSheet.appendRow(newRow);
+  formatLastRow(treeSheet);
+
+  var updatedCount = Object.keys(subtreeIds).length;
+  return {
+    success: true,
+    nodeId:  newNodeId,
+    message: 'تمت إضافة "' + name + '" فوق "' + targetName + '" وتحديث ' + updatedCount + ' عقدة',
+  };
+}
+
 /* ═══ رفض طلب الشجرة ════════════════════════════════════════════════════ */
 
 function rejectTreeRequest(body) {
