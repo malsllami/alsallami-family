@@ -320,11 +320,11 @@ export default function Register() {
           {/* 3. اختيار الأب من الشجرة */}
           <div className="rounded-2xl p-5"
             style={{ background: 'rgba(198,161,107,0.04)', border: '1px solid rgba(198,161,107,0.18)' }}>
-            <p className="font-nav text-sm font-semibold mb-1" style={{ color: 'var(--gold-main)' }}>
+            <p className="font-nav text-base font-bold mb-2" style={{ color: 'var(--gold-main)' }}>
               اختر والدك من الشجرة *
             </p>
-            <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              ابدأ باختيار الفخذ ثم تدرّج — اضغط &quot;هذا والدي&quot; عند والدك، أو &quot;هذا أنا&quot; إن كان اسمك موجوداً مسبقاً في الشجرة
+            <p className="font-nav text-sm mb-4 leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
+              ابدأ باختيار الفخذ ثم تدرّج — اضغط <span style={{ color: 'var(--gold-main)', fontWeight: 700 }}>&quot;هذا والدي&quot;</span> عند والدك، أو <span style={{ color: '#2dd4bf', fontWeight: 700 }}>&quot;هذا أنا&quot;</span> إن كان اسمك موجوداً مسبقاً في الشجرة
             </p>
 
             {treeLoading ? (
