@@ -68,7 +68,7 @@ const BTN_ACTIVE = {
 const BTN_IDLE = {
   background: 'rgba(255,255,255,0.04)',
   border:     '1.5px solid rgba(255,255,255,0.1)',
-  color:      'rgba(255,255,255,0.45)',
+  color:      'rgba(255,255,255,0.80)',
 }
 
 function initFromValue(value) {
@@ -112,7 +112,7 @@ export default function DateInput({ value, onChange, required }) {
   const safeGDay = Math.min(gDay, gDays)
 
   const Arrow = () => (
-    <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.35)', fontSize:10, pointerEvents:'none' }}>▼</span>
+    <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.70)', fontSize:10, pointerEvents:'none' }}>▼</span>
   )
 
   const DaySelect = ({ days, val, onChg }) => (
@@ -186,7 +186,7 @@ export default function DateInput({ value, onChange, required }) {
             />
           </div>
           {hijriConverted && (
-            <p className="font-nav text-xs" style={{ color: 'rgba(198,161,107,0.7)' }}>
+            <p className="font-nav text-xs" style={{ color: 'var(--gold-main)' }}>
               الميلادي المكافئ: <span style={{ color: 'var(--gold-main)', fontWeight: 600 }}>{hijriConverted}</span>
             </p>
           )}
