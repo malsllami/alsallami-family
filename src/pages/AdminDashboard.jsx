@@ -160,6 +160,14 @@ export default function AdminDashboard() {
   const [repairLoading, setRepairLoading] = useState(false)
   const [repairResult,  setRepairResult]  = useState(null)
 
+  /* نقل عضو في الشجرة */
+  const [mvSourceId,  setMvSourceId]  = useState('')
+  const [mvTargetId,  setMvTargetId]  = useState('')
+  const [mvCascade,   setMvCascade]   = useState([])
+  const [mvBranch,    setMvBranch]    = useState('')
+  const [mvLoading,   setMvLoading]   = useState(false)
+  const [mvResult,    setMvResult]    = useState(null)
+
   const [openSec, setOpenSec] = useState({
     scriptStats: false, platformStats: false, onlineUsers: false,
     regReq: false, treeReq: false, treeStats: false,
@@ -711,6 +719,60 @@ export default function AdminDashboard() {
       if (data.success) { setDaTargetId(''); setDaConfirm(false) }
     } catch { setDaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
     finally { setDaLoading(false); setDaConfirm(false) }
+  }
+
+  /* نقل عضو إلى أب جديد */
+  const handleMvBranchChange = branchName => {
+    const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
+    setMvBranch(branchName)
+    setMvTargetId(bn?.id || '')
+    if (bn) {
+      const kids = amFlatTree.filter(n => n.parentId === bn.id)
+      setMvCascade(kids.length ? [{ label: `أبناء ${branchName}`, options: kids, selectedId: '' }] : [])
+    } else {
+      setMvCascade([])
+    }
+  }
+
+  const handleMvCascadeChange = (levelIdx, selectedId) => {
+    const node = amFlatTree.find(n => n.id === selectedId)
+    setMvTargetId(selectedId || mvTargetId)
+    if (!selectedId || node?.isChildRecord) {
+      setMvCascade(prev => prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l))
+      return
+    }
+    const kids = amFlatTree.filter(n => n.parentId === selectedId)
+    setMvCascade(prev => {
+      const next = prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l)
+      if (kids.length) next.push({ label: `أبناء ${node?.name || ''}`, options: kids, selectedId: '' })
+      return next
+    })
+  }
+
+  const handleMoveTreeNode = async () => {
+    if (!mvSourceId) return setMvResult({ ok: false, msg: 'اختر العضو المراد نقله' })
+    if (!mvTargetId) return setMvResult({ ok: false, msg: 'اختر الأب الجديد' })
+    if (mvSourceId === mvTargetId) return setMvResult({ ok: false, msg: 'لا يمكن نقل عضو تحت نفسه' })
+    setMvLoading(true); setMvResult(null)
+    try {
+      const res  = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'moveTreeNode', nodeId: mvSourceId, newParentId: mvTargetId }),
+      })
+      const data = await res.json()
+      setMvResult({ ok: data.success, msg: data.message || (data.success ? 'تم النقل' : 'فشل') })
+      if (data.success) {
+        setMvSourceId(''); setMvTargetId(''); setMvBranch(''); setMvCascade([])
+        try {
+          const tr = await fetch(import.meta.env.VITE_API_URL, {
+            method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
+          })
+          const td = await tr.json()
+          if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
+        } catch { /* ignore */ }
+      }
+    } catch { setMvResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setMvLoading(false) }
   }
 
   /* إصلاح مسارات وأجيال الشجرة */
@@ -2162,6 +2224,7 @@ export default function AdminDashboard() {
               { key: 'insert', label: 'إدراج جد وسيط' },
               { key: 'root',   label: 'إضافة فوق الجذر' },
               { key: 'repair', label: 'إصلاح المسارات' },
+              { key: 'move',   label: 'نقل عضو' },
             ].map(t => (
               <button key={t.key} onClick={() => setTreeManageTab(t.key)}
                 className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200"
@@ -2365,6 +2428,67 @@ export default function AdminDashboard() {
                 className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
                 style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
                 {raLoading ? 'جاري الإضافة...' : 'إضافة الجد وتحديث الشجرة'}
+              </button>
+            </div>
+          )}
+
+          {treeManageTab === 'move' && (
+            <div className="mt-5 space-y-4">
+              <div className="p-4 rounded-2xl" style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(165,180,252,0.85)' }}>
+                  اختر العضو المراد نقله، ثم حدد أباه الجديد من خلال التسلسل الديناميكي — تُحدَّث المسارات والأجيال تلقائياً.
+                </p>
+              </div>
+
+              {/* العضو المراد نقله */}
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">العضو المراد نقله *</label>
+                <select className="form-input" value={mvSourceId} onChange={e => { setMvSourceId(e.target.value); setMvResult(null) }}>
+                  <option value="">— اختر العضو —</option>
+                  {amFlatTree.filter(n => !n.isChildRecord).map(n => (
+                    <option key={n.id} value={n.id}>
+                      {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* الأب الجديد — محدد تسلسلي ديناميكي */}
+              <div className="p-3 rounded-2xl space-y-2"
+                style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.18)' }}>
+                <p className="font-nav text-[10px]" style={{ color: '#a5b4fc' }}>الأب الجديد</p>
+                <select className="form-input text-xs" value={mvBranch} onChange={e => handleMvBranchChange(e.target.value)}>
+                  <option value="">— اختر الفخذ —</option>
+                  {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                </select>
+                {mvCascade.map((level, i) => (
+                  <div key={i}>
+                    <p className="font-nav text-[10px] text-gray-500 mb-1">{level.label}</p>
+                    <select className="form-input text-xs" value={level.selectedId}
+                      onChange={e => handleMvCascadeChange(i, e.target.value)}>
+                      <option value="">— اتركه فارغاً لاختيار هذا المستوى —</option>
+                      {level.options.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    </select>
+                  </div>
+                ))}
+                {mvTargetId && (
+                  <p className="font-nav text-[10px] px-3 py-1.5 rounded-xl"
+                    style={{ background: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>
+                    الأب الجديد المختار: {amFlatTree.find(n => n.id === mvTargetId)?.name || mvTargetId}
+                  </p>
+                )}
+              </div>
+
+              {mvResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: mvResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: mvResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: mvResult.ok ? '#4ade80' : '#f87171' }}>
+                  {mvResult.msg}
+                </div>
+              )}
+              <button onClick={handleMoveTreeNode} disabled={mvLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)', color: '#a5b4fc' }}>
+                {mvLoading ? 'جاري النقل...' : 'نقل العضو'}
               </button>
             </div>
           )}
