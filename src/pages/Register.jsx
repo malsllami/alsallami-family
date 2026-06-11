@@ -6,6 +6,15 @@ import DateInput from '../components/DateInput';
 import PasswordInput from '../components/PasswordInput';
 import { normalizeDigits } from '../utils/normalizeInput';
 
+// يستخرج الاسم الأول مع دعم الأسماء المركبة (عبد الله، أبو بكر...)
+const COMPOUND = ['عبد', 'أبو', 'ابو', 'أبي', 'ابي', 'أم', 'ام'];
+function extractFirstName(fullName) {
+  if (!fullName) return '';
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length >= 2 && COMPOUND.includes(parts[0])) return parts[0] + ' ' + parts[1];
+  return parts[0] || '';
+}
+
 export default function Register() {
   const navigate = useNavigate();
 
@@ -83,7 +92,7 @@ export default function Register() {
     const name = firstName.trim();
     const children = fatherNode.children || [];
     const found = children.some(c =>
-      c.name && c.name.split(' ')[0].trim() === name
+      c.name && extractFirstName(c.name) === name
     );
     setFatherMatch(found ? 'found' : 'notfound');
   }, []);
@@ -105,7 +114,7 @@ export default function Register() {
   };
 
   const handleSelectSelf = (selfNode, path) => {
-    const grandfatherName = path.length >= 3 ? (path[path.length - 3].name || '').split(' ')[0] : '';
+    const grandfatherName = path.length >= 3 ? extractFirstName(path[path.length - 3].name || '') : '';
     const pathStr = selfNode.computedPath || selfNode.path || '';
     const pathParts = pathStr.split(' ← ').map(s => s.trim()).filter(Boolean);
     const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
@@ -126,8 +135,8 @@ export default function Register() {
     setSelectedSon({
       ...sonNode,
       branch,
-      derivedFatherName:       fatherNode      ? fatherNode.name.split(' ')[0]      : (sonNode.parentName || '').split(' ')[0],
-      derivedGrandfatherName:  grandfatherNode  ? grandfatherNode.name.split(' ')[0] : '',
+      derivedFatherName:       fatherNode      ? extractFirstName(fatherNode.name)      : extractFirstName(sonNode.parentName || ''),
+      derivedGrandfatherName:  grandfatherNode  ? extractFirstName(grandfatherNode.name) : '',
       derivedGeneration:       (sonNode.generationLevel || 1) - 1,
       derivedParentId:         sonNode.parentId || '',
       derivedParentName:       fatherNode ? fatherNode.name : (sonNode.parentName || ''),
@@ -200,14 +209,14 @@ export default function Register() {
           parentNodeId:    selectedSelf ? (selectedSelf.parentId || '')
                          : selectedSon  ? selectedSon.derivedParentId
                          : parentNode.id,
-          fatherName:      selectedSelf  ? (selectedSelf.parentName || '').split(' ')[0]
+          fatherName:      selectedSelf  ? extractFirstName(selectedSelf.parentName || '')
                          : selectedSon   ? selectedSon.derivedFatherName
-                         : selectedFather ? selectedFather.name.split(' ')[0]
+                         : selectedFather ? extractFirstName(selectedFather.name)
                          : fatherNotInTree.trim(),
           grandfatherName: selectedSelf  ? (selectedSelf.derivedGrandfatherName || '')
                          : selectedSon   ? selectedSon.derivedGrandfatherName
-                         : selectedFather ? (selectedFather.parentName || '').split(' ')[0]
-                         : (selectedGrandfa?.name || '').split(' ')[0],
+                         : selectedFather ? extractFirstName(selectedFather.parentName || '')
+                         : extractFirstName(selectedGrandfa?.name || ''),
           generation:      selectedSelf  ? String(selectedSelf.generationLevel || 1)
                          : selectedSon   ? String(selectedSon.derivedGeneration)
                          : String((parentNode.generationLevel || 0) + 1),
