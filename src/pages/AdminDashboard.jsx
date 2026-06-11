@@ -8,12 +8,12 @@ import PhoneInput from '../components/PhoneInput'
 /* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور */
 function buildFlatTree(roots) {
   const flat = []
-  function walk(n, pId, pGen) {
+  function walk(n, pId, pGen, depth) {
     if (n.isWife) return
     if (!n.isChildRecord) {
       const g = n.generation || 1
-      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g })
-      ;(n.children || []).forEach(c => walk(c, n.id, g))
+      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth })
+      ;(n.children || []).forEach(c => walk(c, n.id, g, depth + 1))
     } else if (!n.isDaughter && n.childRecordId) {
       flat.push({
         id: 'child_' + n.childRecordId,
@@ -21,12 +21,25 @@ function buildFlatTree(roots) {
         name: n.name,
         parentId: pId,
         gen: (pGen || 1) + 1,
+        depth: depth + 1,
         isChildRecord: true,
       })
     }
   }
-  roots.forEach(r => walk(r, '', 0))
+  roots.forEach(r => walk(r, '', 0, 0))
   return flat
+}
+
+/* يجد عمق الفخوذ ديناميكياً — يسير في الأبناء الوحيدين من الجذر حتى يصل لتفرع */
+function findBranchDepth(flatTree) {
+  const nonChild = flatTree.filter(n => !n.isChildRecord)
+  let cur = nonChild.find(n => !n.parentId)
+  if (!cur) return 2
+  while (true) {
+    const kids = nonChild.filter(n => n.parentId === cur.id)
+    if (kids.length !== 1) return (cur.depth || 0) + 1
+    cur = kids[0]
+  }
 }
 
 /* ═══════════ مؤشر لون الاستهلاك ═══════════ */
@@ -278,12 +291,13 @@ export default function AdminDashboard() {
     }
 
     // تهيئة cascade الشجرة
+    const bd = findBranchDepth(flatTree)
     if (parentNodeId && flatTree.length) {
       const target = flatTree.find(n => n.id === parentNodeId)
       if (target) {
         const path = [target]
         let cur = target
-        while (cur.parentId && cur.gen > 3) {
+        while (cur.parentId && cur.depth > bd) {
           const parent = flatTree.find(n => n.id === cur.parentId)
           if (!parent) break
           path.unshift(parent)
@@ -303,7 +317,7 @@ export default function AdminDashboard() {
       }
     }
     // ابدأ من الفخذ فقط
-    const bn = flatTree.find(n => n.name === branch && n.gen === 3 && !n.isChildRecord)
+    const bn = flatTree.find(n => n.name === branch && n.depth === bd && !n.isChildRecord)
     setEditTreeBranch(branch)
     if (bn) {
       const kids = flatTree.filter(n => n.parentId === bn.id)
@@ -481,10 +495,11 @@ export default function AdminDashboard() {
   }
 
   /* مساعدات الشجرة لاختيار الأب */
-  const amBranches = amFlatTree.filter(n => n.gen === 3)
+  const amBranchDepth = findBranchDepth(amFlatTree)
+  const amBranches = amFlatTree.filter(n => n.depth === amBranchDepth && !n.isChildRecord)
 
   const handleBranchChange = branchName => {
-    const bn = amFlatTree.find(n => n.name === branchName && n.gen === 3 && !n.isChildRecord)
+    const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
     setAmData(p => ({ ...p, branch: branchName, parentNodeId: bn?.id || '', parentName: bn?.name || '' }))
     if (bn) {
       const kids = amFlatTree.filter(n => n.parentId === bn.id)
@@ -511,7 +526,7 @@ export default function AdminDashboard() {
 
   /* مساعدات شجرة نموذج التعديل */
   const handleEditBranchChange = branchName => {
-    const bn = amFlatTree.find(n => n.name === branchName && n.gen === 3 && !n.isChildRecord)
+    const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
     setEditTreeBranch(branchName)
     setEditFields(p => ({ ...p, 'الفخذ': branchName, 'رقم عقدة الأب': bn?.id || '' }))
     if (bn) {
