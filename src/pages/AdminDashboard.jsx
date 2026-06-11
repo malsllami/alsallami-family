@@ -90,6 +90,7 @@ export default function AdminDashboard() {
   const [editLoading,        setEditLoading]        = useState(false)
   const [editCascade,        setEditCascade]        = useState([])
   const [editTreeBranch,     setEditTreeBranch]     = useState('')
+  const [editTreeLoading,    setEditTreeLoading]    = useState(false)
   const [rejectingReqId,     setRejectingReqId]     = useState(null)
   const [rejectReason,       setRejectReason]       = useState('')
 
@@ -239,7 +240,7 @@ export default function AdminDashboard() {
   }
 
   /* تعديل بيانات طلب معلق قبل الموافقة */
-  const handleStartEdit = (req) => {
+  const handleStartEdit = async (req) => {
     setEditingReqId(req.requestId)
     const parentNodeId = req.parentNodeId || ''
     const branch       = req.branch       || ''
@@ -259,14 +260,31 @@ export default function AdminDashboard() {
       'ملاحظات':            req.notes        || '',
     })
 
-    // تهيئة cascade الشجرة من بيانات الطلب
-    if (parentNodeId && amFlatTree.length) {
-      const target = amFlatTree.find(n => n.id === parentNodeId)
+    // تحميل الشجرة عند الحاجة (شبكة بطيئة أو جوال)
+    let flatTree = amFlatTree
+    if (!flatTree.length) {
+      setEditTreeLoading(true)
+      try {
+        const res  = await fetch(import.meta.env.VITE_API_URL, {
+          method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
+        })
+        const data = await res.json()
+        if (data.success && data.tree?.length) {
+          flatTree = buildFlatTree(data.tree)
+          setAmFlatTree(flatTree)
+        }
+      } catch { /* ignore */ }
+      setEditTreeLoading(false)
+    }
+
+    // تهيئة cascade الشجرة
+    if (parentNodeId && flatTree.length) {
+      const target = flatTree.find(n => n.id === parentNodeId)
       if (target) {
         const path = [target]
         let cur = target
         while (cur.parentId && cur.gen > 3) {
-          const parent = amFlatTree.find(n => n.id === cur.parentId)
+          const parent = flatTree.find(n => n.id === cur.parentId)
           if (!parent) break
           path.unshift(parent)
           cur = parent
@@ -275,20 +293,20 @@ export default function AdminDashboard() {
         setEditTreeBranch(branchNode?.name || branch)
         const cascade = []
         for (let i = 0; i < path.length - 1; i++) {
-          const kids = amFlatTree.filter(n => n.parentId === path[i].id)
+          const kids = flatTree.filter(n => n.parentId === path[i].id)
           cascade.push({ label: `أبناء ${path[i].name}`, options: kids, selectedId: path[i + 1].id })
         }
-        const finalKids = amFlatTree.filter(n => n.parentId === target.id)
+        const finalKids = flatTree.filter(n => n.parentId === target.id)
         if (finalKids.length) cascade.push({ label: `أبناء ${target.name}`, options: finalKids, selectedId: '' })
         setEditCascade(cascade)
         return
       }
     }
-    // لا يوجد parentNodeId — ابدأ من الفخذ فقط
-    const bn = amFlatTree.find(n => n.name === branch && n.gen === 3 && !n.isChildRecord)
+    // ابدأ من الفخذ فقط
+    const bn = flatTree.find(n => n.name === branch && n.gen === 3 && !n.isChildRecord)
     setEditTreeBranch(branch)
     if (bn) {
-      const kids = amFlatTree.filter(n => n.parentId === bn.id)
+      const kids = flatTree.filter(n => n.parentId === bn.id)
       setEditCascade(kids.length ? [{ label: `أبناء ${branch}`, options: kids, selectedId: '' }] : [])
     } else {
       setEditCascade([])
@@ -1330,8 +1348,11 @@ export default function AdminDashboard() {
                       style={{ background: 'rgba(198,161,107,0.05)', border: '1px solid rgba(198,161,107,0.18)' }}>
                       <p className="font-nav text-[10px]" style={{ color: 'rgba(198,161,107,0.8)' }}>التسلسل في الشجرة العائلية</p>
                       <select className="form-input text-xs" value={editTreeBranch}
+                        disabled={editTreeLoading}
                         onChange={e => handleEditBranchChange(e.target.value)}>
-                        <option value="">— اختر الفخذ —</option>
+                        <option value="">
+                          {editTreeLoading ? '— جاري تحميل الشجرة... —' : '— اختر الفخذ —'}
+                        </option>
                         {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                       </select>
                       {editCascade.map((level, i) => (
