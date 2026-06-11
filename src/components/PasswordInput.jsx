@@ -45,7 +45,7 @@ export default function PasswordInput({ className = 'form-input', style, ...prop
           transform: 'translateY(-50%)',
           padding: 6,
           borderRadius: 8,
-          color: 'rgba(255,255,255,0.35)',
+          color: 'rgba(255,255,255,0.70)',
           background: 'none',
           border: 'none',
           cursor: 'pointer',
@@ -55,7 +55,7 @@ export default function PasswordInput({ className = 'form-input', style, ...prop
           transition: 'color 0.2s ease',
         }}
         onMouseEnter={e => (e.currentTarget.style.color = 'rgba(198,161,107,0.85)')}
-        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.35)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'rgba(255,255,255,0.70)')}
       >
         {show ? <EyeOffIcon /> : <EyeIcon />}
       </button>
