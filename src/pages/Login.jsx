@@ -199,7 +199,7 @@ export default function Login() {
               )}
 
               <div>
-                <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.85)' }}>
                   رقم الهوية الوطنية
                 </label>
                 <input
@@ -236,7 +236,7 @@ export default function Login() {
               <button type="button"
                 onClick={() => { setMode('forgot'); setFpResult(null); setFpNid(''); setFpPhone('') }}
                 className="font-nav text-sm transition-colors duration-200"
-                style={{ color: 'rgba(198,161,107,0.65)' }}
+                style={{ color: 'var(--gold-main)' }}
                 onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-main)'}
                 onMouseLeave={e => e.currentTarget.style.color = 'rgba(198,161,107,0.65)'}>
                 نسيت كلمة المرور؟
@@ -264,7 +264,7 @@ export default function Login() {
                 </svg>
               </div>
               <h1 className="text-2xl font-bold" style={{ color: '#f87171' }}>تغيير كلمة المرور مطلوب</h1>
-              <p className="font-nav text-sm mt-2 leading-6" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <p className="font-nav text-sm mt-2 leading-6" style={{ color: 'rgba(255,255,255,0.80)' }}>
                 أنت تستخدم كلمة مرور مؤقتة — يجب تغييرها الآن قبل الدخول إلى منصتك
               </p>
             </div>
@@ -297,14 +297,14 @@ export default function Login() {
           <>
             <div className="text-center">
               <h1 className="text-2xl font-bold text-[var(--gold-main)]">استعادة كلمة المرور</h1>
-              <p className="font-nav text-sm mt-2" style={{ color: 'rgba(255,255,255,0.45)' }}>
+              <p className="font-nav text-sm mt-2" style={{ color: 'rgba(255,255,255,0.80)' }}>
                 أدخل رقم هويتك ورقم جوالك المسجّل للتحقق
               </p>
             </div>
 
             <form onSubmit={handleForgot} className="mt-8 space-y-5">
               <div>
-                <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.85)' }}>
                   رقم الهوية الوطنية
                 </label>
                 <input type="text" inputMode="numeric" maxLength={10} value={fpNid}
@@ -350,7 +350,7 @@ export default function Login() {
               <div className="flex gap-3 pt-1">
                 <button type="button" onClick={() => { setMode('login'); setFpResult(null) }}
                   className="font-nav flex-1 py-3.5 rounded-2xl text-sm font-bold transition-all duration-200"
-                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)' }}>
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.88)' }}>
                   رجوع
                 </button>
                 {fpResult?.status !== 'approved' && (
