@@ -217,7 +217,7 @@ export default function App() {
 
         {/* الترويسة */}
         <div className="text-center mb-10">
-          <p className="font-nav text-sm mb-2" style={{ color: 'rgba(198,161,107,0.7)', letterSpacing: '0.12em' }}>اصالة وجذور</p>
+          <p className="font-nav text-sm mb-2" style={{ color: 'var(--gold-main)', letterSpacing: '0.12em' }}>اصالة وجذور</p>
           <h2 className="text-3xl lg:text-4xl font-bold text-[var(--gold-main)]">من نحن</h2>
         </div>
 
@@ -468,7 +468,7 @@ export default function App() {
               <button onClick={() => setMapOpen(false)}
                 className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/5 transition-colors"
                 style={{ border: '1px solid rgba(255,255,255,0.1)' }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2.2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2.2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
