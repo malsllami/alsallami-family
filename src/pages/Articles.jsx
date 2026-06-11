@@ -341,7 +341,7 @@ export default function Articles() {
                 {a.body && (
                   <button onClick={() => setExpanded(expanded === a.id ? null : a.id)}
                     className="mt-4 font-nav text-sm transition-colors duration-200"
-                    style={{ color: expanded === a.id ? 'rgba(255,255,255,0.35)' : 'var(--gold-main)' }}>
+                    style={{ color: expanded === a.id ? 'rgba(255,255,255,0.70)' : 'var(--gold-main)' }}>
                     {expanded === a.id ? '↑ إخفاء المحتوى' : '↓ قراءة المزيد'}
                   </button>
                 )}
@@ -382,7 +382,7 @@ export default function Articles() {
               </h2>
               <button onClick={() => setModal(null)}
                 className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/5 transition-colors">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2.2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.80)" strokeWidth="2.2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
@@ -491,7 +491,7 @@ export default function Articles() {
                     ))}
                     <button type="button" onClick={() => addItem('villages', { name: '', desc: '', highlight: false })}
                       className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>
+                      style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.82)' }}>
                       + إضافة قرية
                     </button>
                   </div>
@@ -537,7 +537,7 @@ export default function Articles() {
               </button>
               <button onClick={() => setModal(null)}
                 className="font-nav text-sm py-3 px-6 rounded-2xl transition-all duration-200"
-                style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}>
+                style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.82)' }}>
                 إلغاء
               </button>
             </div>
