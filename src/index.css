@@ -33,8 +33,12 @@ body {
   margin: 0;
   color:        var(--text-light);
   font-family:  var(--font-body);
+  font-weight:  500;
   direction:    rtl;
   overflow-x:   hidden;
+  -webkit-font-smoothing:  antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering:          optimizeLegibility;
   background-color: var(--background-main);
   /* طبقة 1: نسيج حبيبي خفيف جداً (grain)
      طبقة 2 & 3: توهج ذهبي دافئ في الزوايا */
