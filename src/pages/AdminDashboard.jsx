@@ -88,6 +88,8 @@ export default function AdminDashboard() {
   const [editingReqId,       setEditingReqId]       = useState(null)
   const [editFields,         setEditFields]         = useState({})
   const [editLoading,        setEditLoading]        = useState(false)
+  const [editCascade,        setEditCascade]        = useState([])
+  const [editTreeBranch,     setEditTreeBranch]     = useState('')
   const [rejectingReqId,     setRejectingReqId]     = useState(null)
   const [rejectReason,       setRejectReason]       = useState('')
 
@@ -239,17 +241,58 @@ export default function AdminDashboard() {
   /* تعديل بيانات طلب معلق قبل الموافقة */
   const handleStartEdit = (req) => {
     setEditingReqId(req.requestId)
+    const parentNodeId = req.parentNodeId || ''
+    const branch       = req.branch       || ''
     setEditFields({
-      'الاسم الأول':   req.name        || '',
-      'اسم الأب':      req.fatherName  || '',
-      'اسم الجد':      req.grandName   || '',
-      'رقم الجوال':    req.phone       || '',
-      'رقم الهوية':    req.nationalId  || '',
-      'الفخذ':         req.branch      || '',
-      'المهنة':        req.job         || '',
-      'تاريخ الميلاد': req.birthDate   || '',
-      'المدينة':       req.city        || '',
+      'الاسم الأول':        req.name         || '',
+      'اسم الأب':           req.fatherName   || '',
+      'اسم الجد':           req.grandName    || '',
+      'رقم الجوال':         req.phone        || '',
+      'رقم الهوية':         req.nationalId   || '',
+      'الفخذ':              branch,
+      'الجيل':              req.generation   || '',
+      'المهنة':             req.job          || '',
+      'تاريخ الميلاد':      req.birthDate    || '',
+      'المدينة':            req.city         || '',
+      'البريد الإلكتروني':  req.email        || '',
+      'رقم عقدة الأب':      parentNodeId,
+      'ملاحظات':            req.notes        || '',
     })
+
+    // تهيئة cascade الشجرة من بيانات الطلب
+    if (parentNodeId && amFlatTree.length) {
+      const target = amFlatTree.find(n => n.id === parentNodeId)
+      if (target) {
+        const path = [target]
+        let cur = target
+        while (cur.parentId && cur.gen > 3) {
+          const parent = amFlatTree.find(n => n.id === cur.parentId)
+          if (!parent) break
+          path.unshift(parent)
+          cur = parent
+        }
+        const branchNode = path[0]
+        setEditTreeBranch(branchNode?.name || branch)
+        const cascade = []
+        for (let i = 0; i < path.length - 1; i++) {
+          const kids = amFlatTree.filter(n => n.parentId === path[i].id)
+          cascade.push({ label: `أبناء ${path[i].name}`, options: kids, selectedId: path[i + 1].id })
+        }
+        const finalKids = amFlatTree.filter(n => n.parentId === target.id)
+        if (finalKids.length) cascade.push({ label: `أبناء ${target.name}`, options: finalKids, selectedId: '' })
+        setEditCascade(cascade)
+        return
+      }
+    }
+    // لا يوجد parentNodeId — ابدأ من الفخذ فقط
+    const bn = amFlatTree.find(n => n.name === branch && n.gen === 3 && !n.isChildRecord)
+    setEditTreeBranch(branch)
+    if (bn) {
+      const kids = amFlatTree.filter(n => n.parentId === bn.id)
+      setEditCascade(kids.length ? [{ label: `أبناء ${branch}`, options: kids, selectedId: '' }] : [])
+    } else {
+      setEditCascade([])
+    }
   }
   const handleSaveEdit = async (requestId) => {
     try {
@@ -262,15 +305,19 @@ export default function AdminDashboard() {
       if (result.success) {
         setRegRequests(prev => prev.map(r => r.requestId !== requestId ? r : {
           ...r,
-          name:       editFields['الاسم الأول'],
-          fatherName: editFields['اسم الأب'],
-          grandName:  editFields['اسم الجد'],
-          phone:      editFields['رقم الجوال'],
-          nationalId: editFields['رقم الهوية'],
-          branch:     editFields['الفخذ'],
-          job:        editFields['المهنة'],
-          birthDate:  editFields['تاريخ الميلاد'],
-          city:       editFields['المدينة'],
+          name:         editFields['الاسم الأول'],
+          fatherName:   editFields['اسم الأب'],
+          grandName:    editFields['اسم الجد'],
+          phone:        editFields['رقم الجوال'],
+          nationalId:   editFields['رقم الهوية'],
+          branch:       editFields['الفخذ'],
+          generation:   editFields['الجيل'],
+          job:          editFields['المهنة'],
+          birthDate:    editFields['تاريخ الميلاد'],
+          city:         editFields['المدينة'],
+          email:        editFields['البريد الإلكتروني'],
+          parentNodeId: editFields['رقم عقدة الأب'],
+          notes:        editFields['ملاحظات'],
         }))
         setEditingReqId(null)
         setEditFields({})
@@ -438,6 +485,34 @@ export default function AdminDashboard() {
     }
     const kids = amFlatTree.filter(n => n.parentId === selectedId)
     setAmCascade(prev => {
+      const next = prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l)
+      if (kids.length) next.push({ label: `أبناء ${node?.name || ''}`, options: kids, selectedId: '' })
+      return next
+    })
+  }
+
+  /* مساعدات شجرة نموذج التعديل */
+  const handleEditBranchChange = branchName => {
+    const bn = amFlatTree.find(n => n.name === branchName && n.gen === 3 && !n.isChildRecord)
+    setEditTreeBranch(branchName)
+    setEditFields(p => ({ ...p, 'الفخذ': branchName, 'رقم عقدة الأب': bn?.id || '' }))
+    if (bn) {
+      const kids = amFlatTree.filter(n => n.parentId === bn.id)
+      setEditCascade(kids.length ? [{ label: `أبناء ${branchName}`, options: kids, selectedId: '' }] : [])
+    } else {
+      setEditCascade([])
+    }
+  }
+
+  const handleEditCascadeChange = (levelIdx, selectedId) => {
+    const node = amFlatTree.find(n => n.id === selectedId)
+    setEditFields(p => ({ ...p, 'رقم عقدة الأب': selectedId || p['رقم عقدة الأب'] }))
+    if (!selectedId || node?.isChildRecord) {
+      setEditCascade(prev => prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l))
+      return
+    }
+    const kids = amFlatTree.filter(n => n.parentId === selectedId)
+    setEditCascade(prev => {
       const next = prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l)
       if (kids.length) next.push({ label: `أبناء ${node?.name || ''}`, options: kids, selectedId: '' })
       return next
@@ -1249,6 +1324,35 @@ export default function AdminDashboard() {
                 {editingReqId === req.requestId && (
                   <div className="space-y-3 pt-1 border-t border-white/[0.06]">
                     <p className="font-nav text-xs" style={{ color: 'rgba(198,161,107,0.8)' }}>تعديل البيانات قبل الموافقة</p>
+
+                    {/* التسلسل في الشجرة */}
+                    <div className="p-3 rounded-2xl space-y-2"
+                      style={{ background: 'rgba(198,161,107,0.05)', border: '1px solid rgba(198,161,107,0.18)' }}>
+                      <p className="font-nav text-[10px]" style={{ color: 'rgba(198,161,107,0.8)' }}>التسلسل في الشجرة العائلية</p>
+                      <select className="form-input text-xs" value={editTreeBranch}
+                        onChange={e => handleEditBranchChange(e.target.value)}>
+                        <option value="">— اختر الفخذ —</option>
+                        {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                      </select>
+                      {editCascade.map((level, i) => (
+                        <div key={i}>
+                          <p className="font-nav text-[10px] text-gray-500 mb-1">{level.label}</p>
+                          <select className="form-input text-xs" value={level.selectedId}
+                            onChange={e => handleEditCascadeChange(i, e.target.value)}>
+                            <option value="">— اتركه فارغاً لاختيار الأب الحالي —</option>
+                            {level.options.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                      {editFields['رقم عقدة الأب'] && (
+                        <p className="font-nav text-[10px] px-3 py-1.5 rounded-xl"
+                          style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)' }}>
+                          الأب المختار: {amFlatTree.find(n => n.id === editFields['رقم عقدة الأب'])?.name || editFields['رقم عقدة الأب']}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* بيانات الاسم والمعلومات الأخرى */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {[
                         ['الاسم الأول','الاسم الأول','text'],
@@ -1256,15 +1360,23 @@ export default function AdminDashboard() {
                         ['اسم الجد','اسم الجد','text'],
                         ['رقم الهوية','الهوية','numeric'],
                         ['المدينة','المدينة','text'],
-                        ['الفخذ','الفخذ','text'],
+                        ['الجيل','الجيل','text'],
                         ['المهنة','المهنة','text'],
                         ['تاريخ الميلاد','تاريخ الميلاد','text'],
+                        ['البريد الإلكتروني','البريد الإلكتروني','text'],
                       ].map(([field, ph, mode]) => (
                         <input key={field} className="form-input text-xs" placeholder={ph}
                           inputMode={mode} value={editFields[field] || ''}
                           onChange={e => setEditFields(p => ({ ...p, [field]: mode === 'numeric' ? normalizeDigits(e.target.value) : e.target.value }))} />
                       ))}
                     </div>
+                    <textarea
+                      className="form-input text-xs w-full resize-none"
+                      rows={2} placeholder="ملاحظات"
+                      style={{ direction: 'rtl' }}
+                      value={editFields['ملاحظات'] || ''}
+                      onChange={e => setEditFields(p => ({ ...p, 'ملاحظات': e.target.value }))}
+                    />
                     <PhoneInput
                       value={editFields['رقم الجوال'] || ''}
                       onChange={val => setEditFields(p => ({ ...p, 'رقم الجوال': val }))}
@@ -1277,7 +1389,7 @@ export default function AdminDashboard() {
                         style={{ background: 'rgba(198,161,107,0.14)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }}>
                         {editLoading ? 'جاري الحفظ...' : 'حفظ التعديل'}
                       </button>
-                      <button onClick={() => { setEditingReqId(null); setEditFields({}) }}
+                      <button onClick={() => { setEditingReqId(null); setEditFields({}); setEditCascade([]); setEditTreeBranch('') }}
                         className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
                         style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
                         إلغاء
