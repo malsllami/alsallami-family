@@ -419,7 +419,7 @@ function StatsPanel({ stats, onClose }) {
 
           {/* توزيع الأجيال */}
           <div>
-            <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>توزيع الأجيال</p>
+            <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.70)' }}>توزيع الأجيال</p>
             <div className="space-y-2">
               {stats.generations.map(g => (
                 <div key={g.gen} className="rounded-xl px-4 py-2.5"
@@ -445,10 +445,10 @@ function StatsPanel({ stats, onClose }) {
                   <div className="flex justify-between">
                     <span />
                     {g.avgAge !== null
-                      ? <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.28)' }}>
+                      ? <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.60)' }}>
                           متوسط العمر: {g.avgAge} سنة
                         </span>
-                      : <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.15)' }}>
+                      : <span className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.50)' }}>
                           لا توجد بيانات أعمار
                         </span>
                     }
@@ -461,7 +461,7 @@ function StatsPanel({ stats, onClose }) {
           {/* أعماق الفخوذ */}
           {stats.branches.length > 0 && (
             <div>
-              <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.35)' }}>عمق كل فخذ</p>
+              <p className="font-nav text-xs mb-3" style={{ color: 'rgba(255,255,255,0.70)' }}>عمق كل فخذ</p>
               <div className="space-y-2">
                 {stats.branches.map(b => (
                   <div key={b.name} className="rounded-xl px-4 py-3"
@@ -485,7 +485,7 @@ function StatsPanel({ stats, onClose }) {
             </div>
           )}
 
-          <p className="font-nav text-[10px] text-center pb-1" style={{ color: 'rgba(255,255,255,0.13)' }}>
+          <p className="font-nav text-[10px] text-center pb-1" style={{ color: 'rgba(255,255,255,0.46)' }}>
             تتحدث تلقائياً عند أي تغيير في الشجرة
           </p>
         </div>
@@ -634,7 +634,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
             {isAdmin && editing && (
               <button onClick={cancelEdit}
                 className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
-                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.45)' }}>
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.80)' }}>
                 إلغاء
               </button>
             )}
@@ -644,7 +644,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
         {/* ── وضع التعديل ── */}
         {editing ? (
           <div className="space-y-3">
-            <p className="font-nav text-xs text-center mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>
+            <p className="font-nav text-xs text-center mb-2" style={{ color: 'rgba(255,255,255,0.70)' }}>
               تعديل بيانات {node.isWife ? 'الزوجة' : node.isDaughter ? 'الابنة' : node.isSon ? 'الابن' : 'العقدة'}
             </p>
 
@@ -658,11 +658,11 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
             <EF label="الحال">
               <div className="flex gap-2">
                 <button onClick={() => setEditAlive(true)} className="flex-1 font-nav text-sm py-2 rounded-xl transition-all"
-                  style={{ background: editAlive ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${editAlive ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`, color: editAlive ? '#4ade80' : 'rgba(255,255,255,0.4)' }}>
+                  style={{ background: editAlive ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${editAlive ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.08)'}`, color: editAlive ? '#4ade80' : 'rgba(255,255,255,0.72)' }}>
                   حي
                 </button>
                 <button onClick={() => setEditAlive(false)} className="flex-1 font-nav text-sm py-2 rounded-xl transition-all"
-                  style={{ background: !editAlive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!editAlive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !editAlive ? '#9ca3af' : 'rgba(255,255,255,0.4)' }}>
+                  style={{ background: !editAlive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!editAlive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !editAlive ? '#9ca3af' : 'rgba(255,255,255,0.72)' }}>
                   متوفى
                 </button>
               </div>
@@ -714,7 +714,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
           <div className="py-8 flex flex-col items-center gap-3">
             <div className="w-10 h-10 rounded-full border-2 border-t-transparent animate-spin"
               style={{ borderColor: 'rgba(198,161,107,0.4)', borderTopColor: 'transparent' }} />
-            <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.3)' }}>جاري تحميل البيانات...</p>
+            <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.62)' }}>جاري تحميل البيانات...</p>
           </div>
         ) : (
           <>
@@ -738,7 +738,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                 </span>
               )}
               {lineage && (
-                <span className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.38)' }}>{lineage}</span>
+                <span className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>{lineage}</span>
               )}
             </div>
             {(() => {
@@ -762,14 +762,14 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               )
             })()}
             {!isLoggedIn && node.memberId && display.alive && (
-              <p className="font-nav text-[10px] text-center mt-3" style={{ color: 'rgba(255,255,255,0.2)' }}>
+              <p className="font-nav text-[10px] text-center mt-3" style={{ color: 'rgba(255,255,255,0.52)' }}>
                 سجّل دخولك لرؤية رقم الجوال والهوية
               </p>
             )}
             {isAdmin && !isWifeDaughter && (
               <div className="mt-3 pt-3 space-y-1.5" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] select-all" style={{ color: 'rgba(255,255,255,0.35)', letterSpacing: '0.02em' }}>
+                  <span className="font-mono text-[11px] select-all" style={{ color: 'rgba(255,255,255,0.70)', letterSpacing: '0.02em' }}>
                     {node.id}
                   </span>
                   <span className="font-nav text-[10px] text-gray-600">رقم العقدة</span>
@@ -793,7 +793,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
 function EF({ label, children }) {
   return (
     <div>
-      <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.4)' }}>{label}</label>
+      <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.72)' }}>{label}</label>
       {children}
     </div>
   )
@@ -1107,9 +1107,9 @@ export default function FamilyTree({ viewerMode = false }) {
         <button
           onClick={() => navigate('/')}
           className="font-nav flex items-center gap-2 text-sm transition-colors duration-200"
-          style={{ color: 'rgba(255,255,255,0.55)', whiteSpace: 'nowrap' }}
+          style={{ color: 'rgba(255,255,255,0.85)', whiteSpace: 'nowrap' }}
           onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-main)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.55)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.85)'}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1134,7 +1134,7 @@ export default function FamilyTree({ viewerMode = false }) {
             style={{
               background: 'rgba(255,255,255,0.06)',
               border: `1px solid ${branch ? 'rgba(96,165,250,0.4)' : 'rgba(255,255,255,0.1)'}`,
-              color: branch ? '#60a5fa' : 'rgba(255,255,255,0.65)',
+              color: branch ? '#60a5fa' : 'rgba(255,255,255,0.90)',
               maxWidth: 'clamp(100px, 30vw, 160px)',
             }}
           >
@@ -1153,7 +1153,7 @@ export default function FamilyTree({ viewerMode = false }) {
             style={{
               background: showStats ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.06)',
               border: `1px solid ${showStats ? 'rgba(99,102,241,0.5)' : 'rgba(255,255,255,0.1)'}`,
-              color: showStats ? '#818cf8' : 'rgba(255,255,255,0.6)',
+              color: showStats ? '#818cf8' : 'rgba(255,255,255,0.88)',
             }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -1332,7 +1332,7 @@ export default function FamilyTree({ viewerMode = false }) {
 
         {/* نسبة التكبير */}
         <div className="font-nav text-xs text-center"
-          style={{ color: 'rgba(255,255,255,0.35)', minWidth: 40 }}>
+          style={{ color: 'rgba(255,255,255,0.70)', minWidth: 40 }}>
           {Math.round(tx.s * 100)}%
         </div>
 
@@ -1373,7 +1373,7 @@ export default function FamilyTree({ viewerMode = false }) {
           border: '1px solid rgba(198,161,107,0.4)', borderRadius: 14,
           padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 10,
         }}>
-          <span style={{ fontSize: 12, color: 'rgba(198,161,107,0.6)', fontFamily: 'Cairo,sans-serif' }}>مسارك في الشجرة:</span>
+          <span style={{ fontSize: 12, color: 'var(--gold-main)', fontFamily: 'Cairo,sans-serif' }}>مسارك في الشجرة:</span>
           <span style={{ fontSize: 13, color: 'var(--gold-main)', fontWeight: 700, fontFamily: 'Cairo,sans-serif' }}>
             {ancestryPath
               ? ancestryPath.map((id, i) => {
@@ -1425,7 +1425,7 @@ function LegendDot({ fill, stroke, dash, alive, label }) {
           fill={fill} stroke={stroke} strokeWidth={1.4}
           strokeDasharray={dash ? '4,2' : 'none'} />
       </svg>
-      <span className="font-nav" style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{label}</span>
+      <span className="font-nav" style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)' }}>{label}</span>
     </div>
   )
 }
