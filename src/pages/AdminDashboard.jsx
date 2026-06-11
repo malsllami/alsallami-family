@@ -1058,7 +1058,7 @@ export default function AdminDashboard() {
             className="mt-5 w-full font-nav text-sm py-3 rounded-2xl transition-all duration-250"
             style={{
               border:     '1px solid rgba(255,255,255,0.1)',
-              color:      showPw ? 'var(--gold-main)' : 'rgba(255,255,255,0.5)',
+              color:      showPw ? 'var(--gold-main)' : 'rgba(255,255,255,0.82)',
               background: showPw ? 'rgba(198,161,107,0.06)' : 'transparent',
             }}
           >
@@ -1160,7 +1160,7 @@ export default function AdminDashboard() {
                   <tr>
                     {['الجيل', 'الإجمالي', 'أحياء', 'متوفون', 'متوسط العمر'].map(h => (
                       <th key={h} className="text-center pb-2 font-semibold"
-                        style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11, fontWeight: 600 }}>
+                        style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 600 }}>
                         {h}
                       </th>
                     ))}
@@ -1204,7 +1204,7 @@ export default function AdminDashboard() {
                               {g.avgAge} سنة
                             </span>
                           ) : (
-                            <span style={{ color: 'rgba(255,255,255,0.15)', fontSize: 12 }}>—</span>
+                            <span style={{ color: 'rgba(255,255,255,0.50)', fontSize: 12 }}>—</span>
                           )}
                         </td>
                       </tr>
@@ -1215,7 +1215,7 @@ export default function AdminDashboard() {
             </div>
           </>
         ) : (
-          <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.25)' }}>
+          <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.58)' }}>
             تعذّر تحميل إحصائيات الشجرة
           </p>
         )}
@@ -1243,7 +1243,7 @@ export default function AdminDashboard() {
               style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.25)', color: '#a5b4fc' }}>
               تحديث
             </button>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
               style={{ transform: openSec.regReq ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', flexShrink: 0 }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -1297,7 +1297,7 @@ export default function AdminDashboard() {
                           {req.branch}
                         </span>
                       )}
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2"
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2"
                         style={{ transform: expandedRegId === req.requestId ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s', flexShrink: 0 }}>
                         <polyline points="6 9 12 15 18 9"/>
                       </svg>
@@ -1341,12 +1341,12 @@ export default function AdminDashboard() {
                 {/* ── وضع التعديل المباشر ── */}
                 {editingReqId === req.requestId && (
                   <div className="space-y-3 pt-1 border-t border-white/[0.06]">
-                    <p className="font-nav text-xs" style={{ color: 'rgba(198,161,107,0.8)' }}>تعديل البيانات قبل الموافقة</p>
+                    <p className="font-nav text-xs" style={{ color: 'var(--gold-main)' }}>تعديل البيانات قبل الموافقة</p>
 
                     {/* التسلسل في الشجرة */}
                     <div className="p-3 rounded-2xl space-y-2"
                       style={{ background: 'rgba(198,161,107,0.05)', border: '1px solid rgba(198,161,107,0.18)' }}>
-                      <p className="font-nav text-[10px]" style={{ color: 'rgba(198,161,107,0.8)' }}>التسلسل في الشجرة العائلية</p>
+                      <p className="font-nav text-[10px]" style={{ color: 'var(--gold-main)' }}>التسلسل في الشجرة العائلية</p>
                       <select className="form-input text-xs" value={editTreeBranch}
                         disabled={editTreeLoading}
                         onChange={e => handleEditBranchChange(e.target.value)}>
@@ -1412,7 +1412,7 @@ export default function AdminDashboard() {
                       </button>
                       <button onClick={() => { setEditingReqId(null); setEditFields({}); setEditCascade([]); setEditTreeBranch('') }}
                         className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.72)' }}>
                         إلغاء
                       </button>
                     </div>
@@ -1437,7 +1437,7 @@ export default function AdminDashboard() {
                       </button>
                       <button onClick={() => { setRejectingReqId(null); setRejectReason('') }}
                         className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
-                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.4)' }}>
+                        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.72)' }}>
                         إلغاء
                       </button>
                     </div>
@@ -1479,7 +1479,7 @@ export default function AdminDashboard() {
                                 style={{
                                   background: idx === arr.length - 1 ? 'rgba(99,102,241,0.18)' : 'rgba(255,255,255,0.04)',
                                   border: idx === arr.length - 1 ? '1px solid rgba(99,102,241,0.35)' : '1px solid rgba(255,255,255,0.07)',
-                                  color: idx === arr.length - 1 ? '#a5b4fc' : 'rgba(255,255,255,0.55)',
+                                  color: idx === arr.length - 1 ? '#a5b4fc' : 'rgba(255,255,255,0.85)',
                                   fontWeight: idx === arr.length - 1 ? 700 : 400,
                                 }}>
                                 {node}
@@ -1563,7 +1563,7 @@ export default function AdminDashboard() {
               style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.22)', color: '#34d399' }}>
               تحديث
             </button>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
               style={{ transform: openSec.treeReq ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', flexShrink: 0 }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -1609,18 +1609,18 @@ export default function AdminDashboard() {
                               الجيل {req.generation}
                             </span>
                         }
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.25)" strokeWidth="2"
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2"
                           style={{ transform: expandedTreeId === req.requestId ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s', flexShrink: 0 }}>
                           <polyline points="6 9 12 15 18 9"/>
                         </svg>
                       </div>
-                      <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                      <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.80)' }}>
                         {isNotFound
                           ? <span style={{ color: '#fb923c' }}>الأب المفقود: <span className="font-semibold" style={{ color: '#fdba74' }}>{req.parentName}</span></span>
                           : <>الأب: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{req.parentName}</span></>
                         }
                       </p>
-                      <p className="font-nav text-xs mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.5)', direction: 'rtl' }}>
+                      <p className="font-nav text-xs mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.82)', direction: 'rtl' }}>
                         {req.path
                           ? <>{req.path} ← <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span></>
                           : <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span>
@@ -1674,7 +1674,7 @@ export default function AdminDashboard() {
                         </button>
                         <button onClick={() => { setTreeRejectingId(null); setTreeRejectReason('') }}
                           className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
-                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.72)' }}>
                           إلغاء
                         </button>
                       </div>
@@ -1685,11 +1685,11 @@ export default function AdminDashboard() {
                   {isNotFound && panelOpen && (
                     <div className="rounded-2xl p-5 mt-1.5"
                       style={{ background: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.18)' }}>
-                      <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                      <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.80)' }}>
                         اختر في الشجرة الشخص الذي يُعدّ أباً لـ &quot;{req.parentName}&quot; — الجيل يُحسب تلقائياً
                       </p>
                       {adminTreeLoading ? (
-                        <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                        <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.62)' }}>
                           جاري تحميل الشجرة...
                         </p>
                       ) : (
@@ -1748,7 +1748,7 @@ export default function AdminDashboard() {
                                 style={{
                                   background: idx === arr.length - 1 ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.04)',
                                   border: idx === arr.length - 1 ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(255,255,255,0.07)',
-                                  color: idx === arr.length - 1 ? '#34d399' : 'rgba(255,255,255,0.55)',
+                                  color: idx === arr.length - 1 ? '#34d399' : 'rgba(255,255,255,0.85)',
                                   fontWeight: idx === arr.length - 1 ? 700 : 400,
                                 }}>
                                 {node}
@@ -1822,7 +1822,7 @@ export default function AdminDashboard() {
                 <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
               </svg>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
               style={{ transform: openSec.addMember ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -1956,7 +1956,7 @@ export default function AdminDashboard() {
                   style={{
                     background: amData.role === r ? 'rgba(198,161,107,0.15)' : 'rgba(255,255,255,0.03)',
                     border:     amData.role === r ? '1px solid rgba(198,161,107,0.4)' : '1px solid rgba(255,255,255,0.08)',
-                    color:      amData.role === r ? 'var(--gold-main)' : 'rgba(255,255,255,0.35)',
+                    color:      amData.role === r ? 'var(--gold-main)' : 'rgba(255,255,255,0.70)',
                   }}>
                   {r}
                 </button>
@@ -1979,7 +1979,7 @@ export default function AdminDashboard() {
                       : '1px solid rgba(255,255,255,0.08)',
                     color: amData.aliveStatus === val
                       ? (val === 'حي' ? '#4ade80' : '#9ca3af')
-                      : 'rgba(255,255,255,0.35)',
+                      : 'rgba(255,255,255,0.70)',
                   }}>
                   {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
                 </button>
@@ -2032,7 +2032,7 @@ export default function AdminDashboard() {
                 <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 5 5 12"/>
               </svg>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
               style={{ transform: openSec.insertAncestor ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -2082,7 +2082,7 @@ export default function AdminDashboard() {
                       : '1px solid rgba(255,255,255,0.08)',
                     color: iaaAlive === val
                       ? (val === 'حي' ? '#4ade80' : '#9ca3af')
-                      : 'rgba(255,255,255,0.35)',
+                      : 'rgba(255,255,255,0.70)',
                   }}>
                   {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
                 </button>
@@ -2129,7 +2129,7 @@ export default function AdminDashboard() {
                 <polyline points="16 11 18 13 22 9"/>
               </svg>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
               style={{ transform: openSec.addRootAncestor ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
@@ -2167,7 +2167,7 @@ export default function AdminDashboard() {
                       : '1px solid rgba(255,255,255,0.08)',
                     color: raAlive === val
                       ? (val === 'حي' ? '#4ade80' : '#9ca3af')
-                      : 'rgba(255,255,255,0.35)',
+                      : 'rgba(255,255,255,0.70)',
                   }}>
                   {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
                 </button>
