@@ -235,7 +235,7 @@ export default function Funds() {
                 style={{
                   background: isAct ? fc.soft : 'rgba(255,255,255,0.04)',
                   border:     isAct ? `1px solid ${fc.border}` : '1px solid rgba(255,255,255,0.1)',
-                  color:      isAct ? fc.accent : 'rgba(255,255,255,0.55)',
+                  color:      isAct ? fc.accent : 'rgba(255,255,255,0.85)',
                   fontWeight: isAct ? '600' : '400',
                 }}>
                 {f.name}
@@ -425,7 +425,7 @@ export default function Funds() {
               </h2>
               <button onClick={() => setModal(null)}
                 className="w-9 h-9 rounded-xl flex items-center justify-center hover:bg-white/5 transition-colors">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2.2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.80)" strokeWidth="2.2">
                   <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                 </svg>
               </button>
@@ -510,7 +510,7 @@ export default function Funds() {
               </button>
               <button onClick={() => setModal(null)}
                 className="font-nav text-sm py-3 px-6 rounded-2xl transition-all duration-200"
-                style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.5)' }}>
+                style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.82)' }}>
                 إلغاء
               </button>
             </div>
