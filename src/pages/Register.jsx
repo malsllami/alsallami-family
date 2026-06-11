@@ -323,12 +323,12 @@ export default function Register() {
             <p className="font-nav text-base font-bold mb-2" style={{ color: 'var(--gold-main)' }}>
               اختر والدك من الشجرة *
             </p>
-            <p className="font-nav text-sm mb-4 leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
+            <p className="font-nav text-sm mb-4 leading-relaxed" style={{ color: 'rgba(255,255,255,0.90)' }}>
               ابدأ باختيار الفخذ ثم تدرّج — اضغط <span style={{ color: 'var(--gold-main)', fontWeight: 700 }}>&quot;هذا والدي&quot;</span> عند والدك، أو <span style={{ color: '#2dd4bf', fontWeight: 700 }}>&quot;هذا أنا&quot;</span> إن كان اسمك موجوداً مسبقاً في الشجرة
             </p>
 
             {treeLoading ? (
-              <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.70)' }}>
                 جاري تحميل الشجرة...
               </p>
             ) : (
@@ -351,11 +351,11 @@ export default function Register() {
             {selectedFather && (
               <div className="mt-4 rounded-xl p-3"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>الوالد المختار:</p>
+                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>الوالد المختار:</p>
                 <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>{selectedFather.name}</p>
                 {selectedFather.branch && (
-                  <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
-                    الفخذ: <span style={{ color: 'rgba(198,161,107,0.8)' }}>{selectedFather.branch}</span>
+                  <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                    الفخذ: <span style={{ color: 'var(--gold-main)' }}>{selectedFather.branch}</span>
                   </p>
                 )}
                 {fatherMatch === 'found' && (
@@ -375,9 +375,9 @@ export default function Register() {
             {selectedSelf && (
               <div className="mt-4 rounded-xl p-3"
                 style={{ background: 'rgba(20,184,166,0.06)', border: '1px solid rgba(20,184,166,0.25)' }}>
-                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>موقعك في الشجرة:</p>
+                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>موقعك في الشجرة:</p>
                 <p className="font-nav text-sm font-semibold" style={{ color: '#2dd4bf' }}>{selectedSelf.name}</p>
-                <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
                   الجيل: <span style={{ color: '#2dd4bf' }}>{selectedSelf.generationLevel}</span>
                   {selectedSelf.parentName && <> &nbsp;|&nbsp; الوالد: <span style={{ color: '#2dd4bf' }}>{selectedSelf.parentName}</span></>}
                 </p>
@@ -391,9 +391,9 @@ export default function Register() {
             {selectedSon && (
               <div className="mt-4 rounded-xl p-3"
                 style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.25)' }}>
-                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>ابنك الموجود في الشجرة:</p>
+                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>ابنك الموجود في الشجرة:</p>
                 <p className="font-nav text-sm font-semibold" style={{ color: '#a78bfa' }}>{selectedSon.name}</p>
-                <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+                <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
                   جيله: <span style={{ color: '#a78bfa' }}>{selectedSon.generationLevel}</span>
                   &nbsp;|&nbsp; جيلك أنت: <span style={{ color: '#a78bfa' }}>{selectedSon.derivedGeneration}</span>
                   {selectedSon.derivedFatherName && <> &nbsp;|&nbsp; والدك: <span style={{ color: '#a78bfa' }}>{selectedSon.derivedFatherName}</span></>}
@@ -409,7 +409,7 @@ export default function Register() {
               <div className="mt-4 space-y-3">
                 <div className="rounded-xl p-3"
                   style={{ background: 'rgba(251,146,60,0.06)', border: '1px solid rgba(251,146,60,0.2)' }}>
-                  <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>الجد المختار:</p>
+                  <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>الجد المختار:</p>
                   <p className="font-nav text-sm font-semibold" style={{ color: '#fb923c' }}>{selectedGrandfa.name}</p>
                   {(selectedGrandfa.children || []).find(c => (c.name || '').split(' ')[0].trim() === fatherNotInTree.trim()) && (
                     <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
@@ -418,7 +418,7 @@ export default function Register() {
                   )}
                 </div>
                 <div>
-                  <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  <label className="font-nav text-xs mb-1.5 block" style={{ color: 'rgba(255,255,255,0.80)' }}>
                     اسم والدك (غير الموجود في الشجرة) *
                   </label>
                   <input type="text" value={fatherNotInTree}
