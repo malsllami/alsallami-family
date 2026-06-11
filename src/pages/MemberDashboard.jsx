@@ -164,6 +164,10 @@ export default function MemberDashboard() {
   const [birthDraft,    setBirthDraft]    = useState({ birthDate: '', maritalStatus: '' })
   const [birthLoading,  setBirthLoading]  = useState(false)
 
+  const [photoUrl,       setPhotoUrl]       = useState('')
+  const [photoUploading, setPhotoUploading] = useState(false)
+  const [photoError,     setPhotoError]     = useState('')
+
   /* كلمة المرور */
   const [passwordData,    setPasswordData]    = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [showChangePw,    setShowChangePw]    = useState(false)
@@ -292,6 +296,7 @@ export default function MemberDashboard() {
         if (data.success) {
           const m = { ...data.member, wives: data.wives || [], children: data.children || [] }
           setMemberData(m)
+          if (data.member.photoUrl) setPhotoUrl(data.member.photoUrl)
           if (data.preLinked) setPreLinked(data.preLinked)
           if (data.treeRequestStatus) setTreeRequestStatus(data.treeRequestStatus)
           setDraft({ firstName: m.firstName || '', phone: m.phone || '', email: m.email || '', city: m.city || '', job: m.job || '' })
@@ -599,16 +604,87 @@ export default function MemberDashboard() {
   const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && familyAncestors?.path)
   const childTreeWarning = !familyAncestors?.path
 
+  /* ══ ضغط وتحويل الصورة ══ */
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 400
+        const ratio  = Math.min(MAX / img.width, MAX / img.height, 1)
+        const canvas = document.createElement('canvas')
+        canvas.width  = Math.round(img.width  * ratio)
+        canvas.height = Math.round(img.height * ratio)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      img.onerror = reject
+      img.src = e.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  const handlePhotoUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoUploading(true); setPhotoError('')
+    try {
+      const dataUrl = await compressImage(file)
+      const base64  = dataUrl.split(',')[1]
+      const res  = await post({ action: 'uploadMemberPhoto', memberId: savedUser.memberId, base64, mimeType: 'image/jpeg' })
+      if (res.success) {
+        setPhotoUrl(res.photoUrl)
+      } else {
+        setPhotoError(res.message || 'فشل رفع الصورة')
+      }
+    } catch { setPhotoError('خطأ في الاتصال') }
+    finally { setPhotoUploading(false); e.target.value = '' }
+  }
+
   /* ══════════ لوحة العضو ══════════ */
   return (
     <div className="px-5 lg:px-10 py-10 space-y-5">
 
-      {/* العنوان */}
-      <div>
-        <h1 className="text-4xl font-bold text-[var(--gold-main)]">لوحة العضو</h1>
-        <p className="mt-2 font-nav text-sm text-gray-400">
-          {dataLoading ? 'جاري التحميل...' : [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ') || savedUser.firstName}
-        </p>
+      {/* العنوان + الصورة الشخصية */}
+      <div className="flex items-center gap-5">
+        {/* أفاتار الصورة */}
+        <div className="relative flex-shrink-0">
+          <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center"
+            style={{ background: 'rgba(198,161,107,0.08)', border: '2px solid rgba(198,161,107,0.3)' }}>
+            {photoUrl
+              ? <img src={photoUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              : <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="rgba(198,161,107,0.55)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
+                </svg>
+            }
+            {photoUploading && (
+              <div className="absolute inset-0 flex items-center justify-center rounded-full"
+                style={{ background: 'rgba(0,0,0,0.55)' }}>
+                <div className="btn-spinner" style={{ width: 18, height: 18 }} />
+              </div>
+            )}
+          </div>
+          <label htmlFor="photo-upload"
+            className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-opacity hover:opacity-80"
+            style={{ background: 'var(--gold-main)', border: '2px solid rgba(10,10,15,0.8)' }}
+            title="تغيير الصورة">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            <input id="photo-upload" type="file" accept="image/*" className="hidden"
+              onChange={handlePhotoUpload} disabled={photoUploading} />
+          </label>
+        </div>
+        {/* النص */}
+        <div className="flex-1 min-w-0">
+          <h1 className="text-4xl font-bold text-[var(--gold-main)]">لوحة العضو</h1>
+          <p className="mt-1 font-nav text-sm text-gray-400">
+            {dataLoading ? 'جاري التحميل...' : [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ') || savedUser.firstName}
+          </p>
+          {photoError && <p className="font-nav text-xs mt-1" style={{ color: '#f87171' }}>{photoError}</p>}
+        </div>
       </div>
 
       {/* إشعار: تمت إضافتك في الشجرة من قِبل والدك */}
