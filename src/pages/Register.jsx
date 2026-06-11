@@ -241,7 +241,7 @@ export default function Register() {
         setMessageType('success');
       } else {
         setMessage(data.message || 'حدث خطأ');
-        setMessageType(data.status === 'pending' ? 'pending' : 'error');
+        setMessageType(data.status === 'pending' ? 'pending' : data.status === 'rejected' ? 'rejected' : 'error');
       }
     } catch {
       setMessage('تعذّر الاتصال بالخادم');
@@ -295,7 +295,9 @@ export default function Register() {
                 ? { background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: '#34d399' }
                 : messageType === 'pending'
                   ? { background: 'rgba(234,179,8,0.1)', border: '1px solid rgba(234,179,8,0.28)', color: '#eab308' }
-                  : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
+                  : messageType === 'rejected'
+                    ? { background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5' }
+                    : { background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171' }}>
               {message}
             </div>
           )}
