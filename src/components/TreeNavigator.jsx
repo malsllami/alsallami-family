@@ -111,7 +111,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
       {fixedPath.length > 0 && (
         <div className="rounded-xl px-3 py-2.5"
           style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', marginBottom: 6 }}>
-          <p className="font-nav text-xs mb-2 font-semibold" style={{ color: 'rgba(255,255,255,0.45)' }}>سلسلة الأجداد</p>
+          <p className="font-nav text-xs mb-2 font-semibold" style={{ color: 'rgba(255,255,255,0.80)' }}>سلسلة الأجداد</p>
           <div className="flex flex-wrap items-center gap-2">
             {/* الجذر — يظهر فقط إن لم يكن عقدة اصطناعية */}
             {tree.name !== 'الشجرة' && (
@@ -123,7 +123,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                   style={{ background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.3)' }}>
                   {tree.generationLevel ?? 0}
                 </span>
-                <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>←</span>
+                <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13 }}>←</span>
               </span>
             )}
             {fixedPath.map((n, i) => (
@@ -136,7 +136,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                   {n.generationLevel}
                 </span>
                 {i < fixedPath.length - 1 && (
-                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 13 }}>←</span>
+                  <span style={{ color: 'rgba(255,255,255,0.70)', fontSize: 13 }}>←</span>
                 )}
               </span>
             ))}
@@ -250,7 +250,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
           {/* سلسلة الأجيال */}
           <div>
-            <p className="font-nav text-sm font-semibold mb-2.5" style={{ color: 'rgba(255,255,255,0.6)' }}>سلسلة انتسابك</p>
+            <p className="font-nav text-sm font-semibold mb-2.5" style={{ color: 'rgba(255,255,255,0.88)' }}>سلسلة انتسابك</p>
             <div className="flex flex-wrap items-center gap-1.5">
               {pathNodes.map((n, i) => {
                 const isLastAndSelf = isSelf && i === pathNodes.length - 1
@@ -266,7 +266,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                         : { background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.25)' }}>
                       {n.generationLevel}
                     </span>
-                    {!isLastAndSelf && <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13 }}>←</span>}
+                    {!isLastAndSelf && <span style={{ color: 'rgba(255,255,255,0.72)', fontSize: 13 }}>←</span>}
                   </span>
                 )
               })}
@@ -293,7 +293,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               <p className="font-nav text-sm font-bold" style={{ color: 'var(--gold-main)' }}>
                 الجيل {myGenLevel}
               </p>
-              <p className="font-nav text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              <p className="font-nav text-xs mt-0.5" style={{ color: 'rgba(255,255,255,0.85)' }}>
                 {isSelf
                   ? `أنت: ${lastNode.name.split(' ')[0]} في الشجرة`
                   : `والدك في الشجرة: ${lastNode.name.split(' ')[0]}`}
@@ -305,7 +305,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
       {/* رسالة إذا وصل لآخر مستوى */}
       {lastNode && !(lastNode.children?.length) && (
-        <p className="font-nav text-xs text-center py-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+        <p className="font-nav text-xs text-center py-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
           هذا آخر مستوى متاح — استخدم زر &quot;هذا والدي&quot; أو &quot;هذا جدي&quot; في الصف أعلاه
         </p>
       )}
