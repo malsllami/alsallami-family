@@ -5,9 +5,9 @@
   --background-main:      #36404a;
   --background-secondary: #2B3542;
   --card-background:      #2E3947;
-  --gold-main:            #C6A16B;
-  --gold-dark:            #8D673D;
-  --text-light:           #F4F1EA;
+  --gold-main:            #D4AA6F;
+  --gold-dark:            #A07845;
+  --text-light:           #FFFFFF;
 
   --font-heading: 'Amiri',   serif;
   --font-body:    'Cairo',   sans-serif;
@@ -23,9 +23,9 @@
   --font-brand:   'Amiri',   serif;
 
   /* تحسين تباين النصوص على الخلفيات الداكنة */
-  --color-gray-400: #9ea8b3;
-  --color-gray-500: #7e8a96;
-  --color-gray-600: #61707e;
+  --color-gray-400: #bccad5;
+  --color-gray-500: #9db3c2;
+  --color-gray-600: #7d96a8;
 }
 
 /* ─── الجسم — خلفية بنسيج ورق فاخر ─── */
