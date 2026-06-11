@@ -64,7 +64,7 @@ export default function PhoneInput({
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', fontFamily: 'monospace', fontWeight: 600 }}>
               {selected.code}
             </span>
-            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.35)', marginTop: 1 }}>▼</span>
+            <span style={{ fontSize: 9, color: 'rgba(255,255,255,0.70)', marginTop: 1 }}>▼</span>
           </div>
           {/* select شفاف */}
           <select
