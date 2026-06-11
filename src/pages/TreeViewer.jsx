@@ -95,7 +95,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               style={{ background: 'rgba(198,161,107,0.15)', color: 'var(--gold-main)', letterSpacing: '0.02em' }}>
               جيل {lvl.genNum}
             </span>
-            <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>
+            <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>
               {lvl.index === 0 ? 'اختر الفخذ' : `أبناء ${pathNodes[lvl.index - 1]?.name?.split(' ')[0] || ''}`}
             </p>
           </div>
@@ -125,7 +125,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
           {/* سلسلة الأجيال */}
           <div>
-            <p className="font-nav text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.35)' }}>سلسلة انتسابك</p>
+            <p className="font-nav text-[10px] mb-2" style={{ color: 'rgba(255,255,255,0.70)' }}>سلسلة انتسابك</p>
             <div className="flex flex-wrap items-center gap-1">
               {pathNodes.map((n, i) => (
                 <span key={n.id} className="flex items-center gap-1">
@@ -136,7 +136,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
                     style={{ background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)' }}>
                     {n.generationLevel}
                   </span>
-                  <span style={{ color: 'rgba(255,255,255,0.25)', fontSize: 10 }}>←</span>
+                  <span style={{ color: 'rgba(255,255,255,0.58)', fontSize: 10 }}>←</span>
                 </span>
               ))}
               <span className="flex items-center gap-1">
@@ -160,7 +160,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
               <p className="font-nav text-xs font-semibold" style={{ color: 'var(--gold-main)' }}>
                 الجيل {myGenLevel}
               </p>
-              <p className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              <p className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.70)' }}>
                 أبوك في الشجرة: {lastNode.name.split(' ')[0]}
               </p>
             </div>
@@ -170,7 +170,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
       {/* رسالة إذا وصل لآخر مستوى */}
       {lastNode && !(lastNode.children?.length) && (
-        <p className="font-nav text-[11px] text-center" style={{ color: 'rgba(255,255,255,0.25)' }}>
+        <p className="font-nav text-[11px] text-center" style={{ color: 'rgba(255,255,255,0.58)' }}>
           هذا آخر مستوى متاح — إذا لم يكن أبوك موجوداً اختر &quot;أبي غير موجود&quot;
         </p>
       )}
