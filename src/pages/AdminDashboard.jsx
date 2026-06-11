@@ -157,6 +157,8 @@ export default function AdminDashboard() {
   const [daResult,   setDaResult]   = useState(null)
   const [daConfirm,  setDaConfirm]  = useState(false)
   const [treeManageTab, setTreeManageTab] = useState('edit')
+  const [repairLoading, setRepairLoading] = useState(false)
+  const [repairResult,  setRepairResult]  = useState(null)
 
   const [openSec, setOpenSec] = useState({
     scriptStats: false, platformStats: false, onlineUsers: false,
@@ -709,6 +711,20 @@ export default function AdminDashboard() {
       if (data.success) { setDaTargetId(''); setDaConfirm(false) }
     } catch { setDaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
     finally { setDaLoading(false); setDaConfirm(false) }
+  }
+
+  /* إصلاح مسارات وأجيال الشجرة */
+  const handleRepairTree = async () => {
+    setRepairLoading(true); setRepairResult(null)
+    try {
+      const res  = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'repairTreePaths' }),
+      })
+      const data = await res.json()
+      setRepairResult({ ok: data.success, msg: data.message || (data.success ? 'تم الإصلاح' : 'فشل') })
+    } catch { setRepairResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setRepairLoading(false) }
   }
 
   /* البيانات المُشتقة */
@@ -2145,6 +2161,7 @@ export default function AdminDashboard() {
               { key: 'delete', label: 'احذف جد' },
               { key: 'insert', label: 'إدراج جد وسيط' },
               { key: 'root',   label: 'إضافة فوق الجذر' },
+              { key: 'repair', label: 'إصلاح المسارات' },
             ].map(t => (
               <button key={t.key} onClick={() => setTreeManageTab(t.key)}
                 className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200"
@@ -2348,6 +2365,30 @@ export default function AdminDashboard() {
                 className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
                 style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
                 {raLoading ? 'جاري الإضافة...' : 'إضافة الجد وتحديث الشجرة'}
+              </button>
+            </div>
+          )}
+
+          {treeManageTab === 'repair' && (
+            <div className="mt-5 space-y-4">
+              <div className="rounded-2xl p-4"
+                style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                <p className="font-nav text-sm font-bold mb-1" style={{ color: '#fbbf24' }}>إصلاح مسارات وأجيال الشجرة</p>
+                <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                  يُعيد بناء عمود المسار ومستوى الجيل لجميع عقد الشجرة بناءً على هيكلها الفعلي —
+                  استخدم هذا الإصلاح بعد حذف جد أو أي عملية تسببت في خلل في المسارات.
+                </p>
+              </div>
+              {repairResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: repairResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: repairResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: repairResult.ok ? '#4ade80' : '#f87171' }}>
+                  {repairResult.msg}
+                </div>
+              )}
+              <button onClick={handleRepairTree} disabled={repairLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24' }}>
+                {repairLoading ? 'جاري الإصلاح...' : 'إصلاح المسارات والأجيال'}
               </button>
             </div>
           )}
