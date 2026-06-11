@@ -146,7 +146,23 @@ export default function AdminDashboard() {
   const [iaaLoading,    setIaaLoading]    = useState(false)
   const [iaaResult,     setIaaResult]     = useState(null)
 
-  const [openSec, setOpenSec] = useState({ regReq: true, treeReq: true, addMember: true, insertAncestor: false, addRootAncestor: false })
+  /* تعديل / حذف الجد */
+  const [eaTargetId, setEaTargetId] = useState('')
+  const [eaName,     setEaName]     = useState('')
+  const [eaStatus,   setEaStatus]   = useState('')
+  const [eaLoading,  setEaLoading]  = useState(false)
+  const [eaResult,   setEaResult]   = useState(null)
+  const [daTargetId, setDaTargetId] = useState('')
+  const [daLoading,  setDaLoading]  = useState(false)
+  const [daResult,   setDaResult]   = useState(null)
+  const [daConfirm,  setDaConfirm]  = useState(false)
+  const [treeManageTab, setTreeManageTab] = useState('edit')
+
+  const [openSec, setOpenSec] = useState({
+    scriptStats: false, platformStats: false, onlineUsers: false,
+    regReq: false, treeReq: false, treeStats: false,
+    addMember: false, treeManage: false, adminProfile: false,
+  })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
 
   /* جلب إحصائيات المنصة */
@@ -661,6 +677,40 @@ export default function AdminDashboard() {
     finally  { setPwLoading(false) }
   }
 
+  /* تعديل اسم جد */
+  const handleEditAncestor = async () => {
+    if (!eaTargetId) return setEaResult({ ok: false, msg: 'اختر العقدة أولاً' })
+    if (!eaName.trim() && !eaStatus.trim()) return setEaResult({ ok: false, msg: 'أدخل الاسم أو الحالة' })
+    setEaLoading(true); setEaResult(null)
+    try {
+      const res  = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'updateTreeNode', nodeId: eaTargetId, name: eaName.trim() || undefined, status: eaStatus || undefined }),
+      })
+      const data = await res.json()
+      setEaResult({ ok: data.success, msg: data.message || (data.success ? 'تم التعديل' : 'فشل') })
+      if (data.success) { setEaTargetId(''); setEaName(''); setEaStatus('') }
+    } catch { setEaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setEaLoading(false) }
+  }
+
+  /* حذف جد */
+  const handleDeleteAncestor = async () => {
+    if (!daTargetId) return setDaResult({ ok: false, msg: 'اختر العقدة أولاً' })
+    if (!daConfirm) return setDaConfirm(true)
+    setDaLoading(true); setDaResult(null)
+    try {
+      const res  = await fetch(import.meta.env.VITE_API_URL, {
+        method: 'POST',
+        body: JSON.stringify({ action: 'deleteTreeNode', nodeId: daTargetId }),
+      })
+      const data = await res.json()
+      setDaResult({ ok: data.success, msg: data.message || (data.success ? 'تم الحذف' : 'فشل') })
+      if (data.success) { setDaTargetId(''); setDaConfirm(false) }
+    } catch { setDaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setDaLoading(false); setDaConfirm(false) }
+  }
+
   /* البيانات المُشتقة */
   const scriptUsage   = stats?.scriptUsage   ?? 0
   const scriptCount   = stats?.scriptCount   ?? 0
@@ -671,6 +721,11 @@ export default function AdminDashboard() {
   const dailyStats    = stats?.dailyStats    ?? [0, 0, 0, 0, 0, 0, 0]
   const maxStat       = Math.max(...dailyStats, 1)
   const theme         = usageTheme(scriptUsage)
+
+  const jobStats       = stats?.jobStats        ?? {}
+  const totalEmployees = jobStats['موظف']        ?? 0
+  const totalStudents  = jobStats['طالب']        ?? 0
+  const totalRetirees  = jobStats['متقاعد']      ?? 0
 
   const today = new Date().toLocaleDateString('ar-SA', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -815,25 +870,34 @@ export default function AdminDashboard() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-4xl font-bold text-[var(--gold-main)]">لوحة تحكم المدير</h1>
-          <p className="mt-2 font-nav text-gray-400">
-            مرحباً {user?.firstName}، إليك نظرة عامة على المنصة
-          </p>
+          <p className="mt-2 font-nav text-gray-400">مرحباً {user?.firstName} — {today}</p>
         </div>
-        <div
-          className="font-nav text-sm text-gray-400 px-4 py-2.5 rounded-2xl flex-shrink-0"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)' }}
-        >
-          {today}
+        <div className="flex gap-2 flex-shrink-0">
+          <button onClick={() => setOpenSec(p => Object.fromEntries(Object.keys(p).map(k => [k, true])))}
+            className="font-nav text-xs px-3 py-1.5 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.72)' }}>
+            فتح الكل
+          </button>
+          <button onClick={() => setOpenSec(p => Object.fromEntries(Object.keys(p).map(k => [k, false])))}
+            className="font-nav text-xs px-3 py-1.5 rounded-xl"
+            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.72)' }}>
+            طي الكل
+          </button>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════
-          الصف الأول: استهلاك السكربت + المتواجدون
-         ══════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* ══ الصف الأول ══ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
 
-        {/* بطاقة الاستهلاك */}
-        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7 lg:col-span-2" style={{ background: 'rgba(234,179,8,0.07)', border: '1px solid rgba(234,179,8,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+        {/* 1 — استهلاك السكربت */}
+        <DashCard
+          color={{ bg: 'rgba(234,179,8,0.07)', border: 'rgba(234,179,8,0.22)', soft: 'rgba(234,179,8,0.12)', accent: '#fbbf24' }}
+          title="استهلاك السكربت"
+          badge={`${scriptUsage}%`}
+          badgeStyle={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.bar}44` }}
+          open={openSec.scriptStats}
+          onToggle={() => toggleSec('scriptStats')}
+        >
 
           <div className="flex items-start justify-between mb-7">
             <div>
@@ -932,7 +996,7 @@ export default function AdminDashboard() {
           <p className="mt-5 font-nav text-xs text-gray-600">
             يتجدد حد الاستخدام تلقائياً كل 24 ساعة منتصف الليل
           </p>
-        </div>
+        </DashCard>
 
         {/* بطاقة المتواجدين */}
         <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7 flex flex-col" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
@@ -1162,6 +1226,23 @@ export default function AdminDashboard() {
                   style={{ background: c.bg, border: `1px solid ${c.border}` }}>
                   <p className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: c.color }}>
                     {c.value?.toLocaleString('ar') ?? '—'}
+                  </p>
+                  <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* توزيع المهن */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              {[
+                { label: 'موظفون',   value: totalEmployees, color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.22)' },
+                { label: 'طلاب',     value: totalStudents,  color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.22)' },
+                { label: 'متقاعدون', value: totalRetirees,  color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.22)' },
+              ].map(c => (
+                <div key={c.label} className="rounded-2xl p-4 text-center"
+                  style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <p className="text-2xl font-black tabular-nums" style={{ color: c.color }}>
+                    {statsLoading ? '—' : c.value.toLocaleString('ar')}
                   </p>
                   <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
                 </div>
@@ -2031,181 +2112,245 @@ export default function AdminDashboard() {
       </div>
 
       {/* ══════════════════════════════════════
-          إدراج جد وسيط فوق أي عقدة
+          إدارة الشجرة العائلية (4 تبويبات)
          ══════════════════════════════════════ */}
       <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
 
-        <div className="flex items-start justify-between cursor-pointer" onClick={() => toggleSec('insertAncestor')}>
+        <div className="flex items-start justify-between cursor-pointer" onClick={() => toggleSec('treeManage')}>
           <div>
-            <p className="font-nav text-sm text-gray-400 mb-1">إدراج جد وسيط في الشجرة</p>
-            {openSec.insertAncestor && <p className="font-nav text-xs text-gray-600">يُدرَج الجد فوق عقدة موجودة مع تحديث مستويات الجيل لفرعها كله</p>}
+            <p className="font-nav text-sm text-gray-400 mb-1">إدارة الشجرة العائلية</p>
+            {openSec.treeManage && <p className="font-nav text-xs text-gray-600">تعديل وحذف وإدراج الأجداد في الشجرة</p>}
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
               style={{ background: 'rgba(168,85,247,0.1)', border: '1px solid rgba(168,85,247,0.25)' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(168,85,247,0.8)" strokeWidth="2">
-                <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 5 5 12"/>
-              </svg>
-            </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
-              style={{ transform: openSec.insertAncestor ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ display: openSec.insertAncestor ? 'block' : 'none' }}>
-
-          <div className="mt-5 p-4 rounded-2xl" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}>
-            <p className="font-nav text-xs" style={{ color: 'rgba(216,180,254,0.85)' }}>
-              مثال: لإضافة "صاحب" بين إبراهيم وأحمد — اختر "أحمد" من القائمة واكتب "صاحب". سيصبح أحمد وفرعه كله أبناء صاحب.
-            </p>
-          </div>
-
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة التي ستصبح ابناً *</label>
-              <select className="form-input" value={iaaTargetId}
-                onChange={e => setIaaTargetId(e.target.value)}>
-                <option value="">— اختر من الشجرة —</option>
-                {amFlatTree.filter(n => !n.isChildRecord).map(n => (
-                  <option key={n.id} value={n.id}>
-                    {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block mb-1.5 font-nav text-xs text-gray-500">اسم الجد الوسيط *</label>
-              <input className="form-input" placeholder="مثال: صاحب" value={iaaName}
-                onChange={e => setIaaName(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <p className="font-nav text-xs text-gray-500 mb-2">الحالة</p>
-            <div className="flex gap-3">
-              {['حي', 'متوفى'].map(val => (
-                <button key={val} type="button" onClick={() => setIaaAlive(val)}
-                  className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
-                  style={{
-                    background: iaaAlive === val
-                      ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)')
-                      : 'rgba(255,255,255,0.03)',
-                    border: iaaAlive === val
-                      ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)')
-                      : '1px solid rgba(255,255,255,0.08)',
-                    color: iaaAlive === val
-                      ? (val === 'حي' ? '#4ade80' : '#9ca3af')
-                      : 'rgba(255,255,255,0.70)',
-                  }}>
-                  {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {iaaResult && (
-            <div className="mt-4 px-4 py-3 rounded-2xl font-nav text-sm"
-              style={{
-                background: iaaResult.success ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                border:     iaaResult.success ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)',
-                color:      iaaResult.success ? '#4ade80' : '#f87171',
-              }}>
-              {iaaResult.message}
-            </div>
-          )}
-
-          <button onClick={handleInsertAncestorAbove} disabled={iaaLoading}
-            className="mt-5 font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-            style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c084fc' }}>
-            {iaaLoading ? 'جاري الإدراج...' : 'إدراج الجد الوسيط'}
-          </button>
-
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          إضافة جد فوق جذر الشجرة
-         ══════════════════════════════════════ */}
-      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-
-        <div className="flex items-start justify-between cursor-pointer" onClick={() => toggleSec('addRootAncestor')}>
-          <div>
-            <p className="font-nav text-sm text-gray-400 mb-1">إضافة جد فوق جذر الشجرة</p>
-            {openSec.addRootAncestor && <p className="font-nav text-xs text-gray-600">يُضاف الجد فوق إبراهيم العفريتي ويُحدَّث مستوى الجيل لجميع العقد تلقائياً</p>}
-          </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
-              style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.25)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(239,68,68,0.7)" strokeWidth="2">
                 <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
                 <circle cx="9" cy="7" r="4"/>
-                <polyline points="16 11 18 13 22 9"/>
               </svg>
             </div>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
-              style={{ transform: openSec.addRootAncestor ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              style={{ transform: openSec.treeManage ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
               <polyline points="6 9 12 15 18 9"/>
             </svg>
           </div>
         </div>
 
-        <div style={{ display: openSec.addRootAncestor ? 'block' : 'none' }}>
+        <div style={{ display: openSec.treeManage ? 'block' : 'none' }}>
 
-          <div className="mt-5 p-4 rounded-2xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
-            <p className="font-nav text-xs" style={{ color: 'rgba(252,165,165,0.85)' }}>
-              تحذير: هذا الإجراء يُعيد ترقيم مستويات الجيل لجميع العقد في الشجرة. لا تُكرّره إلا إذا كنت تضيف جداً جديداً فعلاً.
-            </p>
+          {/* التبويبات */}
+          <div className="flex gap-2 mt-5 flex-wrap">
+            {[
+              { key: 'edit',   label: 'تعديل اسم الجد' },
+              { key: 'delete', label: 'احذف جد' },
+              { key: 'insert', label: 'إدراج جد وسيط' },
+              { key: 'root',   label: 'إضافة فوق الجذر' },
+            ].map(t => (
+              <button key={t.key} onClick={() => setTreeManageTab(t.key)}
+                className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200"
+                style={{
+                  background: treeManageTab === t.key ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
+                  border:     treeManageTab === t.key ? '1px solid rgba(168,85,247,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                  color:      treeManageTab === t.key ? '#c084fc' : 'rgba(255,255,255,0.7)',
+                }}>
+                {t.label}
+              </button>
+            ))}
           </div>
 
-          <div className="mt-5 grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-1.5 font-nav text-xs text-gray-500">اسم الجد *</label>
-              <input className="form-input" placeholder="مثال: سالم" value={raName}
-                onChange={e => setRaName(e.target.value)} />
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <p className="font-nav text-xs text-gray-500 mb-2">الحالة</p>
-            <div className="flex gap-3">
-              {['حي', 'متوفى'].map(val => (
-                <button key={val} type="button" onClick={() => setRaAlive(val)}
-                  className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
-                  style={{
-                    background: raAlive === val
-                      ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)')
-                      : 'rgba(255,255,255,0.03)',
-                    border: raAlive === val
-                      ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)')
-                      : '1px solid rgba(255,255,255,0.08)',
-                    color: raAlive === val
-                      ? (val === 'حي' ? '#4ade80' : '#9ca3af')
-                      : 'rgba(255,255,255,0.70)',
-                  }}>
-                  {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {raResult && (
-            <div className="mt-4 px-4 py-3 rounded-2xl font-nav text-sm"
-              style={{
-                background: raResult.success ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)',
-                border:     raResult.success ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)',
-                color:      raResult.success ? '#4ade80' : '#f87171',
-              }}>
-              {raResult.message}
+          {/* تعديل اسم الجد */}
+          {treeManageTab === 'edit' && (
+            <div className="mt-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة المراد تعديلها *</label>
+                  <select className="form-input" value={eaTargetId} onChange={e => setEaTargetId(e.target.value)}>
+                    <option value="">— اختر من الشجرة —</option>
+                    {amFlatTree.filter(n => !n.isChildRecord).map(n => (
+                      <option key={n.id} value={n.id}>
+                        {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1.5 font-nav text-xs text-gray-500">الاسم الجديد</label>
+                  <input className="form-input" placeholder="اتركه فارغاً للاحتفاظ بالاسم" value={eaName}
+                    onChange={e => setEaName(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <p className="font-nav text-xs text-gray-500 mb-2">الحالة الجديدة</p>
+                <div className="flex gap-3">
+                  {[
+                    { val: '',       label: 'بدون تغيير' },
+                    { val: 'حي',     label: '🟢 حي' },
+                    { val: 'متوفى',  label: '⬜ متوفى' },
+                  ].map(({ val, label }) => (
+                    <button key={val || 'keep'} type="button" onClick={() => setEaStatus(val)}
+                      className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
+                      style={{
+                        background: eaStatus === val ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : val === 'متوفى' ? 'rgba(107,114,128,0.15)' : 'rgba(255,255,255,0.08)') : 'rgba(255,255,255,0.03)',
+                        border:     eaStatus === val ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : val === 'متوفى' ? '1px solid rgba(107,114,128,0.4)' : '1px solid rgba(255,255,255,0.2)') : '1px solid rgba(255,255,255,0.08)',
+                        color:      eaStatus === val ? (val === 'حي' ? '#4ade80' : val === 'متوفى' ? '#9ca3af' : '#fff') : 'rgba(255,255,255,0.70)',
+                      }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {eaResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: eaResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: eaResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: eaResult.ok ? '#4ade80' : '#f87171' }}>
+                  {eaResult.msg}
+                </div>
+              )}
+              <button onClick={handleEditAncestor} disabled={eaLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: 'rgba(198,161,107,0.14)', border: '1px solid rgba(198,161,107,0.35)', color: 'var(--gold-main)' }}>
+                {eaLoading ? 'جاري التعديل...' : 'حفظ التعديل'}
+              </button>
             </div>
           )}
 
-          <button onClick={handleAddRootAncestor} disabled={raLoading}
-            className="mt-5 font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
-            {raLoading ? 'جاري الإضافة...' : 'إضافة الجد وتحديث الشجرة'}
-          </button>
+          {/* احذف جد */}
+          {treeManageTab === 'delete' && (
+            <div className="mt-5 space-y-4">
+              <div className="p-4 rounded-2xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(252,165,165,0.85)' }}>
+                  تحذير: عند حذف جد، ينتقل أبناؤه إلى جده وتُضبط مستويات الجيل تلقائياً.
+                </p>
+              </div>
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة المراد حذفها *</label>
+                <select className="form-input" value={daTargetId}
+                  onChange={e => { setDaTargetId(e.target.value); setDaConfirm(false) }}>
+                  <option value="">— اختر من الشجرة —</option>
+                  {amFlatTree.filter(n => !n.isChildRecord).map(n => (
+                    <option key={n.id} value={n.id}>
+                      {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {daConfirm && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+                  هل أنت متأكد من حذف &quot;{amFlatTree.find(n => n.id === daTargetId)?.name}&quot;؟ اضغط مرة أخرى للتأكيد.
+                </div>
+              )}
+              {daResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: daResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: daResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: daResult.ok ? '#4ade80' : '#f87171' }}>
+                  {daResult.msg}
+                </div>
+              )}
+              <button onClick={handleDeleteAncestor} disabled={daLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: daConfirm ? 'rgba(239,68,68,0.16)' : 'rgba(239,68,68,0.08)', border: `1px solid rgba(239,68,68,${daConfirm ? 0.4 : 0.22})`, color: '#f87171' }}>
+                {daLoading ? 'جاري الحذف...' : daConfirm ? 'تأكيد الحذف' : 'حذف الجد'}
+              </button>
+            </div>
+          )}
+
+          {/* إدراج جد وسيط */}
+          {treeManageTab === 'insert' && (
+            <div className="mt-5 space-y-4">
+              <div className="p-4 rounded-2xl" style={{ background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(216,180,254,0.85)' }}>
+                  مثال: لإضافة "صاحب" بين إبراهيم وأحمد — اختر "أحمد" من القائمة واكتب "صاحب". سيصبح أحمد وفرعه كله أبناء صاحب.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة التي ستصبح ابناً *</label>
+                  <select className="form-input" value={iaaTargetId} onChange={e => setIaaTargetId(e.target.value)}>
+                    <option value="">— اختر من الشجرة —</option>
+                    {amFlatTree.filter(n => !n.isChildRecord).map(n => (
+                      <option key={n.id} value={n.id}>
+                        {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block mb-1.5 font-nav text-xs text-gray-500">اسم الجد الوسيط *</label>
+                  <input className="form-input" placeholder="مثال: صاحب" value={iaaName}
+                    onChange={e => setIaaName(e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <p className="font-nav text-xs text-gray-500 mb-2">الحالة</p>
+                <div className="flex gap-3">
+                  {['حي', 'متوفى'].map(val => (
+                    <button key={val} type="button" onClick={() => setIaaAlive(val)}
+                      className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
+                      style={{
+                        background: iaaAlive === val ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)') : 'rgba(255,255,255,0.03)',
+                        border:     iaaAlive === val ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)') : '1px solid rgba(255,255,255,0.08)',
+                        color:      iaaAlive === val ? (val === 'حي' ? '#4ade80' : '#9ca3af') : 'rgba(255,255,255,0.70)',
+                      }}>
+                      {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {iaaResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: iaaResult.success ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: iaaResult.success ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: iaaResult.success ? '#4ade80' : '#f87171' }}>
+                  {iaaResult.message}
+                </div>
+              )}
+              <button onClick={handleInsertAncestorAbove} disabled={iaaLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.35)', color: '#c084fc' }}>
+                {iaaLoading ? 'جاري الإدراج...' : 'إدراج الجد الوسيط'}
+              </button>
+            </div>
+          )}
+
+          {/* إضافة جد فوق الجذر */}
+          {treeManageTab === 'root' && (
+            <div className="mt-5 space-y-4">
+              <div className="p-4 rounded-2xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(252,165,165,0.85)' }}>
+                  تحذير: هذا الإجراء يُعيد ترقيم مستويات الجيل لجميع العقد في الشجرة. لا تُكرّره إلا إذا كنت تضيف جداً جديداً فعلاً.
+                </p>
+              </div>
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">اسم الجد *</label>
+                <input className="form-input" placeholder="مثال: سالم" value={raName}
+                  onChange={e => setRaName(e.target.value)} />
+              </div>
+              <div>
+                <p className="font-nav text-xs text-gray-500 mb-2">الحالة</p>
+                <div className="flex gap-3">
+                  {['حي', 'متوفى'].map(val => (
+                    <button key={val} type="button" onClick={() => setRaAlive(val)}
+                      className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
+                      style={{
+                        background: raAlive === val ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)') : 'rgba(255,255,255,0.03)',
+                        border:     raAlive === val ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)') : '1px solid rgba(255,255,255,0.08)',
+                        color:      raAlive === val ? (val === 'حي' ? '#4ade80' : '#9ca3af') : 'rgba(255,255,255,0.70)',
+                      }}>
+                      {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {raResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: raResult.success ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: raResult.success ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: raResult.success ? '#4ade80' : '#f87171' }}>
+                  {raResult.message}
+                </div>
+              )}
+              <button onClick={handleAddRootAncestor} disabled={raLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
+                {raLoading ? 'جاري الإضافة...' : 'إضافة الجد وتحديث الشجرة'}
+              </button>
+            </div>
+          )}
 
         </div>
       </div>
@@ -2213,6 +2358,36 @@ export default function AdminDashboard() {
     </div>
   </>
 )
+}
+
+function DashCard({ color, title, badge, badgeStyle, open, onToggle, children }) {
+  return (
+    <div className="rounded-2xl sm:rounded-[28px]"
+      style={{ background: color.bg, border: `1px solid ${color.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+      <div className="flex items-center justify-between cursor-pointer px-5 py-4 sm:px-6 sm:py-5 select-none" onClick={onToggle}>
+        <span className="font-nav text-sm font-semibold text-white">{title}</span>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {badge != null && (
+            <span className="font-nav text-xs font-bold px-2.5 py-1 rounded-full"
+              style={badgeStyle || { background: color.soft || 'rgba(255,255,255,0.08)', color: color.accent || '#fff', border: `1px solid ${color.border}` }}>
+              {badge}
+            </span>
+          )}
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2"
+            style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.35s cubic-bezier(0.23,1,0.32,1)', flexShrink: 0 }}>
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows 0.4s cubic-bezier(0.23,1,0.32,1)' }}>
+        <div style={{ overflow: 'hidden' }}>
+          <div className="px-5 pb-6 sm:px-6 sm:pb-7">
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function AmField({ label, children }) {
