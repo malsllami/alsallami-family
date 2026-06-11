@@ -111,7 +111,7 @@ function InlineEditButtons({ t, onSave, onCancel, loading }) {
       </button>
       <button onClick={onCancel}
         className="flex-1 font-nav text-xs py-2 rounded-xl"
-        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)' }}>
+        style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.72)' }}>
         إلغاء
       </button>
     </div>
@@ -631,13 +631,13 @@ export default function MemberDashboard() {
             <p className="font-nav text-sm font-semibold" style={{ color: '#2dd4bf' }}>
               تمت إضافتك في الشجرة العائلية من قِبل والدك
             </p>
-            <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.45)' }}>
+            <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.80)' }}>
               قام <span style={{ color: 'rgba(255,255,255,0.75)' }}>{preLinked.fatherName}</span> بتسجيلك مسبقاً ضمن أبنائه في الشجرة — موقعك في الشجرة محجوز باسمك.
             </p>
           </div>
           <button onClick={() => setPreLinked(null)}
             className="font-nav text-xs mt-0.5 flex-shrink-0"
-            style={{ color: 'rgba(255,255,255,0.25)' }}>✕</button>
+            style={{ color: 'rgba(255,255,255,0.58)' }}>✕</button>
         </div>
       )}
 
@@ -681,7 +681,7 @@ export default function MemberDashboard() {
           <button
             onClick={() => { setEditId(e => !e); setIdDraft({ nationalId: m.nationalId || '', branch: m.branch || '', fatherName: m.fatherName || '', grandfatherName: m.grandfatherName || '' }) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-            style={{ border: `1px solid ${editId ? T.blue.border : 'rgba(255,255,255,0.1)'}`, color: editId ? T.blue.accent : 'rgba(255,255,255,0.4)', background: editId ? T.blue.soft : 'transparent' }}>
+            style={{ border: `1px solid ${editId ? T.blue.border : 'rgba(255,255,255,0.1)'}`, color: editId ? T.blue.accent : 'rgba(255,255,255,0.72)', background: editId ? T.blue.soft : 'transparent' }}>
             {editId ? 'إلغاء' : 'تعديل'}
           </button>
         )}>
@@ -744,7 +744,7 @@ export default function MemberDashboard() {
           <button
             onClick={() => { setEditBirth(e => !e); setBirthDraft({ birthDate: m.birthDate || '', maritalStatus: m.maritalStatus || '' }) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-            style={{ border: `1px solid ${editBirth ? T.purple.border : 'rgba(255,255,255,0.1)'}`, color: editBirth ? T.purple.accent : 'rgba(255,255,255,0.4)', background: editBirth ? T.purple.soft : 'transparent' }}>
+            style={{ border: `1px solid ${editBirth ? T.purple.border : 'rgba(255,255,255,0.1)'}`, color: editBirth ? T.purple.accent : 'rgba(255,255,255,0.72)', background: editBirth ? T.purple.soft : 'transparent' }}>
             {editBirth ? 'إلغاء' : 'تعديل'}
           </button>
         )}>
@@ -790,7 +790,7 @@ export default function MemberDashboard() {
           <button
             onClick={() => { setEditContact(e => !e); setDraft({ firstName: m.firstName || '', phone: m.phone || '', email: m.email || '', city: m.city || '', job: m.job || '' }) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-            style={{ border: `1px solid ${editContact ? T.teal.border : 'rgba(255,255,255,0.1)'}`, color: editContact ? T.teal.accent : 'rgba(255,255,255,0.4)', background: editContact ? T.teal.soft : 'transparent' }}>
+            style={{ border: `1px solid ${editContact ? T.teal.border : 'rgba(255,255,255,0.1)'}`, color: editContact ? T.teal.accent : 'rgba(255,255,255,0.72)', background: editContact ? T.teal.soft : 'transparent' }}>
             {editContact ? 'إلغاء' : 'تعديل'}
           </button>
         )}>
@@ -856,7 +856,7 @@ export default function MemberDashboard() {
         } action={!dataLoading && (
           <button onClick={() => { setShowAddChild(v => !v); setEditingChildId(null) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-            style={{ border: `1px solid ${showAddChild ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showAddChild ? T.emerald.accent : 'rgba(255,255,255,0.4)', background: showAddChild ? T.emerald.soft : 'transparent' }}>
+            style={{ border: `1px solid ${showAddChild ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showAddChild ? T.emerald.accent : 'rgba(255,255,255,0.72)', background: showAddChild ? T.emerald.soft : 'transparent' }}>
             {showAddChild ? 'إلغاء' : '+ إضافة'}
           </button>
         )}>
@@ -887,12 +887,12 @@ export default function MemberDashboard() {
                       <div className="flex gap-2">
                         <button type="button" onClick={() => setChildDraft(p => ({ ...p, alive: true }))}
                           className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
-                          style={{ background: childDraft.alive ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${childDraft.alive ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, color: childDraft.alive ? '#34d399' : 'rgba(255,255,255,0.3)' }}>
+                          style={{ background: childDraft.alive ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${childDraft.alive ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, color: childDraft.alive ? '#34d399' : 'rgba(255,255,255,0.62)' }}>
                           حي
                         </button>
                         <button type="button" onClick={() => setChildDraft(p => ({ ...p, alive: false }))}
                           className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
-                          style={{ background: !childDraft.alive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!childDraft.alive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !childDraft.alive ? '#9ca3af' : 'rgba(255,255,255,0.3)' }}>
+                          style={{ background: !childDraft.alive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!childDraft.alive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !childDraft.alive ? '#9ca3af' : 'rgba(255,255,255,0.62)' }}>
                           متوفى
                         </button>
                       </div>
@@ -951,12 +951,12 @@ export default function MemberDashboard() {
                   <div className="flex gap-2">
                     <button type="button" onClick={() => setNewChild(p => ({ ...p, alive: true }))}
                       className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
-                      style={{ background: newChild.alive ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${newChild.alive ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, color: newChild.alive ? '#34d399' : 'rgba(255,255,255,0.3)' }}>
+                      style={{ background: newChild.alive ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${newChild.alive ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, color: newChild.alive ? '#34d399' : 'rgba(255,255,255,0.62)' }}>
                       حي
                     </button>
                     <button type="button" onClick={() => setNewChild(p => ({ ...p, alive: false }))}
                       className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
-                      style={{ background: !newChild.alive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!newChild.alive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !newChild.alive ? '#9ca3af' : 'rgba(255,255,255,0.3)' }}>
+                      style={{ background: !newChild.alive ? 'rgba(156,163,175,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${!newChild.alive ? 'rgba(156,163,175,0.3)' : 'rgba(255,255,255,0.08)'}`, color: !newChild.alive ? '#9ca3af' : 'rgba(255,255,255,0.62)' }}>
                       متوفى
                     </button>
                   </div>
@@ -1017,7 +1017,7 @@ export default function MemberDashboard() {
               <div className="flex justify-center mt-3">
                 <a href={`${import.meta.env.BASE_URL}family-tree`}
                   className="font-nav text-xs transition-colors duration-200"
-                  style={{ color: 'rgba(198,161,107,0.55)' }}
+                  style={{ color: 'var(--gold-main)' }}
                   onMouseEnter={e => e.currentTarget.style.color = 'var(--gold-main)'}
                   onMouseLeave={e => e.currentTarget.style.color = 'rgba(198,161,107,0.55)'}>
                   عرض موقعي في الشجرة الكاملة ←
@@ -1027,7 +1027,7 @@ export default function MemberDashboard() {
           ) : (
             <div className="rounded-2xl p-5 text-center space-y-2"
               style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.1)' }}>
-              <p className="font-nav text-sm" style={{ color: 'rgba(255,255,255,0.45)' }}>لم تُضف إلى الشجرة العائلية بعد</p>
+              <p className="font-nav text-sm" style={{ color: 'rgba(255,255,255,0.80)' }}>لم تُضف إلى الشجرة العائلية بعد</p>
               {treeRequestStatus?.status === 'معلق' && (
                 <p className="font-nav text-xs" style={{ color: 'rgba(245,158,11,0.8)' }}>طلبك قيد المراجعة من المدير</p>
               )}
@@ -1073,7 +1073,7 @@ export default function MemberDashboard() {
             <button onClick={() => { setShowTreeLink(v => !v); setTreeLinkMsg(null) }}
               disabled={!canOpenTreeLink}
               className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ border: `1px solid ${showTreeLink ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showTreeLink ? T.emerald.accent : 'rgba(255,255,255,0.4)', background: showTreeLink ? T.emerald.soft : 'transparent' }}>
+              style={{ border: `1px solid ${showTreeLink ? T.emerald.border : 'rgba(255,255,255,0.1)'}`, color: showTreeLink ? T.emerald.accent : 'rgba(255,255,255,0.72)', background: showTreeLink ? T.emerald.soft : 'transparent' }}>
               {showTreeLink ? 'إلغاء' : (canOpenTreeLink ? 'ربط بالشجرة' : (preLinked ? 'أضف أبناءك أولاً' : 'أكمل بياناتك أولاً'))}
             </button>
           )}
@@ -1093,14 +1093,14 @@ export default function MemberDashboard() {
         )}
 
         <SlidePanel open={showTreeLink}>
-          <p className="font-nav text-xs leading-5 pb-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+          <p className="font-nav text-xs leading-5 pb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
             إذا كان اسمك مضافاً مسبقاً في الشجرة اضغط <span style={{ color: '#2dd4bf' }}>هذا أنا</span>.
-            وإلا ابحث عن والدك واضغط <span style={{ color: 'rgba(198,161,107,0.9)' }}>هذا والدي</span>.
+            وإلا ابحث عن والدك واضغط <span style={{ color: 'var(--gold-main)' }}>هذا والدي</span>.
             إذا لم يكن والدك موجوداً، اختر جدك واضغط <span style={{ color: '#fb923c' }}>هذا جدي</span> ثم اكتب اسم والدك.
           </p>
 
           {treeLoading ? (
-            <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.35)' }}>جاري تحميل الشجرة...</p>
+            <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.70)' }}>جاري تحميل الشجرة...</p>
           ) : (
             <TreeNavigator
               treeData={treeData}
@@ -1120,9 +1120,9 @@ export default function MemberDashboard() {
           {/* موقعي في الشجرة — هذا أنا */}
           {selectedLinkSelf && (
             <div className="rounded-2xl p-4" style={{ background: 'rgba(20,184,166,0.05)', border: '1px solid rgba(20,184,166,0.22)' }}>
-              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>موقعك في الشجرة:</p>
+              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>موقعك في الشجرة:</p>
               <p className="font-nav text-sm font-semibold mt-1" style={{ color: '#2dd4bf' }}>{selectedLinkSelf.name}</p>
-              <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
                 الجيل: <span style={{ color: '#2dd4bf' }}>{selectedLinkSelf.generationLevel}</span>
                 {selectedLinkSelf.parentName && <> &nbsp;|&nbsp; الوالد: <span style={{ color: '#2dd4bf' }}>{selectedLinkSelf.parentName}</span></>}
               </p>
@@ -1135,9 +1135,9 @@ export default function MemberDashboard() {
           {/* ابني في الشجرة */}
           {selectedLinkSon && (
             <div className="rounded-2xl p-4" style={{ background: 'rgba(167,139,250,0.05)', border: '1px solid rgba(167,139,250,0.22)' }}>
-              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>ابنك المختار من الشجرة:</p>
+              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>ابنك المختار من الشجرة:</p>
               <p className="font-nav text-sm font-semibold mt-1" style={{ color: '#a78bfa' }}>{selectedLinkSon.name}</p>
-              <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.4)' }}>
+              <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
                 جيله: <span style={{ color: '#a78bfa' }}>{selectedLinkSon.generationLevel}</span>
                 &nbsp;— جيلك: <span style={{ color: '#a78bfa' }}>{(selectedLinkSon.generationLevel || 1) - 1}</span>
               </p>
@@ -1150,7 +1150,7 @@ export default function MemberDashboard() {
           {/* عرض الوالد المختار */}
           {selectedLinkFather && (
             <div className="rounded-2xl p-4" style={{ background: 'rgba(198,161,107,0.05)', border: '1px solid rgba(198,161,107,0.2)' }}>
-              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>الوالد المختار:</p>
+              <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>الوالد المختار:</p>
               <p className="font-nav text-sm font-semibold mt-1" style={{ color: 'var(--gold-main)' }}>{selectedLinkFather.name}</p>
             </div>
           )}
@@ -1159,7 +1159,7 @@ export default function MemberDashboard() {
           {selectedLinkGrandfa && (
             <div className="space-y-2">
               <div className="rounded-2xl p-4" style={{ background: 'rgba(251,146,60,0.05)', border: '1px solid rgba(251,146,60,0.2)' }}>
-                <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.4)' }}>الجد المختار:</p>
+                <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.72)' }}>الجد المختار:</p>
                 <p className="font-nav text-sm font-semibold mt-1" style={{ color: '#fb923c' }}>{selectedLinkGrandfa.name}</p>
                 {(selectedLinkGrandfa.children || []).find(c => (c.name || '').split(' ')[0].trim() === linkFatherName.trim()) && (
                   <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
@@ -1168,7 +1168,7 @@ export default function MemberDashboard() {
                 )}
               </div>
               <div>
-                <p className="font-nav text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.4)' }}>اسم والدك (غير الموجود في الشجرة) *</p>
+                <p className="font-nav text-xs mb-1.5" style={{ color: 'rgba(255,255,255,0.72)' }}>اسم والدك (غير الموجود في الشجرة) *</p>
                 <input type="text" value={linkFatherName} onChange={e => setLinkFatherName(e.target.value)}
                   placeholder="اسم الأب الكامل" className="form-input" />
               </div>
@@ -1200,7 +1200,7 @@ export default function MemberDashboard() {
           </div>
           <button onClick={() => { setShowChangePw(v => !v); setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' }) }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
-            style={{ border: `1px solid ${showChangePw ? T.gold.border : 'rgba(255,255,255,0.1)'}`, color: showChangePw ? 'var(--gold-main)' : 'rgba(255,255,255,0.4)', background: showChangePw ? T.gold.soft : 'transparent' }}>
+            style={{ border: `1px solid ${showChangePw ? T.gold.border : 'rgba(255,255,255,0.1)'}`, color: showChangePw ? 'var(--gold-main)' : 'rgba(255,255,255,0.72)', background: showChangePw ? T.gold.soft : 'transparent' }}>
             {showChangePw ? 'إلغاء' : 'تغيير'}
           </button>
         </div>
