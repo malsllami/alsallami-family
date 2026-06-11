@@ -212,49 +212,101 @@ export default function App() {
         </div>
       </main>
 
-      {/* ══════════════ خدمات الموقع ══════════════ */}
-      <section className="px-8 lg:px-20 pb-16">
+      {/* ══════════════ من نحن ══════════════ */}
+      <section className="px-8 lg:px-20 pb-16" dir="rtl">
 
+        {/* الترويسة */}
         <div className="text-center mb-10">
-          <h2 className="text-3xl lg:text-4xl font-bold text-[var(--gold-main)]">استكشف الموقع</h2>
-          <p className="mt-3 font-nav text-gray-300 text-base">كل ما تحتاجه في مكان واحد</p>
+          <p className="font-nav text-sm mb-2" style={{ color: 'rgba(198,161,107,0.7)', letterSpacing: '0.12em' }}>اصالة وجذور</p>
+          <h2 className="text-3xl lg:text-4xl font-bold text-[var(--gold-main)]">من نحن</h2>
         </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {SERVICES.filter(s => !(user && s.path === '/register')).map(s => (
-            <button key={s.path} onClick={() => navigate(s.path)}
-              className="group text-right rounded-[24px] p-5 flex flex-col gap-3 transition-all duration-300"
-              style={{
-                background: s.bg,
-                border: `1px solid ${s.border}`,
-                boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
-              }}
-              onMouseEnter={e => e.currentTarget.style.boxShadow = `0 8px 32px ${s.glow}`}
-              onMouseLeave={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)'}
-            >
-              {/* الأيقونة */}
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
-                style={{ background: s.bg, border: `1px solid ${s.border}`, color: s.accent }}>
-                {s.icon}
-              </div>
+        {/* بطاقة العنوان الرئيسي */}
+        <div className="rounded-[28px] p-7 mb-5"
+          style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+          <h3 className="font-nav font-bold text-xl mb-4 text-[var(--gold-main)]">
+            عائلة السلامي : ارث يمتد عبر الاجيال
+          </h3>
+          <p className="font-nav text-sm text-gray-300 leading-8">
+            نحن عائلة تفخر بجذورها الممتدة في عمق التاريخ، نجمع بين عراقة الماضي وطموح المستقبل لبناء مجتمع عائلي متماسك يقتدي بقيم الاجداد
+          </p>
+        </div>
 
-              {/* النص */}
-              <div className="flex-1">
-                <h3 className="font-nav font-bold text-sm" style={{ color: s.accent }}>{s.title}</h3>
-                <p className="font-nav text-xs text-gray-300 leading-5 mt-1 hidden sm:block">{s.desc}</p>
-              </div>
-
-              {/* السهم */}
-              <div className="flex items-center gap-1 font-nav text-xs transition-transform duration-300 group-hover:translate-x-[-4px]"
-                style={{ color: s.accent }}>
-                <span>استكشف</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
-                  <line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/>
+        {/* بطاقتا التاريخ والرؤية */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
+          <div className="rounded-[24px] p-6"
+            style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 20px rgba(0,0,0,0.14)' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
               </div>
-            </button>
-          ))}
+              <h3 className="font-nav font-bold text-base" style={{ color: '#a5b4fc' }}>لمحة تاريخية</h3>
+            </div>
+            <p className="font-nav text-sm text-gray-300 leading-8">
+              من رحم الجزيرة العربية انطلقت مسيرة عائلة السلامي، حاملةً معها خصال الكرم والشجاعة والوفاء. بدأت رحلة العائلة منذ قرون مضت حيث استقرت في مناطق مختلفة مساهمةً في البناء الاجتماعي والاقتصادي، واشتُهر أبناؤها بالحكمة في القول والسداد في الرأي
+            </p>
+          </div>
+
+          <div className="rounded-[24px] p-6"
+            style={{ background: 'rgba(20,184,166,0.06)', border: '1px solid rgba(20,184,166,0.18)', boxShadow: '0 4px 20px rgba(0,0,0,0.14)' }}>
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{ background: 'rgba(20,184,166,0.15)', border: '1px solid rgba(20,184,166,0.3)', color: '#2dd4bf' }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </div>
+              <h3 className="font-nav font-bold text-base" style={{ color: '#2dd4bf' }}>رؤية العائلة</h3>
+            </div>
+            <p className="font-nav text-sm text-gray-300 leading-8">
+              نسعى لأن نكون نموذجاً رائداً في التلاحم العائلي من خلال الحفاظ على موروثنا الثقافي وتطوير مهارات أبنائنا وتقديم العون لكل فرد من أفراد الأسرة، ليبقى اسم السلامي رمزاً للعطاء والتميز
+            </p>
+          </div>
         </div>
+
+        {/* قيمنا الجوهرية */}
+        <div className="rounded-[24px] p-6 mb-2"
+          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <h3 className="font-nav font-bold text-base text-center mb-6 text-[var(--gold-main)]">قيمنا الجوهرية</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              {
+                title: 'التكافل',
+                text: 'نؤمن أن قوة العائلة تكمن في مساندة أفرادها لبعضهم البعض سواء في الأفراح أو الأزمات لخلق بيئة آمنة وداعمة للجميع',
+                color: '#4ade80', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.2)',
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>,
+              },
+              {
+                title: 'الاصالة',
+                text: 'نعتز بهويتنا وتقاليدنا العربية الأصيلة ونعمل جاهدين على غرسها في نفوس الأجيال الصاعدة لضمان استمراريتها',
+                color: 'var(--gold-main)', bg: 'rgba(198,161,107,0.08)', border: 'rgba(198,161,107,0.2)',
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>,
+              },
+              {
+                title: 'التواصل',
+                text: 'نسخّر كافة الوسائل لتعزيز أواصر القربى واللقاءات الدورية بين أبناء العائلة لتقريب المسافات وتوطيد المحبة',
+                color: '#60a5fa', bg: 'rgba(59,130,246,0.08)', border: 'rgba(59,130,246,0.2)',
+                icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+              },
+            ].map(v => (
+              <div key={v.title} className="rounded-[18px] p-5"
+                style={{ background: v.bg, border: `1px solid ${v.border}` }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0"
+                    style={{ background: v.bg, border: `1px solid ${v.border}`, color: v.color }}>
+                    {v.icon}
+                  </div>
+                  <h4 className="font-nav font-bold text-sm" style={{ color: v.color }}>{v.title}</h4>
+                </div>
+                <p className="font-nav text-xs text-gray-300 leading-7">{v.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
       </section>
 
       {/* ══════════════ بطاقة الخريطة ══════════════ */}
