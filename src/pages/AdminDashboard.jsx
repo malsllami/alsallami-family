@@ -2155,7 +2155,7 @@ export default function AdminDashboard() {
         <div style={{ display: openSec.treeManage ? 'block' : 'none' }}>
 
           {/* التبويبات */}
-          <div className="flex gap-2 mt-5 flex-wrap">
+          <div className="flex gap-2 mt-5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {[
               { key: 'edit',   label: 'تعديل اسم الجد' },
               { key: 'delete', label: 'احذف جد' },
