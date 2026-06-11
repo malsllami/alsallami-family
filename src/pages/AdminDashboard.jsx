@@ -1256,6 +1256,9 @@ export default function AdminDashboard() {
                         ['اسم الجد','اسم الجد','text'],
                         ['رقم الهوية','الهوية','numeric'],
                         ['المدينة','المدينة','text'],
+                        ['الفخذ','الفخذ','text'],
+                        ['المهنة','المهنة','text'],
+                        ['تاريخ الميلاد','تاريخ الميلاد','text'],
                       ].map(([field, ph, mode]) => (
                         <input key={field} className="form-input text-xs" placeholder={ph}
                           inputMode={mode} value={editFields[field] || ''}
