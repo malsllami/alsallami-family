@@ -538,6 +538,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     birthDate:  profile.birthDate     || node.birthDate || null,
     generation: node.generationLevel  || null,
     name:       node.name,
+    photoUrl:   profile.photoUrl      || node.photoUrl  || null,
   } : {
     alive:      node.alive,
     marital:    node.marital,
@@ -548,6 +549,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     birthDate:  node.birthDate || null,
     generation: node.generationLevel || null,
     name:       node.name,
+    photoUrl:   node.photoUrl || null,
   }
 
   const isWifeDaughter = node.isWife || node.isDaughter || node.isSon
@@ -720,13 +722,16 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
           <>
             {/* ── وضع العرض ── */}
             <div className="flex justify-center mb-4">
-              <div className="w-14 h-14 rounded-full flex items-center justify-center"
+              <div className="w-16 h-16 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
                 style={{ background: isFemaleColor ? 'rgba(244,63,94,0.1)' : 'rgba(59,130,246,0.1)', border: `2px solid ${GOLD}` }}>
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                  stroke={isFemaleColor ? '#fb7185' : '#60a5fa'}
-                  strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a6 6 0 0 1 12 0v2" />
-                </svg>
+                {display.photoUrl
+                  ? <img src={display.photoUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  : <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
+                      stroke={isFemaleColor ? '#fb7185' : '#60a5fa'}
+                      strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="8" r="4" /><path d="M6 20v-2a6 6 0 0 1 12 0v2" />
+                    </svg>
+                }
               </div>
             </div>
             <p className="text-center text-lg font-bold text-[var(--gold-main)] mb-1">{display.name}</p>
