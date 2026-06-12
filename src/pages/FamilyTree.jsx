@@ -1246,8 +1246,8 @@ export default function FamilyTree({ viewerMode = false }) {
               <defs>
                 <style>{`
                   @keyframes ancestryDraw {
-                    from { stroke-dashoffset: 2000; opacity: 0; }
-                    to   { stroke-dashoffset: 0;    opacity: 1; }
+                    from { stroke-dashoffset: 99999; opacity: 0; }
+                    to   { stroke-dashoffset: 0;     opacity: 1; }
                   }
                 `}</style>
               </defs>
@@ -1258,7 +1258,7 @@ export default function FamilyTree({ viewerMode = false }) {
                     {/* هالة خارجية ضبابية */}
                     <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
                       stroke="rgba(198,161,107,0.25)" strokeWidth={14} strokeLinecap="round"
-                      strokeDasharray="2000" strokeDashoffset="2000"
+                      strokeDasharray="99999" strokeDashoffset="99999"
                       style={{
                         filter: 'blur(6px)',
                         animation: `ancestryDraw 0.45s ease forwards`,
@@ -1267,7 +1267,7 @@ export default function FamilyTree({ viewerMode = false }) {
                     {/* هالة وسطى */}
                     <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
                       stroke="rgba(198,161,107,0.55)" strokeWidth={5} strokeLinecap="round"
-                      strokeDasharray="2000" strokeDashoffset="2000"
+                      strokeDasharray="99999" strokeDashoffset="99999"
                       style={{
                         filter: 'blur(2px)',
                         animation: `ancestryDraw 0.45s ease forwards`,
@@ -1276,7 +1276,7 @@ export default function FamilyTree({ viewerMode = false }) {
                     {/* الخط الرئيسي */}
                     <line x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
                       stroke="rgba(198,161,107,0.95)" strokeWidth={2.5} strokeLinecap="round"
-                      strokeDasharray="2000" strokeDashoffset="2000"
+                      strokeDasharray="99999" strokeDashoffset="99999"
                       style={{
                         filter: 'drop-shadow(0 0 4px rgba(198,161,107,1))',
                         animation: `ancestryDraw 0.45s ease forwards`,
