@@ -858,7 +858,7 @@ export default function FamilyTree({ viewerMode = false }) {
 
   const { nodes, lines, wives, wLines, svgW, svgH } = useMemo(() => {
     // بدون فخذ: اعرض من الجذر حتى مستوى الفخوذ ديناميكياً — الكل: كامل الشجرة
-    const renderRoot      = !branch ? shallowTree(effectiveRoot, branchPointDepth + 1) : effectiveRoot
+    const renderRoot      = (!branch && !lineageMode) ? shallowTree(effectiveRoot, branchPointDepth + 1) : effectiveRoot
     const nl              = buildNodes(renderRoot, PAD, 0, !showWives, showWives)
     const byId            = Object.fromEntries(nl.map(n => [n.id, n]))
     const ll              = buildLines(renderRoot, byId, !showWives)
@@ -870,7 +870,7 @@ export default function FamilyTree({ viewerMode = false }) {
       svgW: Math.max(0, ...allX) + PAD,
       svgH: Math.max(0, ...allY) + PAD,
     }
-  }, [effectiveRoot, showWives, branch, branchPointDepth])
+  }, [effectiveRoot, showWives, branch, branchPointDepth, lineageMode])
 
   /* ── موقع العضو الحالي في الشجرة ── */
   const myNode = useMemo(() => {
