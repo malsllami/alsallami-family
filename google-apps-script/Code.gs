@@ -89,6 +89,7 @@ function doPost(e) {
     if (action === 'getAllMembers')       return respond(getAllMembers(body));
     if (action === 'toggleMemberStatus') return respond(toggleMemberStatus(body));
     if (action === 'addMember')          return respond(addMember(body));
+    if (action === 'uploadMemberPhoto')  return respond(uploadMemberPhoto(body));
 
     // ── الشجرة العائلية ───────────────────────────────────────────────────
     if (action === 'getFamilyTree')          return respond(getFamilyTree(body));
@@ -103,6 +104,10 @@ function doPost(e) {
     if (action === 'addTreeNode')            return respond(addTreeNode(body));
     if (action === 'addRootAncestor')        return respond(addRootAncestor(body));
     if (action === 'insertAncestorAbove')    return respond(insertAncestorAbove(body));
+    if (action === 'deleteTreeNode')         return respond(deleteTreeNode(body));
+    if (action === 'repairTreePaths')        return respond(repairTreePaths(body));
+    if (action === 'moveTreeNode')           return respond(moveTreeNode(body));
+    if (action === 'updateChildrenAges')     return respond(updateChildrenAges());
 
     // ── مشاهد الشجرة ─────────────────────────────────────────────────────
     if (action === 'verifyViewerCode')  return respond(verifyViewerCode(body));

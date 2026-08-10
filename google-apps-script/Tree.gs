@@ -110,6 +110,7 @@ function getFamilyTree(body) {
     if (member['المدينة'])           node.location  = String(member['المدينة']);
     if (member['الحالة الاجتماعية']) node.marital   = String(member['الحالة الاجتماعية']);
     if (member['رقم الجوال'])        node.phone     = String(member['رقم الجوال']);
+    if (member['صورة'])              node.photoUrl  = String(member['صورة']);
     if (member['تاريخ الميلاد']) {
       var bd = member['تاريخ الميلاد'];
       node.birthDate = (bd instanceof Date)
@@ -959,6 +960,7 @@ function addRootAncestor(body) {
   formatLastRow(treeSheet);
 
   var updatedCount = updatedRows.filter(function(r) { return r[idxNodeId]; }).length;
+  repairTreePaths({});
   return {
     success: true,
     nodeId:  newNodeId,
@@ -1066,11 +1068,290 @@ function insertAncestorAbove(body) {
   formatLastRow(treeSheet);
 
   var updatedCount = Object.keys(subtreeIds).length;
+  repairTreePaths({});
   return {
     success: true,
     nodeId:  newNodeId,
     message: 'تمت إضافة "' + name + '" فوق "' + targetName + '" وتحديث ' + updatedCount + ' عقدة',
   };
+}
+
+/* ═══ حذف عقدة من الشجرة وإعادة ترتيب الأبناء (المدير فقط) ══════════ */
+
+function deleteTreeNode(body) {
+  var nodeId = String(body.nodeId || '').trim();
+  if (!nodeId) return { success: false, message: 'رقم العقدة مطلوب' };
+
+  var treeSheet = getSheet('الشجرة العائلية');
+  var data      = treeSheet.getDataRange().getValues();
+  var headers   = data[0];
+
+  var idxNodeId     = headers.indexOf('رقم العقدة');
+  var idxParentId   = headers.indexOf('رقم الأب');
+  var idxParentName = headers.indexOf('اسم الأب');
+  var idxGen        = headers.indexOf('مستوى الجيل');
+  var idxPath       = headers.indexOf('المسار');
+  var idxName       = headers.indexOf('اسم العضو');
+
+  var targetRowSheet = -1;
+  var targetName = '', targetParentId = '', targetParentName = '', targetPath = '';
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idxNodeId] || '') === nodeId) {
+      targetRowSheet   = i + 1;
+      targetName       = String(data[i][idxName]       || '');
+      targetParentId   = String(data[i][idxParentId]   || '');
+      targetParentName = String(data[i][idxParentName] || '');
+      targetPath       = String(data[i][idxPath]       || '');
+      break;
+    }
+  }
+  if (targetRowSheet < 0) return { success: false, message: 'العقدة غير موجودة' };
+
+  var pathParts  = targetPath.split(' ← ');
+  pathParts.pop();
+  var parentPath = pathParts.join(' ← ');
+  var oldPrefix  = targetPath + ' ← ';
+  var newPrefix  = parentPath ? parentPath + ' ← ' : '';
+
+  // BFS لجميع المنحدرين
+  var descIds = {};
+  var queue   = [nodeId];
+  while (queue.length) {
+    var cur = queue.shift();
+    for (var j = 1; j < data.length; j++) {
+      var nid = String(data[j][idxNodeId]   || '');
+      var pid = String(data[j][idxParentId] || '');
+      if (pid === cur && nid && !descIds[nid]) { descIds[nid] = true; queue.push(nid); }
+    }
+  }
+
+  // تحديث المنحدرين: تخفيض الجيل + تصحيح المسار + إعادة الأبوة المباشرة
+  var updatedCount = 0;
+  for (var k = 1; k < data.length; k++) {
+    var nid2 = String(data[k][idxNodeId] || '');
+    if (!nid2 || !descIds[nid2]) continue;
+    var row = data[k].slice();
+    row[idxGen] = parseInt(row[idxGen] || 1, 10) - 1;
+    var oldPath = String(row[idxPath] || '');
+    if (oldPath.indexOf(oldPrefix) === 0) row[idxPath] = newPrefix + oldPath.slice(oldPrefix.length);
+    if (String(row[idxParentId] || '') === nodeId) {
+      row[idxParentId]   = targetParentId;
+      row[idxParentName] = targetParentName;
+    }
+    treeSheet.getRange(k + 1, 1, 1, headers.length).setValues([row]);
+    updatedCount++;
+  }
+
+  treeSheet.deleteRow(targetRowSheet);
+  repairTreePaths({});
+  return {
+    success: true,
+    message: 'تم حذف "' + targetName + '" وإعادة ترتيب ' + updatedCount + ' عقدة',
+  };
+}
+
+/* ═══ إصلاح مسارات وأجيال الشجرة (يُشغَّل مرة واحدة بعد حذف عقدة خاطئ) ══ */
+
+function repairTreePaths(body) {
+  var treeSheet = getSheet('الشجرة العائلية');
+  var data      = treeSheet.getDataRange().getValues();
+  var headers   = data[0];
+
+  var idxNodeId     = headers.indexOf('رقم العقدة');
+  var idxParentId   = headers.indexOf('رقم الأب');
+  var idxParentName = headers.indexOf('اسم الأب');
+  var idxName       = headers.indexOf('اسم العضو');
+  var idxGen        = headers.indexOf('مستوى الجيل');
+  var idxPath       = headers.indexOf('المسار');
+
+  // بناء خريطة العقد
+  var nodes = {};
+  for (var i = 1; i < data.length; i++) {
+    var nid = String(data[i][idxNodeId] || '').trim();
+    if (!nid) continue;
+    nodes[nid] = {
+      dataRowIdx: i,
+      parentId:   String(data[i][idxParentId] || '').trim(),
+      name:       String(data[i][idxName]     || '').trim(),
+    };
+  }
+
+  // بناء خريطة الأبناء (O(n))
+  var childrenMap = {};
+  Object.keys(nodes).forEach(function(nid) {
+    var pid = nodes[nid].parentId;
+    if (pid && nodes[pid]) {
+      if (!childrenMap[pid]) childrenMap[pid] = [];
+      childrenMap[pid].push(nid);
+    }
+  });
+
+  // تحديد الجذور (عقد بدون أب صالح)
+  var roots = Object.keys(nodes).filter(function(nid) {
+    var pid = nodes[nid].parentId;
+    return !pid || !nodes[pid];
+  });
+
+  // BFS لإعادة حساب المسار والجيل واسم الأب لكل عقدة
+  var updates = {};
+  var queue   = roots.map(function(rid) {
+    return { nid: rid, gen: 1, path: nodes[rid].name, parentName: '' };
+  });
+  while (queue.length) {
+    var item = queue.shift();
+    updates[item.nid] = { gen: item.gen, path: item.path, parentName: item.parentName };
+    (childrenMap[item.nid] || []).forEach(function(cid) {
+      queue.push({ nid: cid, gen: item.gen + 1, path: item.path + ' ← ' + nodes[cid].name, parentName: nodes[item.nid].name });
+    });
+  }
+
+  // تطبيق التحديثات دفعةً واحدة (جيل + مسار + اسم الأب)
+  var rows = data.slice(1);
+  var updatedCount = 0;
+  Object.keys(updates).forEach(function(nid) {
+    var ri  = nodes[nid].dataRowIdx - 1;
+    var upd = updates[nid];
+    var changed = false;
+    if (String(rows[ri][idxGen])  !== String(upd.gen))        { rows[ri][idxGen]  = upd.gen;        changed = true; }
+    if (String(rows[ri][idxPath]) !== String(upd.path))       { rows[ri][idxPath] = upd.path;       changed = true; }
+    if (idxParentName >= 0 && String(rows[ri][idxParentName]) !== String(upd.parentName)) {
+      rows[ri][idxParentName] = upd.parentName; changed = true;
+    }
+    if (changed) updatedCount++;
+  });
+
+  if (updatedCount > 0) {
+    treeSheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  return {
+    success: true,
+    message: 'تم إصلاح ' + updatedCount + ' عقدة من أصل ' + Object.keys(nodes).length,
+    updated: updatedCount,
+    total:   Object.keys(nodes).length,
+  };
+}
+
+/* ═══ نقل عقدة إلى أب جديد (المدير فقط) ═══════════════════════════════ */
+
+function moveTreeNode(body) {
+  var nodeId      = String(body.nodeId      || '').trim();
+  var newParentId = String(body.newParentId || '').trim();
+
+  if (!nodeId)      return { success: false, message: 'رقم العقدة مطلوب' };
+  if (!newParentId) return { success: false, message: 'يجب تحديد الأب الجديد' };
+  if (nodeId === newParentId) return { success: false, message: 'لا يمكن أن تكون العقدة أباً لنفسها' };
+
+  var treeSheet = getSheet('الشجرة العائلية');
+  var data      = treeSheet.getDataRange().getValues();
+  var headers   = data[0];
+
+  var idxNodeId     = headers.indexOf('رقم العقدة');
+  var idxParentId   = headers.indexOf('رقم الأب');
+  var idxParentName = headers.indexOf('اسم الأب');
+  var idxName       = headers.indexOf('اسم العضو');
+
+  var targetRowIdx  = -1;
+  var targetName    = '';
+  var newParentName = '';
+
+  for (var i = 1; i < data.length; i++) {
+    var nid = String(data[i][idxNodeId] || '').trim();
+    if (nid === nodeId)      { targetRowIdx = i; targetName = String(data[i][idxName] || ''); }
+    if (nid === newParentId) { newParentName = String(data[i][idxName] || ''); }
+  }
+
+  if (targetRowIdx < 0) return { success: false, message: 'العقدة غير موجودة' };
+  if (!newParentName)   return { success: false, message: 'الأب الجديد غير موجود' };
+
+  // التحقق من عدم وجود دورة: newParentId يجب ألا يكون من منحدري nodeId
+  var descIds = {};
+  var queue   = [nodeId];
+  while (queue.length) {
+    var cur = queue.shift();
+    for (var j = 1; j < data.length; j++) {
+      var nid2 = String(data[j][idxNodeId]   || '').trim();
+      var pid2 = String(data[j][idxParentId] || '').trim();
+      if (pid2 === cur && nid2 && !descIds[nid2]) { descIds[nid2] = true; queue.push(nid2); }
+    }
+  }
+  if (descIds[newParentId]) return { success: false, message: 'لا يمكن نقل العقدة إلى أحد منحدريها' };
+
+  // تحديث رقم الأب واسم الأب للعقدة المنقولة
+  var row = data[targetRowIdx].slice();
+  row[idxParentId]   = newParentId;
+  row[idxParentName] = newParentName;
+  treeSheet.getRange(targetRowIdx + 1, 1, 1, headers.length).setValues([row]);
+
+  // إعادة بناء المسارات والأجيال وأسماء الآباء تلقائياً
+  repairTreePaths({});
+
+  return {
+    success: true,
+    message: 'تم نقل "' + targetName + '" تحت "' + newParentName + '" بنجاح',
+  };
+}
+
+/* ═══ حساب العمر من تاريخ الميلاد ══════════════════════════════════════ */
+
+function calculateAge(birthDate) {
+  if (!birthDate) return '';
+  var bd = birthDate instanceof Date ? birthDate : new Date(String(birthDate));
+  if (isNaN(bd.getTime())) return '';
+  var today = new Date();
+  var age   = today.getFullYear() - bd.getFullYear();
+  var m     = today.getMonth() - bd.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+  return age < 0 ? 0 : age;
+}
+
+/* ═══ تحديث عمود العمر في جدول الأبناء (يُشغَّل يومياً أو من اللوحة) ═══ */
+
+function updateChildrenAges() {
+  var sheet   = getSheet('الأبناء');
+  var data    = sheet.getDataRange().getValues();
+  var headers = data[0];
+
+  var bdCol  = headers.indexOf('تاريخ الميلاد');
+  var ageCol = headers.indexOf('العمر');
+
+  if (bdCol  < 0) return { success: false, message: 'عمود تاريخ الميلاد غير موجود في جدول الأبناء' };
+  if (ageCol < 0) return { success: false, message: 'عمود العمر غير موجود في جدول الأبناء — أضفه أولاً' };
+
+  var updates      = [];
+  var updatedCount = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var bd = data[i][bdCol];
+    if (!bd || String(bd).trim() === '') continue;
+    var age = calculateAge(bd);
+    if (age === '') continue;
+    if (String(data[i][ageCol]) !== String(age)) {
+      updates.push({ row: i + 1, col: ageCol + 1, val: age });
+      updatedCount++;
+    }
+  }
+
+  updates.forEach(function(u) {
+    sheet.getRange(u.row, u.col).setValue(u.val);
+  });
+
+  return {
+    success: true,
+    message: 'تم تحديث عمر ' + updatedCount + ' ابن من أصل ' + (data.length - 1),
+    updated: updatedCount,
+  };
+}
+
+/* ═══ تشغل مرة واحدة من محرر GAS — إنشاء مشغّل يومي لتحديث الأعمار ══════
+   شغّل: createDailyAgeTrigger()                                           */
+
+function createDailyAgeTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'updateChildrenAges') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('updateChildrenAges').timeBased().everyDays(1).atHour(3).create();
+  Logger.log('تم إنشاء مشغّل يومي لتحديث أعمار الأبناء في الساعة 3 صباحاً');
 }
 
 /* ═══ رفض طلب الشجرة ════════════════════════════════════════════════════ */

@@ -488,3 +488,49 @@ function removeChild(body) {
   getSheet('الأبناء').deleteRow(found.rowIndex);
   return { success: true, message: 'تم الحذف بنجاح' };
 }
+
+/* ═══ رفع صورة العضو إلى Google Drive ════════════════════════════════════ */
+
+function uploadMemberPhoto(body) {
+  var memberId = String(body.memberId || '').trim();
+  var base64   = String(body.base64   || '').trim();
+  var mimeType = String(body.mimeType || 'image/jpeg').trim();
+
+  if (!memberId) return { success: false, message: 'رقم العضو مطلوب' };
+  if (!base64)   return { success: false, message: 'الصورة مطلوبة' };
+
+  var found = findRow('الأعضاء', 0, memberId);
+  if (!found) return { success: false, message: 'العضو غير موجود' };
+
+  var headers     = found.headers;
+  var photoColIdx = headers.indexOf('صورة');
+  if (photoColIdx < 0) return { success: false, message: 'أضف عمود "صورة" في جدول الأعضاء أولاً' };
+
+  // الحصول على مجلد الصور أو إنشاؤه
+  var folderName = 'صور أعضاء السلامي';
+  var folders    = DriveApp.getFoldersByName(folderName);
+  var folder     = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+
+  // حذف الصورة القديمة إن وجدت
+  var oldUrl = String(found.rowData[photoColIdx] || '').trim();
+  if (oldUrl) {
+    var oldIdMatch = oldUrl.match(/[?&]id=([^&]+)/);
+    if (oldIdMatch) {
+      try { DriveApp.getFileById(oldIdMatch[1]).setTrashed(true); } catch(e) {}
+    }
+  }
+
+  // رفع الصورة الجديدة
+  var decoded  = Utilities.base64Decode(base64);
+  var blob     = Utilities.newBlob(decoded, mimeType, memberId + '.jpg');
+  var file     = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+  var fileId   = file.getId();
+  var photoUrl = 'https://drive.google.com/thumbnail?id=' + fileId + '&sz=w300';
+
+  // حفظ الرابط في جدول الأعضاء
+  getSheet('الأعضاء').getRange(found.rowIndex, photoColIdx + 1).setValue(photoUrl);
+
+  return { success: true, photoUrl: photoUrl, message: 'تم رفع الصورة بنجاح' };
+}
