@@ -219,3 +219,67 @@ function completeDeviceLogin(body) {
     cloneWarning: !result.counterOk,
   };
 }
+
+/* ═══ الدخول "بلا اسم مستخدم" — بدون طلب رقم الهوية إطلاقاً ══════════════
+   يعتمد على أن بصمة الجهاز تُسجَّل كـ"بيانات اعتماد قابلة للاكتشاف" (Discoverable/
+   Resident Credential — residentKey:'preferred' عند التسجيل)، فيعرض النظام نفسه
+   (Face ID / Touch ID / Windows Hello) هوية العضو المرتبطة بهذا الجهاز مباشرة،
+   بلا أي إدخال يدوي. الـ challenge هنا عام (غير مرتبط بعضو محدد) ويُحفظ بذاته
+   كمفتاح في الكاش (استهلاك لمرة واحدة)، ثم نحدّد صاحب البصمة من credentialId
+   المُعاد من الجهاز نفسه بعد نجاح المصادقة. ══════════════════════════════ */
+
+function beginUsernamelessLogin() {
+  var challenge = generateChallenge_();
+  CacheService.getScriptCache().put('waAnon_' + challenge, '1', WEBAUTHN_CHALLENGE_TTL_SECONDS);
+  return { success: true, challenge: challenge };
+}
+
+function completeUsernamelessLogin(body) {
+  var clientDataBytes = base64UrlToBytes_(body.clientDataJSON);
+  var clientData;
+  try { clientData = JSON.parse(bytesToUtf8_(clientDataBytes)); }
+  catch (e) { return { success: false, message: 'بيانات الدخول غير صالحة' }; }
+
+  var challenge = clientData.challenge;
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'waAnon_' + challenge;
+  if (!cache.get(cacheKey)) return { success: false, message: 'انتهت صلاحية محاولة الدخول، حاول مرة أخرى' };
+  cache.remove(cacheKey); // استهلاك لمرة واحدة
+
+  var device = findDeviceByCredentialId_(body.credentialId);
+  if (!device || device.status !== 'نشط') return { success: false, message: 'لا توجد بصمة مربوطة بهذا الجهاز — سجّل الدخول بكلمة المرور ثم فعّلها من لوحة العضو' };
+
+  var found = findRow('الأعضاء', 0, device.memberId);
+  if (!found) return { success: false, message: 'العضو غير موجود' };
+  var member = rowToObject(found.headers, found.rowData);
+  if (member['حالة الحساب'] === 'موقوف') return { success: false, message: 'العضوية موقوفة، تواصل مع المدير' };
+
+  var result;
+  try {
+    result = verifyAssertionResponse_({
+      clientDataJSONB64:    body.clientDataJSON,
+      authenticatorDataB64: body.authenticatorData,
+      signatureB64:         body.signature,
+      expectedChallengeB64: challenge,
+      expectedOrigin:       RP_ORIGIN,
+      expectedRpId:         RP_ID,
+      storedAlgorithm:      device.algorithm,
+      storedPublicKeyJson:  device.publicKeyJson,
+      storedSignCount:      device.signCount,
+    });
+  } catch (err) {
+    return { success: false, message: 'فشل التحقق من البصمة: ' + err.message };
+  }
+  if (!result.valid) return { success: false, message: 'توقيع البصمة غير صالح' };
+
+  var deviceSheet = getSheet('بيانات البصمة');
+  deviceSheet.getRange(device.row, 7).setValue(result.newSignCount);
+  deviceSheet.getRange(device.row, 9).setValue(formatDate(new Date()));
+
+  return {
+    success:      true,
+    message:      'تم تسجيل الدخول بنجاح',
+    user:         buildUserObject(member),
+    cloneWarning: !result.counterOk,
+  };
+}

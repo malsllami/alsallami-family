@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
 import PhoneInput from '../components/PhoneInput'
-import { loginWithDeviceCredential, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
+import { loginUsernameless, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
 import BiometricIcon from '../components/BiometricIcon'
 
 const API = import.meta.env.VITE_API_URL
@@ -85,29 +85,25 @@ export default function Login() {
     }
   }
 
-  /* ── الدخول بالبصمة (WebAuthn) — خطوتان منفصلتان وجوباً ─────────────────────
-     متصفحات صارمة مثل Safari (آيفون/آيباد) ترفض فتح نافذة البصمة إذا مرّ أي
-     تأخير (كطلب شبكي) بين ضغطة المستخدم واستدعاء navigator.credentials.get —
-     فتُفشل العملية بصمت دون أي رسالة واضحة. الحل: نجلب الـ challenge في الخطوة
-     الأولى (زر "الدخول بالبصمة")، ثم نستدعي واجهة البصمة فوراً في الخطوة
-     الثانية (زر منفصل) دون أي انتظار شبكي قبلها. ── */
-  const [bioReady, setBioReady] = useState(null) // { memberId, challenge, credentialIds } | null
+  /* ── الدخول بالبصمة (WebAuthn) — "بلا اسم مستخدم"، خطوتان منفصلتان وجوباً ──
+     1) لا حاجة لكتابة رقم الهوية إطلاقاً — الجهاز نفسه (Face ID/Touch ID/
+        Windows Hello) يتعرّف على هوية العضو المرتبطة به مباشرة.
+     2) خطوتان منفصلتان لأن متصفحات صارمة مثل Safari (آيفون/آيباد) ترفض فتح
+        نافذة البصمة إذا مرّ أي تأخير شبكي بين ضغطة المستخدم واستدعاء
+        navigator.credentials.get، فتفشل العملية بصمت. الحل: نجلب الـ
+        challenge في الخطوة الأولى، ثم نستدعي واجهة البصمة فوراً في زر ثانٍ
+        منفصل دون أي انتظار شبكي قبلها. ── */
+  const [bioReady, setBioReady] = useState(null) // challenge جاهز | null
 
   const handleBiometricPrepare = async () => {
     setError('')
     setIsRejected(false)
     setBioReady(null)
-    const nid = nationalId.trim()
-    if (!nid) { setError('أدخل رقم الهوية الوطنية أولاً لتفعيل الدخول بالبصمة'); return }
     try {
       setBioLoading(true)
-      const begin = await post({ action: 'beginDeviceLogin', nationalId: nid })
+      const begin = await post({ action: 'beginUsernamelessLogin' })
       if (!begin.success) { setError(begin.message || 'تعذّر الدخول بالبصمة'); return }
-      if (begin.needsRegistration) {
-        setError('لا توجد بصمة مربوطة بهذا الحساب بعد — سجّل الدخول بكلمة المرور ثم فعّلها من لوحة العضو')
-        return
-      }
-      setBioReady({ memberId: begin.memberId, challenge: begin.challenge, credentialIds: begin.credentialIds })
+      setBioReady(begin.challenge)
     } catch {
       setError('تعذّر الاتصال بالخادم')
     } finally {
@@ -121,11 +117,9 @@ export default function Login() {
     try {
       setBioLoading(true)
       // نداء واجهة البصمة أولاً وفوراً — بلا أي await قبله — للحفاظ على "تفاعل المستخدم الحديث"
-      const assertion = await loginWithDeviceCredential({
-        challenge: bioReady.challenge, credentialIds: bioReady.credentialIds, rpId: RP_ID,
-      })
+      const assertion = await loginUsernameless({ challenge: bioReady, rpId: RP_ID })
       const result = await post({
-        action: 'completeDeviceLogin', memberId: bioReady.memberId, credentialId: assertion.credentialId,
+        action: 'completeUsernamelessLogin', credentialId: assertion.credentialId,
         clientDataJSON: assertion.clientDataJSON, authenticatorData: assertion.authenticatorData, signature: assertion.signature,
       })
       if (result.success) {
@@ -134,7 +128,7 @@ export default function Login() {
         login(result.user)
         navigate('/member-dashboard')
       } else {
-        setError(result.message || 'فشل الدخول بالبصمة')
+        setError(result.message || 'لا توجد بصمة مربوطة بهذا الجهاز — سجّل الدخول بكلمة المرور ثم فعّلها من لوحة العضو')
       }
     } catch (err) {
       setError(err.message || 'فشل الدخول بالبصمة')

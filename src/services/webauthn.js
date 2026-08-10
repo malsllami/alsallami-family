@@ -79,3 +79,24 @@ export async function loginWithDeviceCredential({ challenge, credentialIds, rpId
     signature: bufferToBase64Url(assertion.response.signature),
   }
 }
+
+// حفل الدخول "بلا اسم مستخدم" — بدون allowCredentials، فيعرض النظام نفسه (Face ID/
+// Touch ID/Windows Hello) أي بصمة عضو محفوظة لهذا الموقع على هذا الجهاز مباشرة،
+// دون أي إدخال يدوي مسبق (رقم هوية أو غيره)
+export async function loginUsernameless({ challenge, rpId }) {
+  if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم الدخول بالبصمة')
+  const publicKey = {
+    challenge: base64UrlToBuffer(challenge),
+    rpId,
+    userVerification: 'required',
+    timeout: 60000,
+  }
+  const assertion = await navigator.credentials.get({ publicKey })
+  if (!assertion) throw new Error('تم إلغاء عملية الدخول بالبصمة')
+  return {
+    credentialId: bufferToBase64Url(assertion.rawId),
+    clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
+    authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
+    signature: bufferToBase64Url(assertion.response.signature),
+  }
+}

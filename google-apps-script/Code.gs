@@ -65,6 +65,8 @@ function doPost(e) {
     if (action === 'completeDeviceRegistration') return respond(completeDeviceRegistration(body));
     if (action === 'beginDeviceLogin')           return respond(beginDeviceLogin(body));
     if (action === 'completeDeviceLogin')        return respond(completeDeviceLogin(body));
+    if (action === 'beginUsernamelessLogin')     return respond(beginUsernamelessLogin());
+    if (action === 'completeUsernamelessLogin')  return respond(completeUsernamelessLogin(body));
     if (action === 'getMemberDevices')           return respond(getMemberDevices(body));
     if (action === 'revokeDevice')               return respond(revokeDevice(body));
 
