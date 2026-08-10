@@ -3,10 +3,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
 import PhoneInput from '../components/PhoneInput'
+import { loginWithDeviceCredential, isWebAuthnSupported } from '../services/webauthn'
 
 const API = import.meta.env.VITE_API_URL
 const post = (body) =>
   fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json())
+
+// إعداد جهة الاعتماد (Relying Party) لبصمة الجهاز — يجب أن يطابق النطاق الفعلي للموقع
+const RP_ID = 'malsllami.github.io'
 
 /* mode: 'login' | 'forgot' | 'changeRequired' */
 
@@ -37,7 +41,10 @@ export default function Login() {
   const [fpLoading,  setFpLoading]  = useState(false)
   const [fpResult,   setFpResult]   = useState(null)
 
-  const isLoading = loading || fpLoading || changeLoading
+  /* ── الدخول بالبصمة ── */
+  const [bioLoading, setBioLoading] = useState(false)
+
+  const isLoading = loading || fpLoading || changeLoading || bioLoading
 
   /* ── login submit ── */
   const handleSubmit = async (e) => {
@@ -73,6 +80,42 @@ export default function Login() {
       setError('تعذّر الاتصال بالخادم، تحقق من اتصالك بالإنترنت')
     } finally {
       setLoading(false)
+    }
+  }
+
+  /* ── الدخول بالبصمة (WebAuthn) — يستخدم رقم الهوية المكتوب في الحقل أعلاه ── */
+  const handleBiometricLogin = async () => {
+    setError('')
+    setIsRejected(false)
+    const nid = nationalId.trim()
+    if (!nid) { setError('أدخل رقم الهوية الوطنية أولاً لتفعيل الدخول بالبصمة'); return }
+    try {
+      setBioLoading(true)
+      const begin = await post({ action: 'beginDeviceLogin', nationalId: nid })
+      if (!begin.success) { setError(begin.message || 'تعذّر الدخول بالبصمة'); return }
+      if (begin.needsRegistration) {
+        setError('لا توجد بصمة مربوطة بهذا الحساب بعد — سجّل الدخول بكلمة المرور ثم فعّلها من لوحة العضو')
+        return
+      }
+      const assertion = await loginWithDeviceCredential({
+        challenge: begin.challenge, credentialIds: begin.credentialIds, rpId: RP_ID,
+      })
+      const result = await post({
+        action: 'completeDeviceLogin', memberId: begin.memberId, credentialId: assertion.credentialId,
+        clientDataJSON: assertion.clientDataJSON, authenticatorData: assertion.authenticatorData, signature: assertion.signature,
+      })
+      if (result.success) {
+        sessionStorage.removeItem('adminUnlocked')
+        localStorage.setItem('user', JSON.stringify(result.user))
+        login(result.user)
+        navigate('/member-dashboard')
+      } else {
+        setError(result.message || 'فشل الدخول بالبصمة')
+      }
+    } catch (err) {
+      setError(err.message || 'فشل الدخول بالبصمة')
+    } finally {
+      setBioLoading(false)
     }
   }
 
@@ -230,6 +273,21 @@ export default function Login() {
                   {loading ? <div className="btn-spinner" /> : 'دخول'}
                 </button>
               </div>
+
+              {/* الدخول بالبصمة — يظهر فقط إن كان الجهاز/المتصفح يدعم WebAuthn */}
+              {isWebAuthnSupported() && (
+                <button type="button" onClick={handleBiometricLogin} disabled={isLoading}
+                  className="font-nav w-full flex items-center justify-center gap-2.5 text-sm font-bold transition-all disabled:opacity-50"
+                  style={{
+                    height: 52, borderRadius: 14,
+                    background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa',
+                  }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 11a2 2 0 0 0-2 2c0 1.6-.8 3.1-2 4M8 17.5A6 6 0 0 1 6 13a6 6 0 0 1 12 0c0 .8-.1 1.6-.4 2.3M14 13a2 2 0 0 1 4 0c0 2.5-.6 4.9-1.7 7M12 5a8 8 0 0 1 8 8c0 1-.1 2-.4 2.9"/>
+                  </svg>
+                  {bioLoading ? 'جاري التحقق...' : 'الدخول بالبصمة'}
+                </button>
+              )}
             </form>
 
             <div className="text-center pt-6 space-y-3">

@@ -1004,3 +1004,38 @@ function computeHash_(password) {
     return ('0' + (b & 0xFF).toString(16)).slice(-2);
   }).join('');
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   addDeviceCredentialsTable — إضافة جدول "بيانات البصمة" (WebAuthn) فقط
+   دالة إضافة مستقلة — Additive only: لا تُضاف إلى getSheetDefs()/createAllSheets_()
+   عمداً حتى لا تتأثر ببناء إعادة الإنشاء الجماعي لبقية الجداول. لا تحذف ولا تُصفّر
+   أي بيانات موجودة — إن كان الجدول موجوداً بالفعل تتوقف الدالة فوراً دون أي تغيير.
+   Additive-only setup for the "بيانات البصمة" table — intentionally kept out of the
+   bulk getSheetDefs()/createAllSheets_() pipeline so future full resets never touch it.
+   Never clears/deletes existing data; a no-op if the table already exists.
+   شغّلها مرة واحدة فقط من محرر Apps Script (القائمة أو ▶) بعد نشر هذا التحديث.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+function addDeviceCredentialsTable() {
+  var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+
+  if (ss.getSheetByName('بيانات البصمة')) {
+    Logger.log('⚠️ جدول "بيانات البصمة" موجود مسبقاً — لم يتم أي تعديل.');
+    return;
+  }
+
+  var def = {
+    name:    'بيانات البصمة',
+    color:   '#3a1a4a', // بنفسجي داكن مميز — أمان الأجهزة
+    headers: [
+      'رقم السجل', 'رقم العضو', 'اسم الجهاز', 'معرف بيانات الاعتماد',
+      'خوارزمية التوقيع', 'المفتاح العام', 'عداد التوقيع',
+      'تاريخ الربط', 'آخر استخدام', 'الحالة',
+    ],
+    widths: [120, 110, 160, 260, 120, 260, 100, 110, 110, 90],
+  };
+
+  buildSheet_(ss, def);
+  SpreadsheetApp.flush();
+  Logger.log('✅ تم إنشاء جدول "بيانات البصمة" بنجاح.');
+}

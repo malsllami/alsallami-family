@@ -3,6 +3,28 @@ import PasswordInput from '../components/PasswordInput'
 import { normalizeDigits } from '../utils/normalizeInput'
 import TreeNavigator from '../components/TreeNavigator'
 import PhoneInput from '../components/PhoneInput'
+import { registerDeviceCredential, isWebAuthnSupported } from '../services/webauthn'
+
+// إعدادات جهة الاعتماد (Relying Party) لبصمة الجهاز — يجب أن تطابق النطاق الفعلي للموقع
+const RP_ID   = 'malsllami.github.io'
+const RP_NAME = 'عائلة السلامي'
+
+// اسم وصفي للجهاز الحالي (نظام التشغيل + المتصفح) لعرضه في قائمة الأجهزة المربوطة
+function guessDeviceName() {
+  const ua = navigator.userAgent
+  let os = 'جهاز'
+  if (/iphone/i.test(ua)) os = 'آيفون'
+  else if (/ipad/i.test(ua)) os = 'آيباد'
+  else if (/android/i.test(ua)) os = 'أندرويد'
+  else if (/mac/i.test(ua)) os = 'ماك'
+  else if (/windows/i.test(ua)) os = 'ويندوز'
+  let browser = ''
+  if (/edg/i.test(ua)) browser = 'Edge'
+  else if (/chrome/i.test(ua)) browser = 'Chrome'
+  else if (/safari/i.test(ua)) browser = 'Safari'
+  else if (/firefox/i.test(ua)) browser = 'Firefox'
+  return browser ? os + ' · ' + browser : os
+}
 
 function calcAge(birthDate) {
   if (!birthDate) return null
@@ -172,6 +194,13 @@ export default function MemberDashboard() {
   const [passwordData,    setPasswordData]    = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [showChangePw,    setShowChangePw]    = useState(false)
   const [changePwLoading, setChangePwLoading] = useState(false)
+
+  /* بصمة الجهاز (WebAuthn) — تفعيل اختياري */
+  const [showBiometric,    setShowBiometric]    = useState(false)
+  const [bioDevices,       setBioDevices]       = useState([])
+  const [bioDevicesLoaded, setBioDevicesLoaded] = useState(false)
+  const [bioBusy,          setBioBusy]          = useState(false)
+  const [bioMsg,           setBioMsg]           = useState(null) // { success, text } | null
 
   /* ربط الشجرة */
   const [showTreeLink,        setShowTreeLink]        = useState(false)
@@ -564,6 +593,47 @@ export default function MemberDashboard() {
       else alert(result?.message)
     } catch { alert('حدث خطأ') }
     finally { setChangePwLoading(false) }
+  }
+
+  /* ── بصمة الجهاز: جلب قائمة الأجهزة المربوطة بهذا العضو ── */
+  const loadBioDevices = async () => {
+    try {
+      const result = await post({ action: 'getMemberDevices', memberId: savedUser.memberId })
+      if (result.success) setBioDevices(result.devices || [])
+    } catch { /* تجاهل صامت — القائمة تفصيلية وليست حرجة */ }
+    finally { setBioDevicesLoaded(true) }
+  }
+
+  /* ── بصمة الجهاز: ربط بصمة هذا الجهاز بالعضو الحالي ── */
+  const handleEnrollDevice = async () => {
+    setBioMsg(null)
+    try {
+      setBioBusy(true)
+      const begin = await post({ action: 'beginDeviceRegistration', memberId: savedUser.memberId })
+      if (!begin.success) { setBioMsg({ success: false, text: begin.message || 'تعذّر بدء عملية الربط' }); return }
+
+      const reg = await registerDeviceCredential({
+        challenge: begin.challenge, memberId: savedUser.memberId,
+        memberName: savedUser.firstName || 'عضو', rpId: RP_ID, rpName: RP_NAME,
+      })
+      const result = await post({
+        action: 'completeDeviceRegistration', memberId: savedUser.memberId, deviceName: guessDeviceName(),
+        clientDataJSON: reg.clientDataJSON, attestationObject: reg.attestationObject,
+      })
+      if (result.success) { setBioMsg({ success: true, text: 'تم ربط بصمة هذا الجهاز بنجاح' }); loadBioDevices() }
+      else setBioMsg({ success: false, text: result.message || 'تعذّر ربط البصمة' })
+    } catch (err) {
+      setBioMsg({ success: false, text: err.message || 'فشلت عملية ربط البصمة' })
+    } finally { setBioBusy(false) }
+  }
+
+  /* ── بصمة الجهاز: إلغاء ربط جهاز مسجَّل ── */
+  const handleRevokeDevice = async (deviceId) => {
+    try {
+      const result = await post({ action: 'revokeDevice', memberId: savedUser.memberId, deviceId })
+      if (result.success) loadBioDevices()
+      else setBioMsg({ success: false, text: result.message || 'تعذّر إلغاء الجهاز' })
+    } catch { setBioMsg({ success: false, text: 'تعذّر الاتصال بالخادم' }) }
   }
 
   /* ── شاشة الإجبار ── */
@@ -1291,6 +1361,67 @@ export default function MemberDashboard() {
           </button>
         </SlidePanel>
       </div>
+
+      {/* الدخول بالبصمة — تفعيل اختياري، يظهر فقط إن كان الجهاز/المتصفح يدعم WebAuthn */}
+      {isWebAuthnSupported() && (
+        <div className="rounded-[28px] p-6" style={{ background: T.purple.bg, border: `1px solid ${T.purple.border}` }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+                style={{ background: T.purple.soft, border: `1px solid ${T.purple.border}` }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 11a2 2 0 0 0-2 2c0 1.6-.8 3.1-2 4M8 17.5A6 6 0 0 1 6 13a6 6 0 0 1 12 0c0 .8-.1 1.6-.4 2.3M14 13a2 2 0 0 1 4 0c0 2.5-.6 4.9-1.7 7M12 5a8 8 0 0 1 8 8c0 1-.1 2-.4 2.9"/>
+                </svg>
+              </div>
+              <span className="font-nav text-sm font-semibold" style={{ color: '#a78bfa' }}>الدخول بالبصمة</span>
+            </div>
+            <button onClick={() => { setShowBiometric(v => !v); if (!showBiometric) loadBioDevices() }}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
+              style={{ border: `1px solid ${showBiometric ? T.purple.border : 'rgba(255,255,255,0.1)'}`, color: showBiometric ? '#a78bfa' : 'rgba(255,255,255,0.72)', background: showBiometric ? T.purple.soft : 'transparent' }}>
+              {showBiometric ? 'إغلاق' : 'إدارة'}
+            </button>
+          </div>
+          <SlidePanel open={showBiometric}>
+            <p className="font-nav text-xs text-gray-500 leading-6">
+              فعّل بصمة هذا الجهاز (بصمة الإصبع أو التعرف على الوجه) لتسجّل دخولاً سريعاً لاحقاً دون كتابة كلمة المرور.
+            </p>
+
+            {bioMsg && (
+              <div className="px-3 py-2 rounded-xl font-nav text-xs"
+                style={{ background: bioMsg.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)', color: bioMsg.success ? '#4ade80' : '#f87171' }}>
+                {bioMsg.text}
+              </div>
+            )}
+
+            {bioDevicesLoaded && bioDevices.length > 0 && (
+              <div className="space-y-2">
+                {bioDevices.map(d => (
+                  <div key={d.id} className="flex items-center justify-between px-3 py-2 rounded-xl"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                    <div>
+                      <p className="font-nav text-xs text-white">{d.deviceName}</p>
+                      <p className="font-nav text-[10px] text-gray-500">آخر استخدام: {d.lastUsed || '—'}</p>
+                    </div>
+                    {d.status === 'نشط' && (
+                      <button onClick={() => handleRevokeDevice(d.id)}
+                        className="font-nav text-[10px] px-2.5 py-1 rounded-lg text-red-400"
+                        style={{ border: '1px solid rgba(239,68,68,0.25)', background: 'rgba(239,68,68,0.08)' }}>
+                        إلغاء
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button onClick={handleEnrollDevice} disabled={bioBusy}
+              className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+              style={{ background: T.purple.soft, border: `1px solid ${T.purple.border}`, color: '#a78bfa' }}>
+              {bioBusy ? 'جاري الربط...' : 'تفعيل البصمة على هذا الجهاز'}
+            </button>
+          </SlidePanel>
+        </div>
+      )}
 
     </div>
   )

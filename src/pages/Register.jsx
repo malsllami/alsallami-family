@@ -15,6 +15,18 @@ function extractFirstName(fullName) {
   return parts[0] || '';
 }
 
+// رابط الموقع — يُدرَج داخل رسائل واتساب لتفعيل بطاقة معاينة الشعار (Open Graph)
+const SITE_URL = 'https://malsllami.github.io/alsallami-family/';
+
+// تطبيع رقم جوال سعودي (من جدول الإعدادات) إلى صيغة دولية بدون + لاستخدامه في رابط wa.me
+function normalizeToIntlPhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('966')) return digits;
+  if (digits.startsWith('0'))   return '966' + digits.slice(1);
+  return '966' + digits;
+}
+
 export default function Register() {
   const navigate = useNavigate();
 
@@ -41,6 +53,7 @@ export default function Register() {
   const [messageType,       setMessageType]       = useState('');
   const [registrantHint,    setRegistrantHint]    = useState(null);  // { type, text } | null
   const [successInfo,       setSuccessInfo]       = useState(null);  // { requestId, branch, name }
+  const [adminPhone,        setAdminPhone]        = useState('');    // رقم جوال المدير — يُقرأ ديناميكياً من جدول الإعدادات
 
   const NUMERIC_FIELDS = ['nationalId'];
   const handleChange = (e) => {
@@ -84,6 +97,23 @@ export default function Register() {
       .then(d => { if (mounted && d.success && d.tree) setTreeData(d.tree); })
       .catch(() => {})
       .finally(() => { if (mounted) setTreeLoading(false); });
+    return () => { mounted = false; };
+  }, []);
+
+  // قراءة رقم جوال المدير ديناميكياً من جدول "الإعدادات" (بدل ترميزه ثابتاً في الكود)
+  useEffect(() => {
+    let mounted = true;
+    fetch(import.meta.env.VITE_API_URL, {
+      method: 'POST',
+      body: JSON.stringify({ action: 'getSettings' }),
+    })
+      .then(r => r.json())
+      .then(d => {
+        if (mounted && d.success && d.settings) {
+          setAdminPhone(normalizeToIntlPhone(d.settings['رقم جوال المدير']));
+        }
+      })
+      .catch(() => {});
     return () => { mounted = false; };
   }, []);
 
@@ -545,10 +575,10 @@ export default function Register() {
             </p>
           )}
 
-          {/* زر واتساب */}
+          {/* زر واتساب — رقم المدير يُقرأ ديناميكياً من الإعدادات، ورابط الموقع مُضاف لتفعيل معاينة الشعار في واتساب */}
           <a
-            href={`https://wa.me/966555889581?text=${encodeURIComponent(
-              `مرحباً،\nرقم طلب انضمامي: #${successInfo.requestId}\nأطلب اعتماد طلب الانضمام إلى موقع عائلة السلامي\nالتسلسل: ${successInfo.branch || successInfo.name}`
+            href={`https://wa.me/${adminPhone}?text=${encodeURIComponent(
+              `مرحباً،\nرقم طلب انضمامي: #${successInfo.requestId}\nأطلب اعتماد طلب الانضمام إلى موقع عائلة السلامي\nالتسلسل: ${successInfo.branch || successInfo.name}\n${SITE_URL}`
             )}`}
             target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl font-nav font-bold text-sm mb-3 transition-all hover:opacity-90"

@@ -13,6 +13,7 @@ var READ_ONLY_ACTIONS = {
   'getPendingRequests': true, 'getTreeRequests': true, 'getAllMembers': true,
   'getOnlineUsers': true, 'getFunds': true, 'getFundMembers': true,
   'getArticles': true, 'getMemberData': true, 'verifyViewerCode': true, 'getSettings': true,
+  'getMemberDevices': true,
 };
 
 function trackApiCall(action) {
@@ -58,6 +59,14 @@ function doPost(e) {
       var _match = _pin === _code;
       return respond({ success: _match, message: _match ? 'تم التحقق بنجاح' : 'الرمز غير صحيح' });
     }
+
+    // ── بصمة الجهاز (WebAuthn) ───────────────────────────────────────────
+    if (action === 'beginDeviceRegistration')    return respond(beginDeviceRegistration(body));
+    if (action === 'completeDeviceRegistration') return respond(completeDeviceRegistration(body));
+    if (action === 'beginDeviceLogin')           return respond(beginDeviceLogin(body));
+    if (action === 'completeDeviceLogin')        return respond(completeDeviceLogin(body));
+    if (action === 'getMemberDevices')           return respond(getMemberDevices(body));
+    if (action === 'revokeDevice')               return respond(revokeDevice(body));
 
     // ── الأعضاء ───────────────────────────────────────────────────────────
     if (action === 'getMemberData')      return respond(getMemberData(body));
