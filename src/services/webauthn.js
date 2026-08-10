@@ -25,6 +25,21 @@ export function isWebAuthnSupported() {
   return typeof window !== 'undefined' && !!window.PublicKeyCredential
 }
 
+// يكتشف نوع بصمة الجهاز المرجّح حسب نظام التشغيل، لعرض تسمية وأيقونة مناسبة
+// (Face ID لآيفون/آيباد، Touch ID لماك، بصمة إصبع لأندرويد، Windows Hello للويندوز)
+export function detectBiometricPlatform() {
+  if (typeof navigator === 'undefined') return { kind: 'generic', label: 'البصمة' }
+  const ua       = navigator.userAgent || ''
+  const platform = navigator.platform  || ''
+  // آيباد الحديث يظهر أحياناً كـ "MacIntel" لكن مع دعم اللمس — نميّزه عن ماك الفعلي
+  const isIOS = /iPhone|iPad|iPod/.test(ua) || (platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (isIOS)                                  return { kind: 'faceid',      label: 'Face ID' }
+  if (/Android/.test(ua))                     return { kind: 'fingerprint', label: 'بصمة الإصبع' }
+  if (/Mac/.test(platform))                   return { kind: 'touchid',     label: 'Touch ID' }
+  if (/Win/.test(platform) || /Windows/.test(ua)) return { kind: 'windows', label: 'Windows Hello' }
+  return { kind: 'generic', label: 'البصمة' }
+}
+
 // حفل التسجيل — ربط بصمة الجهاز الحالي بالعضو (navigator.credentials.create)
 export async function registerDeviceCredential({ challenge, memberId, memberName, rpId, rpName }) {
   if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم تسجيل الدخول بالبصمة')

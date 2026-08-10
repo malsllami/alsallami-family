@@ -3,7 +3,8 @@ import PasswordInput from '../components/PasswordInput'
 import { normalizeDigits } from '../utils/normalizeInput'
 import TreeNavigator from '../components/TreeNavigator'
 import PhoneInput from '../components/PhoneInput'
-import { registerDeviceCredential, isWebAuthnSupported } from '../services/webauthn'
+import { registerDeviceCredential, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
+import BiometricIcon from '../components/BiometricIcon'
 
 // إعدادات جهة الاعتماد (Relying Party) لبصمة الجهاز — يجب أن تطابق النطاق الفعلي للموقع
 const RP_ID   = 'malsllami.github.io'
@@ -201,6 +202,8 @@ export default function MemberDashboard() {
   const [bioDevicesLoaded, setBioDevicesLoaded] = useState(false)
   const [bioBusy,          setBioBusy]          = useState(false)
   const [bioMsg,           setBioMsg]           = useState(null) // { success, text } | null
+  const [bioChallenge,     setBioChallenge]     = useState(null) // challenge مُجهَّز مسبقاً — بانتظار ضغطة البصمة
+  const bioPlatform = detectBiometricPlatform()
 
   /* ربط الشجرة */
   const [showTreeLink,        setShowTreeLink]        = useState(false)
@@ -604,16 +607,32 @@ export default function MemberDashboard() {
     finally { setBioDevicesLoaded(true) }
   }
 
-  /* ── بصمة الجهاز: ربط بصمة هذا الجهاز بالعضو الحالي ── */
-  const handleEnrollDevice = async () => {
+  /* ── بصمة الجهاز: ربط بصمة هذا الجهاز — خطوتان منفصلتان وجوباً ─────────────
+     متصفحات صارمة مثل Safari (آيفون/آيباد) ترفض فتح نافذة البصمة إذا مرّ أي
+     تأخير شبكي بين ضغطة المستخدم واستدعاء navigator.credentials.create —
+     فتُفشل العملية بصمت. الحل: نجلب الـ challenge بالخطوة الأولى، ثم نستدعي
+     واجهة البصمة فوراً في زر ثانٍ منفصل دون أي انتظار شبكي قبلها. ── */
+  const handleEnrollPrepare = async () => {
     setBioMsg(null)
+    setBioChallenge(null)
     try {
       setBioBusy(true)
       const begin = await post({ action: 'beginDeviceRegistration', memberId: savedUser.memberId })
       if (!begin.success) { setBioMsg({ success: false, text: begin.message || 'تعذّر بدء عملية الربط' }); return }
+      setBioChallenge(begin.challenge)
+    } catch {
+      setBioMsg({ success: false, text: 'تعذّر الاتصال بالخادم' })
+    } finally { setBioBusy(false) }
+  }
 
+  const handleEnrollComplete = async () => {
+    if (!bioChallenge) return
+    setBioMsg(null)
+    try {
+      setBioBusy(true)
+      // نداء واجهة البصمة أولاً وفوراً — بلا أي await قبله — للحفاظ على "تفاعل المستخدم الحديث"
       const reg = await registerDeviceCredential({
-        challenge: begin.challenge, memberId: savedUser.memberId,
+        challenge: bioChallenge, memberId: savedUser.memberId,
         memberName: savedUser.firstName || 'عضو', rpId: RP_ID, rpName: RP_NAME,
       })
       const result = await post({
@@ -624,7 +643,7 @@ export default function MemberDashboard() {
       else setBioMsg({ success: false, text: result.message || 'تعذّر ربط البصمة' })
     } catch (err) {
       setBioMsg({ success: false, text: err.message || 'فشلت عملية ربط البصمة' })
-    } finally { setBioBusy(false) }
+    } finally { setBioBusy(false); setBioChallenge(null) }
   }
 
   /* ── بصمة الجهاز: إلغاء ربط جهاز مسجَّل ── */
@@ -1414,11 +1433,21 @@ export default function MemberDashboard() {
               </div>
             )}
 
-            <button onClick={handleEnrollDevice} disabled={bioBusy}
-              className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-              style={{ background: T.purple.soft, border: `1px solid ${T.purple.border}`, color: '#a78bfa' }}>
-              {bioBusy ? 'جاري الربط...' : 'تفعيل البصمة على هذا الجهاز'}
-            </button>
+            {!bioChallenge ? (
+              <button onClick={handleEnrollPrepare} disabled={bioBusy}
+                className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2"
+                style={{ background: T.purple.soft, border: `1px solid ${T.purple.border}`, color: '#a78bfa' }}>
+                <BiometricIcon kind={bioPlatform.kind} />
+                {bioBusy ? 'جاري التحضير...' : `تفعيل ${bioPlatform.label} على هذا الجهاز`}
+              </button>
+            ) : (
+              <button onClick={handleEnrollComplete} disabled={bioBusy}
+                className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50 flex items-center justify-center gap-2 animate-pulse"
+                style={{ background: 'rgba(167,139,250,0.2)', border: `1px solid ${T.purple.border}`, color: '#a78bfa' }}>
+                <BiometricIcon kind={bioPlatform.kind} />
+                {bioBusy ? 'جاري الربط...' : `اضغط لإكمال ${bioPlatform.label}`}
+              </button>
+            )}
           </SlidePanel>
         </div>
       )}

@@ -3,7 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
 import PhoneInput from '../components/PhoneInput'
-import { loginWithDeviceCredential, isWebAuthnSupported } from '../services/webauthn'
+import { loginWithDeviceCredential, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
+import BiometricIcon from '../components/BiometricIcon'
 
 const API = import.meta.env.VITE_API_URL
 const post = (body) =>
@@ -43,6 +44,7 @@ export default function Login() {
 
   /* ── الدخول بالبصمة ── */
   const [bioLoading, setBioLoading] = useState(false)
+  const bioPlatform = detectBiometricPlatform()
 
   const isLoading = loading || fpLoading || changeLoading || bioLoading
 
@@ -83,10 +85,18 @@ export default function Login() {
     }
   }
 
-  /* ── الدخول بالبصمة (WebAuthn) — يستخدم رقم الهوية المكتوب في الحقل أعلاه ── */
-  const handleBiometricLogin = async () => {
+  /* ── الدخول بالبصمة (WebAuthn) — خطوتان منفصلتان وجوباً ─────────────────────
+     متصفحات صارمة مثل Safari (آيفون/آيباد) ترفض فتح نافذة البصمة إذا مرّ أي
+     تأخير (كطلب شبكي) بين ضغطة المستخدم واستدعاء navigator.credentials.get —
+     فتُفشل العملية بصمت دون أي رسالة واضحة. الحل: نجلب الـ challenge في الخطوة
+     الأولى (زر "الدخول بالبصمة")، ثم نستدعي واجهة البصمة فوراً في الخطوة
+     الثانية (زر منفصل) دون أي انتظار شبكي قبلها. ── */
+  const [bioReady, setBioReady] = useState(null) // { memberId, challenge, credentialIds } | null
+
+  const handleBiometricPrepare = async () => {
     setError('')
     setIsRejected(false)
+    setBioReady(null)
     const nid = nationalId.trim()
     if (!nid) { setError('أدخل رقم الهوية الوطنية أولاً لتفعيل الدخول بالبصمة'); return }
     try {
@@ -97,11 +107,25 @@ export default function Login() {
         setError('لا توجد بصمة مربوطة بهذا الحساب بعد — سجّل الدخول بكلمة المرور ثم فعّلها من لوحة العضو')
         return
       }
+      setBioReady({ memberId: begin.memberId, challenge: begin.challenge, credentialIds: begin.credentialIds })
+    } catch {
+      setError('تعذّر الاتصال بالخادم')
+    } finally {
+      setBioLoading(false)
+    }
+  }
+
+  const handleBiometricComplete = async () => {
+    if (!bioReady) return
+    setError('')
+    try {
+      setBioLoading(true)
+      // نداء واجهة البصمة أولاً وفوراً — بلا أي await قبله — للحفاظ على "تفاعل المستخدم الحديث"
       const assertion = await loginWithDeviceCredential({
-        challenge: begin.challenge, credentialIds: begin.credentialIds, rpId: RP_ID,
+        challenge: bioReady.challenge, credentialIds: bioReady.credentialIds, rpId: RP_ID,
       })
       const result = await post({
-        action: 'completeDeviceLogin', memberId: begin.memberId, credentialId: assertion.credentialId,
+        action: 'completeDeviceLogin', memberId: bioReady.memberId, credentialId: assertion.credentialId,
         clientDataJSON: assertion.clientDataJSON, authenticatorData: assertion.authenticatorData, signature: assertion.signature,
       })
       if (result.success) {
@@ -116,6 +140,7 @@ export default function Login() {
       setError(err.message || 'فشل الدخول بالبصمة')
     } finally {
       setBioLoading(false)
+      setBioReady(null)
     }
   }
 
@@ -274,18 +299,27 @@ export default function Login() {
                 </button>
               </div>
 
-              {/* الدخول بالبصمة — يظهر فقط إن كان الجهاز/المتصفح يدعم WebAuthn */}
-              {isWebAuthnSupported() && (
-                <button type="button" onClick={handleBiometricLogin} disabled={isLoading}
+              {/* الدخول بالبصمة — يظهر فقط إن كان الجهاز/المتصفح يدعم WebAuthn، خطوتان منفصلتان */}
+              {isWebAuthnSupported() && !bioReady && (
+                <button type="button" onClick={handleBiometricPrepare} disabled={isLoading}
                   className="font-nav w-full flex items-center justify-center gap-2.5 text-sm font-bold transition-all disabled:opacity-50"
                   style={{
                     height: 52, borderRadius: 14,
                     background: 'rgba(167,139,250,0.08)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa',
                   }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 11a2 2 0 0 0-2 2c0 1.6-.8 3.1-2 4M8 17.5A6 6 0 0 1 6 13a6 6 0 0 1 12 0c0 .8-.1 1.6-.4 2.3M14 13a2 2 0 0 1 4 0c0 2.5-.6 4.9-1.7 7M12 5a8 8 0 0 1 8 8c0 1-.1 2-.4 2.9"/>
-                  </svg>
-                  {bioLoading ? 'جاري التحقق...' : 'الدخول بالبصمة'}
+                  <BiometricIcon kind={bioPlatform.kind} />
+                  {bioLoading ? 'جاري التحقق...' : `الدخول بـ${bioPlatform.label}`}
+                </button>
+              )}
+              {isWebAuthnSupported() && bioReady && (
+                <button type="button" onClick={handleBiometricComplete} disabled={isLoading}
+                  className="font-nav w-full flex items-center justify-center gap-2.5 text-sm font-bold transition-all disabled:opacity-50 animate-pulse"
+                  style={{
+                    height: 52, borderRadius: 14,
+                    background: 'rgba(167,139,250,0.16)', border: '1px solid rgba(167,139,250,0.5)', color: '#a78bfa',
+                  }}>
+                  <BiometricIcon kind={bioPlatform.kind} />
+                  {bioLoading ? 'جاري التحقق...' : `اضغط لإكمال ${bioPlatform.label}`}
                 </button>
               )}
             </form>
