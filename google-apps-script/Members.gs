@@ -33,6 +33,7 @@ function getMemberData(body) {
   if (!user.job)        user.job           = String(member['المهنة']            || '');
   if (!user.nationalId) user.nationalId    = String(member['رقم الهوية']        || '');
   if (!user.branch)     user.branch        = String(member['الفخذ']              || '');
+  user.photoUrl        = String(member['صورة'] || '');
 
   user.fatherName      = normalizeFatherName(member['اسم الأب'], member['اسم الجد']);
   user.grandfatherName = String(member['اسم الجد'] || '');
