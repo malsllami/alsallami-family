@@ -420,9 +420,16 @@ export default function Funds() {
         <>
           {/* إحصائيات سريعة + تعديل الصندوق */}
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <div className="grid grid-cols-2 gap-4 flex-1 min-w-[260px]">
+            <div className={`grid gap-4 flex-1 min-w-[260px] ${isMember ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2'}`}>
               <StatCard label="إجمالي الأعضاء"   value={fund.membersCount || 0}  c={c} />
               <StatCard label="إجمالي مبلغ الصندوق" value={fund.totalAmount || 0} c={c} sub="ريال سعودي" />
+              {/* الإنفاق والمتبقي — للأعضاء المسجَّلين فقط، مطابقةً لخصوصية بطاقة الإنفاق نفسها */}
+              {isMember && (
+                <>
+                  <StatCard label="إجمالي الإنفاق" value={expenseTotal || 0} c={c} sub="ريال سعودي" />
+                  <StatCard label="المتبقي بعد الإنفاق" value={Math.max(0, (fund.totalAmount || 0) - (expenseTotal || 0))} c={c} sub="ريال سعودي" />
+                </>
+              )}
             </div>
             {isFundAdmin && (
               <button onClick={() => openEdit(fund)}
