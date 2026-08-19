@@ -182,6 +182,17 @@ export default function AdminDashboard() {
   const [mvLoading,   setMvLoading]   = useState(false)
   const [mvResult,    setMvResult]    = useState(null)
 
+  /* إضافة عقدة جديدة تحت أب موجود بالشجرة — اختياريًا مربوطة بعضو مسجَّل
+     مسبقًا (يحل حالة "الأب غير موجود بالشجرة": تُضاف عقدة الأب أولاً بلا
+     ربط، ثم عقدة العضو نفسه تحتها مربوطة بحسابه الحقيقي) */
+  const [anParentId,  setAnParentId]  = useState('')
+  const [anName,      setAnName]      = useState('')
+  const [anAlive,     setAnAlive]     = useState('حي')
+  const [anMemberId,  setAnMemberId]  = useState('')
+  const [anLoading,   setAnLoading]   = useState(false)
+  const [anResult,    setAnResult]    = useState(null)
+  const [amMembers,   setAmMembers]   = useState([]) // قائمة كل الأعضاء المسجَّلين — تُحمَّل عند فتح التبويب فقط
+
   const [openSec, setOpenSec] = useState({
     scriptStats: false, platformStats: false, onlineUsers: false,
     regReq: false, treeReq: false, treeStats: false,
@@ -692,6 +703,40 @@ export default function AdminDashboard() {
       }
     } catch { setMvResult({ ok: false, msg: 'خطأ في الاتصال' }) }
     finally { setMvLoading(false) }
+  }
+
+  /* قائمة كل الأعضاء المسجَّلين — تُحمَّل مرة واحدة فقط عند أول فتح لتبويب "إضافة عقدة" */
+  const loadAllMembersForTree = async () => {
+    if (amMembers.length) return
+    try {
+      const data = await callRegistrations({ action: 'getAllMembers' })
+      if (data.success) setAmMembers(data.members)
+    } catch { /* ignore */ }
+  }
+
+  /* اسم كامل مميّز — الاسم + الأب + الجد (تفاديًا لتشابه الأسماء الأولى) */
+  const memberFullName = (m) => [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' بن ')
+
+  /* إضافة عقدة جديدة تحت أب مُختار — اختياريًا مربوطة بعضو حقيقي */
+  const handleAddTreeNode = async () => {
+    if (!anParentId) return setAnResult({ ok: false, msg: 'اختر الأب من الشجرة' })
+    if (!anName.trim()) return setAnResult({ ok: false, msg: 'الاسم مطلوب' })
+    setAnLoading(true); setAnResult(null)
+    try {
+      const data = await callTree({
+        action: 'addTreeNode', parentId: anParentId, name: anName.trim(),
+        aliveStatus: anAlive, memberId: anMemberId || undefined,
+      })
+      setAnResult({ ok: data.success, msg: data.message || (data.success ? 'تمت الإضافة' : 'فشل') })
+      if (data.success) {
+        setAnParentId(''); setAnName(''); setAnMemberId(''); setAnAlive('حي')
+        try {
+          const td = await callTree({ action: 'getFamilyTree' })
+          if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
+        } catch { /* ignore */ }
+      }
+    } catch { setAnResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setAnLoading(false) }
   }
 
   /* البيانات المُشتقة */
@@ -1980,13 +2025,14 @@ export default function AdminDashboard() {
           {/* التبويبات */}
           <div className="flex gap-2 mt-5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {[
-              { key: 'edit',   label: 'تعديل اسم الجد' },
-              { key: 'delete', label: 'احذف جد' },
-              { key: 'insert', label: 'إدراج جد وسيط' },
-              { key: 'root',   label: 'إضافة فوق الجذر' },
-              { key: 'move',   label: 'نقل عضو' },
+              { key: 'edit',    label: 'تعديل اسم الجد' },
+              { key: 'delete',  label: 'احذف جد' },
+              { key: 'insert',  label: 'إدراج جد وسيط' },
+              { key: 'root',    label: 'إضافة فوق الجذر' },
+              { key: 'move',    label: 'نقل عضو' },
+              { key: 'addNode', label: 'إضافة عقدة' },
             ].map(t => (
-              <button key={t.key} onClick={() => setTreeManageTab(t.key)}
+              <button key={t.key} onClick={() => { setTreeManageTab(t.key); if (t.key === 'addNode') loadAllMembersForTree() }}
                 className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200"
                 style={{
                   background: treeManageTab === t.key ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
@@ -2249,6 +2295,76 @@ export default function AdminDashboard() {
                 className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
                 style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)', color: '#a5b4fc' }}>
                 {mvLoading ? 'جاري النقل...' : 'نقل العضو'}
+              </button>
+            </div>
+          )}
+
+          {/* إضافة عقدة — تحل حالة "الأب غير موجود بالشجرة": أضف عقدة الأب
+              أولاً بلا ربط، ثم عقدة العضو نفسه تحتها مربوطة بحسابه الحقيقي */}
+          {treeManageTab === 'addNode' && (
+            <div className="mt-5 space-y-4">
+              <div className="p-4 rounded-2xl" style={{ background: 'rgba(52,211,153,0.06)', border: '1px solid rgba(52,211,153,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(167,243,208,0.85)' }}>
+                  لربط عضو مُعتمَد بطلب تسجيل لم يُوجد أبوه بالشجرة: أضف عقدة باسم الأب هنا (بلا ربط) تحت الجد، ثم أضف عقدة ثانية باسم العضو تحت الأب الجديد مع اختيار "ربط بعضو حقيقي" لاسمه.
+                </p>
+              </div>
+
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">الأب (تحته تُضاف العقدة الجديدة) *</label>
+                <select className="form-input" value={anParentId} onChange={e => setAnParentId(e.target.value)}>
+                  <option value="">— اختر من الشجرة —</option>
+                  {amFlatTree.filter(n => !n.isChildRecord).map(n => (
+                    <option key={n.id} value={n.id}>
+                      {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">اسم العقدة الجديدة *</label>
+                <input className="form-input" placeholder="مثال: محمد" value={anName} onChange={e => setAnName(e.target.value)} />
+              </div>
+
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">
+                  ربط بعضو حقيقي <span className="text-gray-600">(اختياري — فقط لو العقدة تمثّل عضوًا مسجَّلاً مسبقًا)</span>
+                </label>
+                <select className="form-input" value={anMemberId} onChange={e => setAnMemberId(e.target.value)}>
+                  <option value="">— بلا ربط (اسم عرض فقط) —</option>
+                  {amMembers.map(m => (
+                    <option key={m.memberId} value={m.memberId}>{memberFullName(m)}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <p className="font-nav text-xs text-gray-500 mb-2">الحالة</p>
+                <div className="flex gap-3">
+                  {['حي', 'متوفى'].map(val => (
+                    <button key={val} type="button" onClick={() => setAnAlive(val)}
+                      className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
+                      style={{
+                        background: anAlive === val ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)') : 'rgba(255,255,255,0.03)',
+                        border:     anAlive === val ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)') : '1px solid rgba(255,255,255,0.08)',
+                        color:      anAlive === val ? (val === 'حي' ? '#4ade80' : '#9ca3af') : 'rgba(255,255,255,0.70)',
+                      }}>
+                      {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {anResult && (
+                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                  style={{ background: anResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: anResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: anResult.ok ? '#4ade80' : '#f87171' }}>
+                  {anResult.msg}
+                </div>
+              )}
+              <button onClick={handleAddTreeNode} disabled={anLoading}
+                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)', color: '#34d399' }}>
+                {anLoading ? 'جاري الإضافة...' : 'إضافة العقدة'}
               </button>
             </div>
           )}
