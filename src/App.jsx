@@ -1,6 +1,7 @@
 import logo from './assets/logo.png'
 import { useNavigate } from 'react-router-dom'
 import { useRef, useState, useCallback, useEffect } from 'react'
+import { callFunction } from './services/api'
 
 const MAP_EMBED = 'https://maps.google.com/maps?q=18.759126,41.4451226&z=17&output=embed'
 const MAP_LINK  = 'https://maps.app.goo.gl/ZJK3h6mLLRwnuHAk6'
@@ -109,13 +110,11 @@ export default function App() {
   }, [])
   const handleMouseLeave = useCallback(() => setLogoOffset({ x: 0, y: 0 }), [])
 
-  /* fetch real stats */
+  /* تسجيل زيارة جديدة (مرة واحدة فقط لكل جلسة تصفح) + جلب إحصائيات حقيقية بنفس النداء */
   useEffect(() => {
-    fetch(import.meta.env.VITE_API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'getAdminStats' }),
-    })
-      .then(r => r.json())
+    if (sessionStorage.getItem('visitTracked')) return
+    sessionStorage.setItem('visitTracked', '1')
+    callFunction('track-visit', {})
       .then(d => { if (d.success) setStats(d.stats) })
       .catch(() => {})
   }, [])

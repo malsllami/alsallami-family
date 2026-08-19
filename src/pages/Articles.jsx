@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { callFunction } from '../services/api'
 
 const BLANK_ARTICLE = {
   type: 'standard', title: '', category: '', description: '', body: '',
@@ -6,10 +7,7 @@ const BLANK_ARTICLE = {
 }
 
 /* ════ helper ════════════════════════════════════════════════════════════════ */
-async function callApi(body) {
-  const res = await fetch(import.meta.env.VITE_API_URL, { method: 'POST', body: JSON.stringify(body) })
-  return res.json()
-}
+const callApi = (body) => callFunction('manage-articles', body)
 
 /* ════ مكوّن مقسّم الأقسام ════════════════════════════════════════════════ */
 function ArticleSection({ title, icon, children }) {

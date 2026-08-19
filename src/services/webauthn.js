@@ -1,28 +1,28 @@
-// أغلفة WebAuthn — تحويلات Base64URL↔ArrayBuffer + حفلا التسجيل والدخول عبر navigator.credentials
-// WebAuthn wrappers — Base64URL↔ArrayBuffer conversions + register/login ceremonies via navigator.credentials
+// ═══════════════════════════════════════════════════════════════════════════
+// webauthn.js — طبقة رقيقة فوق @simplewebauthn/browser (المرحلة 6)
+// يستبدل التطبيق اليدوي السابق (بناء/ترميز خيارات WebAuthn يدويًا) بمكتبة
+// قياسية (معيار الصناعة) تطابق تمامًا الشكل الذي تُصدره/تتوقعه manage-webauthn
+// (المبنية على @simplewebauthn/server بالخلفية).
+//
+// ملاحظة مهمة: rpId لم يعد يُمرَّر يدويًا من الواجهة — يأتي مضمَّنًا داخل
+// "options" التي يُرجعها الخادم أصلًا (بحسب معيار WebAuthn)، فلا حاجة لثابت
+// RP_ID مكرَّر بأكثر من ملف (كان يحتاج تزامنًا يدويًا عند تغيير النطاق).
+//
+// قيد حرج يجب الحفاظ عليه دائمًا: نمط "خطوتين منفصلتين" — Safari (آيفون/
+// آيباد) يرفض فتح نافذة البصمة لو مرّ أي تأخير شبكي بين ضغطة المستخدم
+// واستدعاء startAuthentication/startRegistration. لذلك:
+//   1) نداء API لجلب "options" فقط (بدون أي استدعاء WebAuthn بعده مباشرة)
+//   2) زر منفصل يستدعي loginWithPasskey/registerPasskey فورًا بلا await قبله
+// ═══════════════════════════════════════════════════════════════════════════
 
-function base64UrlToBuffer(b64url) {
-  const pad = '='.repeat((4 - (b64url.length % 4)) % 4)
-  const base64 = (b64url + pad).replace(/-/g, '+').replace(/_/g, '/')
-  const raw = atob(base64)
-  const buf = new Uint8Array(raw.length)
-  for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i)
-  return buf.buffer
-}
-
-function bufferToBase64Url(buf) {
-  const bytes = new Uint8Array(buf)
-  let str = ''
-  for (let i = 0; i < bytes.length; i++) str += String.fromCharCode(bytes[i])
-  return btoa(str).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function stringToBuffer(str) {
-  return new TextEncoder().encode(str).buffer
-}
+import {
+  startAuthentication,
+  startRegistration,
+  browserSupportsWebAuthn,
+} from '@simplewebauthn/browser'
 
 export function isWebAuthnSupported() {
-  return typeof window !== 'undefined' && !!window.PublicKeyCredential
+  return browserSupportsWebAuthn()
 }
 
 // يكتشف نوع بصمة الجهاز المرجّح حسب نظام التشغيل، لعرض تسمية وأيقونة مناسبة
@@ -40,63 +40,20 @@ export function detectBiometricPlatform() {
   return { kind: 'generic', label: 'البصمة' }
 }
 
-// حفل التسجيل — ربط بصمة الجهاز الحالي بالعضو (navigator.credentials.create)
-export async function registerDeviceCredential({ challenge, memberId, memberName, rpId, rpName }) {
-  if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم تسجيل الدخول بالبصمة')
-  const publicKey = {
-    challenge: base64UrlToBuffer(challenge),
-    rp: { id: rpId, name: rpName },
-    user: { id: stringToBuffer(memberId), name: memberName, displayName: memberName },
-    pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
-    authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required', residentKey: 'preferred' },
-    attestation: 'none',
-    timeout: 60000,
-  }
-  const cred = await navigator.credentials.create({ publicKey })
-  if (!cred) throw new Error('تم إلغاء عملية ربط البصمة')
-  return {
-    clientDataJSON: bufferToBase64Url(cred.response.clientDataJSON),
-    attestationObject: bufferToBase64Url(cred.response.attestationObject),
-  }
+/**
+ * حفل الدخول بالبصمة — يُستدعى فورًا بزر منفصل بلا await قبله (انظر التحذير أعلاه).
+ * @param {object} options الكائن الكامل المُرجَع من manage-webauthn (action: beginLogin)
+ * @returns {Promise<object>} AuthenticationResponseJSON — يُرسَل كما هو لـcompleteLogin
+ */
+export function loginWithPasskey(options) {
+  return startAuthentication({ optionsJSON: options })
 }
 
-// حفل الدخول — التحقق من هوية العضو ببصمة جهاز مربوط مسبقاً (navigator.credentials.get)
-export async function loginWithDeviceCredential({ challenge, credentialIds, rpId }) {
-  if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم الدخول بالبصمة')
-  const publicKey = {
-    challenge: base64UrlToBuffer(challenge),
-    rpId,
-    allowCredentials: credentialIds.map(id => ({ type: 'public-key', id: base64UrlToBuffer(id) })),
-    userVerification: 'required',
-    timeout: 60000,
-  }
-  const assertion = await navigator.credentials.get({ publicKey })
-  if (!assertion) throw new Error('تم إلغاء عملية الدخول بالبصمة')
-  return {
-    credentialId: bufferToBase64Url(assertion.rawId),
-    clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
-    authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
-    signature: bufferToBase64Url(assertion.response.signature),
-  }
-}
-
-// حفل الدخول "بلا اسم مستخدم" — بدون allowCredentials، فيعرض النظام نفسه (Face ID/
-// Touch ID/Windows Hello) أي بصمة عضو محفوظة لهذا الموقع على هذا الجهاز مباشرة،
-// دون أي إدخال يدوي مسبق (رقم هوية أو غيره)
-export async function loginUsernameless({ challenge, rpId }) {
-  if (!isWebAuthnSupported()) throw new Error('هذا المتصفح أو الجهاز لا يدعم الدخول بالبصمة')
-  const publicKey = {
-    challenge: base64UrlToBuffer(challenge),
-    rpId,
-    userVerification: 'required',
-    timeout: 60000,
-  }
-  const assertion = await navigator.credentials.get({ publicKey })
-  if (!assertion) throw new Error('تم إلغاء عملية الدخول بالبصمة')
-  return {
-    credentialId: bufferToBase64Url(assertion.rawId),
-    clientDataJSON: bufferToBase64Url(assertion.response.clientDataJSON),
-    authenticatorData: bufferToBase64Url(assertion.response.authenticatorData),
-    signature: bufferToBase64Url(assertion.response.signature),
-  }
+/**
+ * حفل تسجيل جهاز جديد — يُستدعى فورًا بزر منفصل بلا await قبله.
+ * @param {object} options الكائن الكامل المُرجَع من manage-webauthn (action: beginRegistration)
+ * @returns {Promise<object>} RegistrationResponseJSON — يُرسَل كما هو لـcompleteRegistration
+ */
+export function registerPasskey(options) {
+  return startRegistration({ optionsJSON: options })
 }

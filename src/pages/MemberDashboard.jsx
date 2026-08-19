@@ -3,12 +3,9 @@ import PasswordInput from '../components/PasswordInput'
 import { normalizeDigits } from '../utils/normalizeInput'
 import TreeNavigator from '../components/TreeNavigator'
 import PhoneInput from '../components/PhoneInput'
-import { registerDeviceCredential, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
+import { registerPasskey, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
 import BiometricIcon from '../components/BiometricIcon'
-
-// إعدادات جهة الاعتماد (Relying Party) لبصمة الجهاز — يجب أن تطابق النطاق الفعلي للموقع
-const RP_ID   = 'malsllami.github.io'
-const RP_NAME = 'عائلة السلامي'
+import { callFunction } from '../services/api'
 
 // اسم وصفي للجهاز الحالي (نظام التشغيل + المتصفح) لعرضه في قائمة الأجهزة المربوطة
 function guessDeviceName() {
@@ -220,13 +217,13 @@ export default function MemberDashboard() {
   const [memberTreeNode,      setMemberTreeNode]      = useState(null)
 
   const setPw = (field) => (e) => setPasswordData(p => ({ ...p, [field]: e.target.value }))
-  const API   = import.meta.env.VITE_API_URL
-  const post  = (body) => fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json())
+  const callMember = (body) => callFunction('manage-member', body)
+  const callTree   = (body) => callFunction('manage-tree', body)
 
   /* جلب الشجرة للشجرة المصغرة */
   useEffect(() => {
-    if (!API || treeData) return
-    post({ action: 'getFamilyTree' })
+    if (treeData) return
+    callTree({ action: 'getFamilyTree' })
       .then(d => {
         if (d.success && d.tree?.length > 0) {
           setTreeData({ id: 'root', name: 'الشجرة', generationLevel: 0, children: d.tree })
@@ -308,9 +305,9 @@ export default function MemberDashboard() {
 
   /* جلب الشجرة عند فتح لوحة الربط */
   useEffect(() => {
-    if (!showTreeLink || treeData || !API) return
+    if (!showTreeLink || treeData) return
     setTreeLoading(true)
-    post({ action: 'getFamilyTree' })
+    callTree({ action: 'getFamilyTree' })
       .then(d => {
         if (d.success && d.tree?.length > 0) {
           setTreeData({ id: 'root', name: 'الشجرة', generationLevel: 0, children: d.tree })
@@ -324,7 +321,7 @@ export default function MemberDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await post({ action: 'getMemberData', memberId: savedUser.memberId })
+        const data = await callMember({ action: 'getMemberData' })
         if (data.success) {
           const m = { ...data.member, wives: data.wives || [], children: data.children || [] }
           setMemberData(m)
@@ -344,9 +341,8 @@ export default function MemberDashboard() {
     if (!draft.firstName) return alert('الاسم مطلوب')
     try {
       setContactLoading(true)
-      const result = await post({
+      const result = await callMember({
         action: 'updateMemberInfo',
-        memberId: savedUser.memberId,
         'الاسم الأول':       draft.firstName,
         'رقم الجوال':        phoneCountry + draft.phone,
         'البريد الإلكتروني': draft.email,
@@ -368,9 +364,8 @@ export default function MemberDashboard() {
     if (!idDraft.grandfatherName.trim()) return alert('اسم الجد مطلوب')
     try {
       setIdLoading(true)
-      const result = await post({
+      const result = await callMember({
         action: 'updateMemberInfo',
-        memberId: savedUser.memberId,
         'رقم الهوية': idDraft.nationalId,
         'الفخذ':      idDraft.branch,
         'اسم الأب':   idDraft.fatherName.trim(),
@@ -388,9 +383,8 @@ export default function MemberDashboard() {
   const handleUpdateBirth = async () => {
     try {
       setBirthLoading(true)
-      const result = await post({
+      const result = await callMember({
         action: 'updateMemberInfo',
-        memberId: savedUser.memberId,
         'تاريخ الميلاد': birthDraft.birthDate,
         'الحالة الاجتماعية': birthDraft.maritalStatus,
       })
@@ -407,7 +401,7 @@ export default function MemberDashboard() {
     if (!wifeName.trim()) return alert('اسم الزوجة مطلوب')
     try {
       setWifeLoading(true)
-      const result = await post({ action: 'addWife', memberId: savedUser.memberId, name: wifeName.trim(), status: wifeStatus, alive: wifeAddAlive })
+      const result = await callMember({ action: 'addWife', name: wifeName.trim(), status: wifeStatus, alive: wifeAddAlive })
       if (result.success) {
         setMemberData(p => ({ ...p, wives: [...(p.wives || []), { id: result.wifeId, name: wifeName.trim(), status: wifeStatus, alive: wifeAddAlive }] }))
         setWifeName(''); setWifeStatus('مستمرة'); setWifeAddAlive(true); setShowAddWife(false)
@@ -425,7 +419,7 @@ export default function MemberDashboard() {
   const handleUpdateWife = async () => {
     try {
       setWifeEditLoad(true)
-      const result = await post({ action: 'updateWife', wifeId: editingWifeId, ...wifeDraft })
+      const result = await callMember({ action: 'updateWife', wifeId: editingWifeId, ...wifeDraft })
       if (result.success) {
         setMemberData(p => ({ ...p, wives: p.wives.map(w => w.id === editingWifeId ? { ...w, ...wifeDraft } : w) }))
         setEditingWifeId(null)
@@ -438,7 +432,7 @@ export default function MemberDashboard() {
   const handleRemoveWife = async (wifeId) => {
     if (!confirm('هل تريد حذف هذه الزوجة؟')) return
     try {
-      const result = await post({ action: 'removeWife', wifeId })
+      const result = await callMember({ action: 'removeWife', wifeId })
       if (result.success) setMemberData(p => ({ ...p, wives: p.wives.filter(w => w.id !== wifeId) }))
       else alert(result.message)
     } catch { alert('حدث خطأ') }
@@ -452,7 +446,7 @@ export default function MemberDashboard() {
     if (!familyAncestors?.path) return alert('يجب أن تكون مرتبطاً في الشجرة أولاً حتى يُضاف الابن في التسلسل العائلي')
     try {
       setChildLoading(true)
-      const result = await post({ action: 'addChild', memberId: savedUser.memberId, name: newChild.name.trim(), gender: newChild.gender, birthDate: newChild.birthDate, alive: newChild.alive, job: newChild.job, nationalId: newChild.nationalId })
+      const result = await callMember({ action: 'addChild', name: newChild.name.trim(), gender: newChild.gender, birthDate: newChild.birthDate, alive: newChild.alive, job: newChild.job, nationalId: newChild.nationalId })
       if (result.success) {
         setMemberData(p => ({ ...p, children: [...(p.children || []), { id: result.childId, name: newChild.name.trim(), gender: newChild.gender, birthDate: newChild.birthDate, alive: newChild.alive, job: newChild.job, nationalId: newChild.nationalId }] }))
         setNewChild({ name: '', birthDate: '', gender: 'ذكر', alive: true, job: '', nationalId: '' }); setShowAddChild(false)
@@ -470,7 +464,7 @@ export default function MemberDashboard() {
   const handleUpdateChild = async () => {
     try {
       setChildEditLoad(true)
-      const result = await post({ action: 'updateChild', childId: editingChildId, ...childDraft })
+      const result = await callMember({ action: 'updateChild', childId: editingChildId, ...childDraft })
       if (result.success) {
         setMemberData(p => ({ ...p, children: p.children.map(c => c.id === editingChildId ? { ...c, ...childDraft } : c) }))
         setEditingChildId(null)
@@ -483,7 +477,7 @@ export default function MemberDashboard() {
   const handleRemoveChild = async (childId) => {
     if (!confirm('هل تريد حذف هذا الابن؟')) return
     try {
-      const result = await post({ action: 'removeChild', childId })
+      const result = await callMember({ action: 'removeChild', childId })
       if (result.success) setMemberData(p => ({ ...p, children: p.children.filter(c => c.id !== childId) }))
       else alert(result.message)
     } catch { alert('حدث خطأ') }
@@ -507,6 +501,15 @@ export default function MemberDashboard() {
     const hasSelf        = Boolean(selectedLinkSelf)
     if (!hasFather && !hasGrandfather && !hasSon && !hasSelf) return
 
+    // "هذا ابني" (إعادة تعيين ابن موجود ليصبح تحتك) غير مدعومة حاليًا بخادم
+    // طلبات الشجرة الجديد (manage-tree) — مدعومة فقط لحظة اعتماد تسجيل عضو
+    // جديد (approve-registration)، وليس لعضو حالي يرسل طلبًا لاحقًا. تعطيل
+    // مؤقت بدل إرسال طلب سيُعالَج بشكل خاطئ (كأب عادي بدل إعادة تموضع الابن).
+    if (hasSon) {
+      setTreeLinkMsg({ success: false, text: 'هذا الخيار غير مدعوم حاليًا — تواصل مع المدير مباشرة لربط حسابك بهذه الحالة يدويًا.' })
+      return
+    }
+
     // Check if grandfather's children already contain the typed father name
     const grandfatherChildMatch = hasGrandfather
       ? (selectedLinkGrandfa.children || []).find(c => (c.name || '').split(' ')[0].trim() === linkFatherName.trim())
@@ -517,25 +520,15 @@ export default function MemberDashboard() {
       setTreeLinkMsg(null)
       const payload = hasSelf
         ? {
-            action: 'submitTreeRequest', memberId: savedUser.memberId,
-            parentId:        selectedLinkSelf.id,
-            parentName:      (selectedLinkSelf.parentName || selectedLinkSelf.name || '').split(' ')[0],
-            generationLevel: selectedLinkSelf.generationLevel || 1,
-            path:            selectedLinkSelf.computedPath || selectedLinkSelf.path || '',
-            note:            `[SELF:${selectedLinkSelf.id}]`,
-          }
-        : hasSon
-        ? {
-            action: 'submitTreeRequest', memberId: savedUser.memberId,
-            parentId:        selectedLinkSon.parentId || '',
-            parentName:      selectedLinkSon.parentName || '',
-            generationLevel: (selectedLinkSon.generationLevel || 1) - 1,
-            path:            (selectedLinkSon.computedPath || selectedLinkSon.path || '').split(' ← ').slice(0, -1).join(' ← '),
-            note:            `[SON:${selectedLinkSon.id}]`,
+            // "هذا أنا" — ربط مباشر بعقدة موجودة، عبر selfNodeId (وليس
+            // parentId) كما يتوقّع submitTreeRequest بالخادم بالضبط
+            action: 'submitTreeRequest',
+            selfNodeId: selectedLinkSelf.id,
+            note: '',
           }
         : hasFather
         ? {
-            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            action: 'submitTreeRequest',
             parentId:        selectedLinkFather.id,
             parentName:      selectedLinkFather.name,
             generationLevel: (selectedLinkFather.generationLevel || 0) + 1,
@@ -544,7 +537,7 @@ export default function MemberDashboard() {
           }
         : grandfatherChildMatch
         ? {
-            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            action: 'submitTreeRequest',
             parentId:        grandfatherChildMatch.id,
             parentName:      grandfatherChildMatch.name,
             generationLevel: (grandfatherChildMatch.generationLevel || 0) + 1,
@@ -552,14 +545,14 @@ export default function MemberDashboard() {
             note: '',
           }
         : {
-            action: 'submitTreeRequest', memberId: savedUser.memberId,
+            action: 'submitTreeRequest',
             parentId:        'NOTFOUND',
             parentName:      linkFatherName.trim(),
             generationLevel: (selectedLinkGrandfa.generationLevel || 0) + 2,
             path:            selectedLinkGrandfa.computedPath || selectedLinkGrandfa.path || '',
             note: `والدي "${linkFatherName.trim()}" غير موجود في الشجرة — جده ${selectedLinkGrandfa.name} [${selectedLinkGrandfa.id}]`,
           }
-      const result = await post(payload)
+      const result = await callTree(payload)
       setTreeLinkMsg({ success: result.success, text: result.message || (result.success ? 'تم إرسال الطلب بنجاح، في انتظار موافقة المدير' : 'حدث خطأ') })
       if (result.success) {
         setSelectedLinkFather(null); setSelectedLinkGrandfa(null); setSelectedLinkSon(null); setSelectedLinkSelf(null); setLinkFatherName(''); setShowTreeLink(false)
@@ -577,7 +570,7 @@ export default function MemberDashboard() {
       return { error: 'جميع الحقول مطلوبة' }
     if (passwordData.newPassword !== passwordData.confirmPassword)
       return { error: 'تأكيد كلمة المرور غير مطابق' }
-    return post({ action: 'changePassword', memberId: savedUser.memberId, currentPassword: passwordData.currentPassword, newPassword: passwordData.newPassword })
+    return callMember({ action: 'changePassword', newPassword: passwordData.newPassword })
   }
   const handleForceChange = async () => {
     try {
@@ -601,7 +594,7 @@ export default function MemberDashboard() {
   /* ── بصمة الجهاز: جلب قائمة الأجهزة المربوطة بهذا العضو ── */
   const loadBioDevices = async () => {
     try {
-      const result = await post({ action: 'getMemberDevices', memberId: savedUser.memberId })
+      const result = await callFunction('manage-webauthn', { action: 'getDevices' })
       if (result.success) setBioDevices(result.devices || [])
     } catch { /* تجاهل صامت — القائمة تفصيلية وليست حرجة */ }
     finally { setBioDevicesLoaded(true) }
@@ -617,9 +610,9 @@ export default function MemberDashboard() {
     setBioChallenge(null)
     try {
       setBioBusy(true)
-      const begin = await post({ action: 'beginDeviceRegistration', memberId: savedUser.memberId })
+      const begin = await callFunction('manage-webauthn', { action: 'beginRegistration' })
       if (!begin.success) { setBioMsg({ success: false, text: begin.message || 'تعذّر بدء عملية الربط' }); return }
-      setBioChallenge(begin.challenge)
+      setBioChallenge(begin.options)
     } catch {
       setBioMsg({ success: false, text: 'تعذّر الاتصال بالخادم' })
     } finally { setBioBusy(false) }
@@ -631,13 +624,9 @@ export default function MemberDashboard() {
     try {
       setBioBusy(true)
       // نداء واجهة البصمة أولاً وفوراً — بلا أي await قبله — للحفاظ على "تفاعل المستخدم الحديث"
-      const reg = await registerDeviceCredential({
-        challenge: bioChallenge, memberId: savedUser.memberId,
-        memberName: savedUser.firstName || 'عضو', rpId: RP_ID, rpName: RP_NAME,
-      })
-      const result = await post({
-        action: 'completeDeviceRegistration', memberId: savedUser.memberId, deviceName: guessDeviceName(),
-        clientDataJSON: reg.clientDataJSON, attestationObject: reg.attestationObject,
+      const reg = await registerPasskey(bioChallenge)
+      const result = await callFunction('manage-webauthn', {
+        action: 'completeRegistration', deviceName: guessDeviceName(), response: reg,
       })
       if (result.success) { setBioMsg({ success: true, text: 'تم ربط بصمة هذا الجهاز بنجاح' }); loadBioDevices() }
       else setBioMsg({ success: false, text: result.message || 'تعذّر ربط البصمة' })
@@ -649,7 +638,7 @@ export default function MemberDashboard() {
   /* ── بصمة الجهاز: إلغاء ربط جهاز مسجَّل ── */
   const handleRevokeDevice = async (deviceId) => {
     try {
-      const result = await post({ action: 'revokeDevice', memberId: savedUser.memberId, deviceId })
+      const result = await callFunction('manage-webauthn', { action: 'revokeDevice', deviceId })
       if (result.success) loadBioDevices()
       else setBioMsg({ success: false, text: result.message || 'تعذّر إلغاء الجهاز' })
     } catch { setBioMsg({ success: false, text: 'تعذّر الاتصال بالخادم' }) }
@@ -721,7 +710,7 @@ export default function MemberDashboard() {
     try {
       const dataUrl = await compressImage(file)
       const base64  = dataUrl.split(',')[1]
-      const res  = await post({ action: 'uploadMemberPhoto', memberId: savedUser.memberId, base64, mimeType: 'image/jpeg' })
+      const res  = await callFunction('upload-member-photo', { base64, mimeType: 'image/jpeg' })
       if (res.success) {
         setPhotoUrl(res.photoUrl)
       } else {
@@ -852,7 +841,7 @@ export default function MemberDashboard() {
         )}>
           {dataLoading ? <Skeleton lines={4} /> : !editId ? (
             <>
-              <InfoRow label="رقم العضوية" value={`#${savedUser.memberId}`} accent={T.blue.accent} />
+              <InfoRow label="رقم العضوية" value={m.serialNumber ? `#${m.serialNumber}` : '—'} accent={T.blue.accent} />
               <InfoRow label="الاسم الأول"  value={m.firstName} />
               <InfoRow label="اسم الأب"     value={m.fatherName} />
               <InfoRow label="اسم الجد"     value={m.grandfatherName} />

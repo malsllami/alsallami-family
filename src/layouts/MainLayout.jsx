@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, Link, useLocation } from 'react-router-dom'
 import logo from '../assets/logo.png'
+import { logout as logoutSession } from '../services/auth'
+import { callFunction } from '../services/api'
 
 export default function MainLayout() {
   const location           = useLocation()
@@ -10,6 +12,15 @@ export default function MainLayout() {
   const user               = JSON.parse(localStorage.getItem('user'))
   const mustChangePassword = user?.mustChangePassword
   const forcePasswordMode  = user && mustChangePassword === 'Y'
+
+  /* نبض دوري خفيف كل دقيقة — أساس "المتواجدون الآن" بلوحة المدير */
+  useEffect(() => {
+    if (!user?.memberId) return
+    const send = () => callFunction('manage-member', { action: 'heartbeat' }).catch(() => {})
+    send()
+    const id = setInterval(send, 60_000)
+    return () => clearInterval(id)
+  }, [user?.memberId])
 
   /* إغلاق القائمة عند النقر خارجها */
   useEffect(() => {
@@ -22,9 +33,8 @@ export default function MainLayout() {
     return () => document.removeEventListener('mousedown', fn)
   }, [menuOpen])
 
-  const handleLogout = () => {
-    localStorage.removeItem('user')
-    sessionStorage.removeItem('adminUnlocked')
+  const handleLogout = async () => {
+    await logoutSession() // يمسح جلسة Supabase الحقيقية + نسخة التوافق القديمة معًا
     window.location.href = import.meta.env.BASE_URL
   }
 

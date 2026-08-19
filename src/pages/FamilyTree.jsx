@@ -1,19 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PhoneInput from '../components/PhoneInput'
-
-/* ════ بيانات افتراضية — تُستبدل بجلب من API عند توفر الباكند ════════════ */
-const FALLBACK = {
-  id:'N000', name:'إبراهيم العفريتي', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
-    { id:'N001', name:'أحمد', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[
-      { id:'N002', name:'صاحب',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-      { id:'N003', name:'شامي',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-      { id:'N004', name:'يحيى',    gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-      { id:'N005', name:'علي',     gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-      { id:'N006', name:'إبراهيم', gender:'male', alive:false, marital:'married', job:'', wives:[], children:[] },
-    ]},
-  ],
-}
+import { callFunction } from '../services/api'
 
 /* ════ ثوابت التصميم ════════════════════════════════════════════════════════ */
 const MR    = 34   // وحدة التخطيط الأفقي
@@ -512,18 +500,16 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
   const [editLocation,    setEditLocation]    = useState(node.location || '')
   const [saving,          setSaving]          = useState(false)
 
-  /* ── جلب بيانات العضو المسجل إن وجد ── */
+  /* ── جلب بيانات العضو المسجل إن وجد ── متاحة حتى للزائر (الخادم يُخفي
+     رقم الهوية/الجوال تلقائيًا عن غير المسجَّلين دخولهم) ── */
   const [profile,        setProfile]        = useState(null)
   const [profileLoading, setProfileLoading] = useState(false)
-  const API = import.meta.env.VITE_API_URL
 
   useEffect(() => {
-    if (!node.memberId || !API) return
+    if (!node.memberId) return
     setProfileLoading(true)
-    fetch(API, { method: 'POST', body: JSON.stringify({ action: 'getMemberData', memberId: node.memberId }) })
-      .then(r => r.json())
+    callFunction('manage-member', { action: 'getMemberData', memberId: node.memberId })
       .then(d => { if (d.success && d.member) setProfile(d.member) })
-      .catch(() => {})
       .finally(() => setProfileLoading(false))
   }, [node.memberId])
 
@@ -536,7 +522,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     phone:      profile.phone         || node.phone,
     nationalId: profile.nationalId    || null,
     birthDate:  profile.birthDate     || node.birthDate || null,
-    generation: node.generationLevel  || null,
+    generation: node.generation       || null,
     name:       node.name,
     photoUrl:   profile.photoUrl      || node.photoUrl  || null,
   } : {
@@ -547,7 +533,7 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     phone:      node.phone,
     nationalId: null,
     birthDate:  node.birthDate || null,
-    generation: node.generationLevel || null,
+    generation: node.generation || null,
     name:       node.name,
     photoUrl:   node.photoUrl || null,
   }
@@ -576,30 +562,28 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
 
   const handleSave = async () => {
     setSaving(true)
-    if (API) {
-      try {
-        if (node.isWife) {
-          await fetch(API, { method: 'POST', body: JSON.stringify({
-            action: 'updateWifeStatus', wifeId: node.wifeRecordId, status: editAlive ? 'حي' : 'متوفى',
-          }) })
-        } else if (node.isDaughter || node.isSon) {
-          await fetch(API, { method: 'POST', body: JSON.stringify({
-            action: 'updateChildStatus', childId: node.childRecordId, status: editAlive ? 'حي' : 'متوفى',
-          }) })
-        } else {
-          await fetch(API, { method: 'POST', body: JSON.stringify({
-            action:   'updateTreeNode',
-            nodeId:   node.id,
-            name:     editName.trim(),
-            status:   editAlive ? 'حي' : 'متوفى',
-            phone:    editPhoneCountry + editPhone.trim(),
-            marital:  editMarital,
-            job:      editJob,
-            location: editLocation.trim(),
-          }) })
-        }
-      } catch { /* network error — local state still updated */ }
-    }
+    try {
+      if (node.isWife) {
+        await callFunction('manage-tree', {
+          action: 'updateWifeStatus', wifeId: node.wifeRecordId, status: editAlive ? 'حي' : 'متوفى',
+        })
+      } else if (node.isDaughter || node.isSon) {
+        await callFunction('manage-tree', {
+          action: 'updateChildStatus', childId: node.childRecordId, status: editAlive ? 'حي' : 'متوفى',
+        })
+      } else {
+        await callFunction('manage-tree', {
+          action:   'updateTreeNode',
+          nodeId:   node.id,
+          name:     editName.trim(),
+          status:   editAlive ? 'حي' : 'متوفى',
+          phone:    editPhoneCountry + editPhone.trim(),
+          marital:  editMarital,
+          job:      editJob,
+          location: editLocation.trim(),
+        })
+      }
+    } catch { /* network error — local state still updated */ }
     const updates = isWifeDaughter
       ? { alive: editAlive }
       : { name: editName.trim(), alive: editAlive, phone: editPhoneCountry + editPhone.trim(), marital: editMarital, job: editJob, location: editLocation.trim() }
@@ -818,8 +802,9 @@ export default function FamilyTree({ viewerMode = false }) {
   const user       = JSON.parse(localStorage.getItem('user') || 'null')
 
   /* ── حالة الشجرة ── */
-  const [treeRoot,   setTreeRoot]  = useState(FALLBACK)
-  const [loading,    setLoading]   = useState(!!import.meta.env.VITE_API_URL)
+  const [treeRoot,   setTreeRoot]  = useState(null)
+  const [loading,    setLoading]   = useState(true)
+  const [loadError,  setLoadError] = useState(false)
   const pub = true
   const [branch,     setBranch]    = useState(null)
   const [sel,        setSel]       = useState(null)
@@ -834,17 +819,15 @@ export default function FamilyTree({ viewerMode = false }) {
   const treeStats = useMemo(() => computeTreeStats(treeRoot), [treeRoot])
   const branchPointDepth = useMemo(() => findBranchPointDepth(treeRoot, 0), [treeRoot])
 
-  /* ── جلب بيانات الشجرة من API (جاهز للربط بالباكند) ── */
+  /* ── جلب بيانات الشجرة الحقيقية من الخادم — متاحة حتى للزائر غير المسجَّل
+     (البنات مستبعدات من جهة الخادم أصلًا). لا بيانات وهمية عند الفشل —
+     تُعرض حالة خطأ حقيقية بدل شجرة تجريبية ثابتة ── */
   useEffect(() => {
-    const API = import.meta.env.VITE_API_URL
-    if (!API) return
     const load = async () => {
-      try {
-        const r = await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }) })
-        const d = await r.json()
-        if (d.success && d.tree?.length > 0) setTreeRoot(d.tree[0])
-      } catch { /* keep FALLBACK on error */ }
-      finally { setLoading(false) }
+      const d = await callFunction('manage-tree', { action: 'getFamilyTree' })
+      if (d.success && d.tree?.length > 0) setTreeRoot(d.tree[0])
+      else setLoadError(true)
+      setLoading(false)
     }
     load()
   }, [])
@@ -857,6 +840,8 @@ export default function FamilyTree({ viewerMode = false }) {
   }, [branch, treeRoot])
 
   const { nodes, lines, wives, wLines, svgW, svgH } = useMemo(() => {
+    // لا بيانات بعد (جاري التحميل أو فشل الجلب) — لا شجرة وهمية للعرض
+    if (!effectiveRoot) return { nodes: [], lines: [], wives: [], wLines: [], svgW: 0, svgH: 0 }
     // بدون فخذ: اعرض من الجذر حتى مستوى الفخوذ ديناميكياً — الكل: كامل الشجرة
     const renderRoot      = (!branch && !lineageMode) ? shallowTree(effectiveRoot, branchPointDepth + 1) : effectiveRoot
     const nl              = buildNodes(renderRoot, PAD, 0, !showWives, showWives)
@@ -924,6 +909,7 @@ export default function FamilyTree({ viewerMode = false }) {
 
   // الفخوذ: المستوى الأول بعد نقطة التفرع (ديناميكي)
   const branches = useMemo(() => {
+    if (!treeRoot) return []
     return flatByDepth(treeRoot, branchPointDepth + 1, 0)
       .filter(c => c.gender === 'male')
       .map(c => ({ id: c.id, name: c.name }))
@@ -1397,6 +1383,15 @@ export default function FamilyTree({ viewerMode = false }) {
       {loading && (
         <div style={{ position: 'absolute', top: BAR_H + 16, left: '50%', transform: 'translateX(-50%)', zIndex: 60 }}>
           <div className="font-nav text-sm text-gray-500">جاري تحميل الشجرة...</div>
+        </div>
+      )}
+
+      {/* ── فشل التحميل: لا شجرة وهمية تُعرض بدلاً منها ── */}
+      {!loading && loadError && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+          <div className="font-nav text-sm text-center" style={{ color: 'rgba(255,255,255,0.6)' }}>
+            تعذّر تحميل الشجرة العائلية.<br />تحقق من اتصالك بالإنترنت وأعد المحاولة.
+          </div>
         </div>
       )}
 

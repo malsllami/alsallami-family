@@ -4,6 +4,7 @@ import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
 import { normalizeDigits } from '../utils/normalizeInput'
 import PhoneInput from '../components/PhoneInput'
+import { callFunction } from '../services/api'
 
 /* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور */
 function buildFlatTree(roots) {
@@ -63,17 +64,14 @@ function buildWelcomeWhatsAppLink(req) {
   return `https://wa.me/${normalizeToIntlPhone(req.phone)}?text=${encodeURIComponent(message)}`
 }
 
-/* ═══════════ مؤشر لون الاستهلاك ═══════════ */
-function usageTheme(pct) {
-  if (pct >= 90) return { bar: '#ef4444', glow: 'rgba(239,68,68,0.4)',  bg: 'rgba(239,68,68,0.1)',  text: '#ef4444', label: 'حرج'   }
-  if (pct >= 75) return { bar: '#f97316', glow: 'rgba(249,115,22,0.4)', bg: 'rgba(249,115,22,0.1)', text: '#f97316', label: 'مرتفع' }
-  if (pct >= 55) return { bar: '#eab308', glow: 'rgba(234,179,8,0.4)',  bg: 'rgba(234,179,8,0.1)',  text: '#eab308', label: 'متوسط' }
-  return           { bar: '#22c55e', glow: 'rgba(34,197,94,0.4)',  bg: 'rgba(34,197,94,0.1)',  text: '#22c55e', label: 'طبيعي' }
-}
-
 export default function AdminDashboard() {
   const user     = JSON.parse(localStorage.getItem('user'))
   const navigate = useNavigate()
+
+  const callSettings      = (body) => callFunction('manage-settings', body)
+  const callTree          = (body) => callFunction('manage-tree', body)
+  const callMember        = (body) => callFunction('manage-member', body)
+  const callRegistrations = (body) => callFunction('manage-registrations', body)
 
   /* ── بوابة الرمز — phase: 'locked' | 'verifying' | 'success' | 'open' ── */
   const [phase,    setPhase]    = useState(() => sessionStorage.getItem('adminUnlocked') === '1' ? 'open' : 'locked')
@@ -85,11 +83,7 @@ export default function AdminDashboard() {
     try {
       setPhase('verifying')
       setPinError('')
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'verifyAdminPin', memberId: user.memberId, pin }),
-      })
-      const result = await res.json()
+      const result = await callSettings({ action: 'verifyAdminPin', pin })
       if (result.success) {
         sessionStorage.setItem('adminUnlocked', '1')
         setPhase('success')
@@ -107,9 +101,10 @@ export default function AdminDashboard() {
 
   const [stats,          setStats]          = useState(null)
   const [statsLoading,   setStatsLoading]   = useState(true)
-  const [animated,       setAnimated]       = useState(0)
   const [treeStats,      setTreeStats]      = useState(null)
   const [treeStatsLoading, setTreeStatsLoading] = useState(true)
+  const [onlineMembers,  setOnlineMembers]  = useState(null)
+  const [visitStats,     setVisitStats]     = useState(null)
 
   const [showPw,  setShowPw]  = useState(false)
   const [pwData,  setPwData]  = useState({ current: '', next: '', confirm: '' })
@@ -178,8 +173,6 @@ export default function AdminDashboard() {
   const [daResult,   setDaResult]   = useState(null)
   const [daConfirm,  setDaConfirm]  = useState(false)
   const [treeManageTab, setTreeManageTab] = useState('edit')
-  const [repairLoading, setRepairLoading] = useState(false)
-  const [repairResult,  setRepairResult]  = useState(null)
 
   /* نقل عضو في الشجرة */
   const [mvSourceId,  setMvSourceId]  = useState('')
@@ -196,16 +189,12 @@ export default function AdminDashboard() {
   })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
 
-  /* جلب إحصائيات المنصة */
+  /* جلب إحصائيات العائلة الحقيقية (أعضاء/طلبات/صناديق/مقالات) */
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'getAdminStats' }),
-        })
-        const data = await res.json()
-        if (data.success) setStats({ ...data.stats, charts: data.charts })
+        const data = await callSettings({ action: 'getAdminStats' })
+        if (data.success) setStats(data.stats)
       } catch (e) { console.error(e) }
       finally    { setStatsLoading(false) }
     }
@@ -216,11 +205,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'getTreeStats' }),
-        })
-        const data = await res.json()
+        const data = await callSettings({ action: 'getTreeStats' })
         if (data.success) setTreeStats(data)
       } catch (e) { console.error(e) }
       finally { setTreeStatsLoading(false) }
@@ -228,26 +213,19 @@ export default function AdminDashboard() {
     load()
   }, [])
 
-  /* تحريك شريط الاستهلاك بعد التحميل */
+  /* المتواجدون الآن — يُحدَّث كل دقيقة (نفس فاصل النبض الدوري بـMainLayout) */
   useEffect(() => {
-    if (statsLoading) return
-    const id = setTimeout(() => setAnimated(stats?.scriptUsage ?? 0), 300)
-    return () => clearTimeout(id)
-  }, [statsLoading, stats?.scriptUsage])
+    const load = () => callSettings({ action: 'getOnlineMembers' }).then(d => { if (d.success) setOnlineMembers(d) }).catch(() => {})
+    load()
+    const id = setInterval(load, 60_000)
+    return () => clearInterval(id)
+  }, [])
 
-  /* تحديث عداد المتواجدين كل دقيقة */
+  /* إحصائيات الزيارات — تتحدّث تلقائيًا كل دقيقة (نفس فاصل المتواجدين الآن) */
   useEffect(() => {
-    const id = setInterval(async () => {
-      try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'getOnlineUsers' }),
-        })
-        const data = await res.json()
-        if (data.success)
-          setStats(prev => ({ ...prev, onlineUsers: data.onlineUsers }))
-      } catch { /* ignore network errors */ }
-    }, 60_000)
+    const load = () => callSettings({ action: 'getVisitStats' }).then(d => { if (d.success) setVisitStats(d) }).catch(() => {})
+    load()
+    const id = setInterval(load, 60_000)
     return () => clearInterval(id)
   }, [])
 
@@ -256,11 +234,7 @@ export default function AdminDashboard() {
     setRegRequestsLoading(true)
     setRegResult(null)
     try {
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'getPendingRequests', status: 'معلق' }),
-      })
-      const data = await res.json()
+      const data = await callRegistrations({ action: 'getPendingRequests', status: 'معلق' })
       if (data.success) setRegRequests(data.requests || [])
     } catch (e) { console.error(e) }
     finally { setRegRequestsLoading(false) }
@@ -269,11 +243,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'getPendingRequests', status: 'معلق' }),
-        })
-        const data = await res.json()
+        const data = await callRegistrations({ action: 'getPendingRequests', status: 'معلق' })
         if (data.success) setRegRequests(data.requests || [])
       } catch (e) { console.error(e) }
       finally { setRegRequestsLoading(false) }
@@ -285,11 +255,9 @@ export default function AdminDashboard() {
     const requestId = req.requestId
     try {
       setRegActionLoading(requestId + action)
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action, requestId }),
-      })
-      const result = await res.json()
+      // approveRequest هي العملية الوحيدة المُستدعاة من هنا حاليًا — تذهب
+      // لدالة approve-registration المستقلة (بلا حقل action، بنية ثابتة)
+      const result = await callFunction('approve-registration', { requestId })
       if (result.success) {
         setRegRequests(prev => prev.filter(r => r.requestId !== requestId))
         setRegResult({
@@ -331,10 +299,7 @@ export default function AdminDashboard() {
     if (!flatTree.length) {
       setEditTreeLoading(true)
       try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
-        })
-        const data = await res.json()
+        const data = await callTree({ action: 'getFamilyTree' })
         if (data.success && data.tree?.length) {
           flatTree = buildFlatTree(data.tree)
           setAmFlatTree(flatTree)
@@ -382,11 +347,7 @@ export default function AdminDashboard() {
   const handleSaveEdit = async (requestId) => {
     try {
       setEditLoading(true)
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'updatePendingRequest', requestId, ...editFields, 'رقم الجوال': editReqPhoneCountry + (editFields['رقم الجوال'] || '') }),
-      })
-      const result = await res.json()
+      const result = await callRegistrations({ action: 'updatePendingRequest', requestId, ...editFields, 'رقم الجوال': editReqPhoneCountry + (editFields['رقم الجوال'] || '') })
       if (result.success) {
         setRegRequests(prev => prev.map(r => r.requestId !== requestId ? r : {
           ...r,
@@ -417,11 +378,7 @@ export default function AdminDashboard() {
   const handleConfirmReject = async (requestId) => {
     try {
       setRegActionLoading(requestId + 'rejectRequest')
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'rejectRequest', requestId, notes: rejectReason }),
-      })
-      const result = await res.json()
+      const result = await callFunction('reject-registration', { requestId, reason: rejectReason })
       if (result.success) {
         setRegRequests(prev => prev.filter(r => r.requestId !== requestId))
         setRegResult({ success: true, message: result.message })
@@ -438,10 +395,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
-        })
-        const data = await res.json()
+        const data = await callTree({ action: 'getFamilyTree' })
         if (data.success && data.tree?.length) setAmFlatTree(buildFlatTree(data.tree))
       } catch { /* ignore network errors */ }
     }
@@ -454,10 +408,7 @@ export default function AdminDashboard() {
     const load = async () => {
       setAdminTreeLoading(true)
       try {
-        const r = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
-        })
-        const d = await r.json()
+        const d = await callTree({ action: 'getFamilyTree' })
         if (d.success && d.tree?.length > 0) setAdminTreeData({ id: 'root', name: 'الشجرة', generationLevel: 0, children: d.tree })
       } catch { /* ignore network errors */ }
       setAdminTreeLoading(false)
@@ -470,11 +421,7 @@ export default function AdminDashboard() {
     if (!adminAncestor) return
     try {
       setTreeActionLoading(requestId + 'approveTreeRequest')
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'approveTreeRequest', requestId, ancestorId: adminAncestor.parentId }),
-      })
-      const result = await res.json()
+      const result = await callTree({ action: 'approveTreeRequest', requestId, ancestorId: adminAncestor.parentId })
       if (result.success) {
         setTreeRequests(prev => prev.filter(r => r.requestId !== requestId))
         setNotFoundPanel(null)
@@ -490,11 +437,7 @@ export default function AdminDashboard() {
   const fetchTreeRequests = async () => {
     setTreeRequestsLoading(true)
     try {
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'getTreeRequests' }),
-      })
-      const data = await res.json()
+      const data = await callTree({ action: 'getTreeRequests' })
       if (data.success) setTreeRequests(data.requests || [])
     } catch (e) { console.error(e) }
     finally { setTreeRequestsLoading(false) }
@@ -502,11 +445,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'getTreeRequests' }),
-        })
-        const data = await res.json()
+        const data = await callTree({ action: 'getTreeRequests' })
         if (data.success) setTreeRequests(data.requests || [])
       } catch (e) { console.error(e) }
       finally { setTreeRequestsLoading(false) }
@@ -517,13 +456,9 @@ export default function AdminDashboard() {
   const handleTreeAction = async (requestId, action) => {
     try {
       setTreeActionLoading(requestId + action)
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action, requestId }),
-      })
-      const result = await res.json()
+      const result = await callTree({ action, requestId })
       if (result.success)
-        setTreeRequests(prev => prev.filter(r => r.id !== requestId))
+        setTreeRequests(prev => prev.filter(r => r.requestId !== requestId))
       else
         alert(result.message || 'حدث خطأ')
     } catch { alert('تعذّر الاتصال بالخادم') }
@@ -533,13 +468,9 @@ export default function AdminDashboard() {
   const handleConfirmTreeReject = async (requestId) => {
     try {
       setTreeActionLoading(requestId + 'rejectTreeRequest')
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'rejectTreeRequest', requestId, reason: treeRejectReason }),
-      })
-      const result = await res.json()
+      const result = await callTree({ action: 'rejectTreeRequest', requestId, reason: treeRejectReason })
       if (result.success) {
-        setTreeRequests(prev => prev.filter(r => r.id !== requestId))
+        setTreeRequests(prev => prev.filter(r => r.requestId !== requestId))
         setTreeRejectingId(null)
         setTreeRejectReason('')
       } else alert(result.message || 'حدث خطأ')
@@ -616,35 +547,28 @@ export default function AdminDashboard() {
     try {
       setAmLoading(true)
       setAmResult(null)
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({
-          action:               'addMember',
-          nationalId:           amData.nationalId,
-          firstName:            amData.firstName,
-          phone:                amPhoneCountry + amData.phone,
-          branch:               amData.branch,
-          parentNodeId:         amData.parentNodeId,
-          parentChildRecordId:  parentNode?.childRecordId || '',
-          fatherName:           amData.parentName,
-          tempPassword:         amData.tempPassword,
-          maritalStatus:        amData.maritalStatus,
-          job:                  jobFinal,
-          city:                 amData.city,
-          role:                 amData.role,
-          aliveStatus:          amData.aliveStatus,
-        }),
+      const result = await callRegistrations({
+        action:               'addMember',
+        nationalId:           amData.nationalId,
+        firstName:            amData.firstName,
+        phone:                amPhoneCountry + amData.phone,
+        branch:               amData.branch,
+        parentNodeId:         amData.parentNodeId,
+        parentChildRecordId:  parentNode?.childRecordId || '',
+        fatherName:           amData.parentName,
+        tempPassword:         amData.tempPassword,
+        maritalStatus:        amData.maritalStatus,
+        job:                  jobFinal,
+        city:                 amData.city,
+        role:                 amData.role,
+        aliveStatus:          amData.aliveStatus,
       })
-      const result = await res.json()
       setAmResult(result)
       if (result.success) {
         setAmData(AM_INITIAL)
         setAmCascade([])
         try {
-          const tr = await fetch(import.meta.env.VITE_API_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
-          })
-          const td = await tr.json()
+          const td = await callTree({ action: 'getFamilyTree' })
           if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
         } catch { /* ignore network errors */ }
       }
@@ -658,11 +582,7 @@ export default function AdminDashboard() {
     if (!iaaName.trim())   return setIaaResult({ success: false, message: 'الاسم مطلوب' })
     try {
       setIaaLoading(true); setIaaResult(null)
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'insertAncestorAbove', targetNodeId: iaaTargetId, name: iaaName.trim(), aliveStatus: iaaAlive }),
-      })
-      const data = await res.json()
+      const data = await callTree({ action: 'insertAncestorAbove', targetNodeId: iaaTargetId, name: iaaName.trim(), aliveStatus: iaaAlive })
       setIaaResult(data)
       if (data.success) { setIaaTargetId(''); setIaaName(''); setIaaAlive('متوفى') }
     } catch { setIaaResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
@@ -674,11 +594,7 @@ export default function AdminDashboard() {
     if (!raName.trim()) return setRaResult({ success: false, message: 'الاسم مطلوب' })
     try {
       setRaLoading(true); setRaResult(null)
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'addRootAncestor', name: raName.trim(), aliveStatus: raAlive }),
-      })
-      const data = await res.json()
+      const data = await callTree({ action: 'addRootAncestor', name: raName.trim(), aliveStatus: raAlive })
       setRaResult(data)
       if (data.success) { setRaName(''); setRaAlive('متوفى') }
     } catch { setRaResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
@@ -693,16 +609,7 @@ export default function AdminDashboard() {
       return alert('تأكيد كلمة المرور غير مطابق')
     try {
       setPwLoading(true)
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({
-          action: 'changePassword',
-          memberId:        user.memberId,
-          currentPassword: pwData.current,
-          newPassword:     pwData.next,
-        }),
-      })
-      const result = await res.json()
+      const result = await callFunction('manage-member', { action: 'changePassword', newPassword: pwData.next })
       if (result.success) {
         alert('تم تغيير كلمة المرور بنجاح')
         setShowPw(false)
@@ -720,11 +627,7 @@ export default function AdminDashboard() {
     if (!eaName.trim() && !eaStatus.trim()) return setEaResult({ ok: false, msg: 'أدخل الاسم أو الحالة' })
     setEaLoading(true); setEaResult(null)
     try {
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'updateTreeNode', nodeId: eaTargetId, name: eaName.trim() || undefined, status: eaStatus || undefined }),
-      })
-      const data = await res.json()
+      const data = await callTree({ action: 'updateTreeNode', nodeId: eaTargetId, name: eaName.trim() || undefined, status: eaStatus || undefined })
       setEaResult({ ok: data.success, msg: data.message || (data.success ? 'تم التعديل' : 'فشل') })
       if (data.success) { setEaTargetId(''); setEaName(''); setEaStatus('') }
     } catch { setEaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
@@ -737,11 +640,7 @@ export default function AdminDashboard() {
     if (!daConfirm) return setDaConfirm(true)
     setDaLoading(true); setDaResult(null)
     try {
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'deleteTreeNode', nodeId: daTargetId }),
-      })
-      const data = await res.json()
+      const data = await callTree({ action: 'deleteTreeNode', nodeId: daTargetId })
       setDaResult({ ok: data.success, msg: data.message || (data.success ? 'تم الحذف' : 'فشل') })
       if (data.success) { setDaTargetId(''); setDaConfirm(false) }
     } catch { setDaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
@@ -782,19 +681,12 @@ export default function AdminDashboard() {
     if (mvSourceId === mvTargetId) return setMvResult({ ok: false, msg: 'لا يمكن نقل عضو تحت نفسه' })
     setMvLoading(true); setMvResult(null)
     try {
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'moveTreeNode', nodeId: mvSourceId, newParentId: mvTargetId }),
-      })
-      const data = await res.json()
+      const data = await callTree({ action: 'moveTreeNode', nodeId: mvSourceId, newParentId: mvTargetId })
       setMvResult({ ok: data.success, msg: data.message || (data.success ? 'تم النقل' : 'فشل') })
       if (data.success) {
         setMvSourceId(''); setMvTargetId(''); setMvBranch(''); setMvCascade([])
         try {
-          const tr = await fetch(import.meta.env.VITE_API_URL, {
-            method: 'POST', body: JSON.stringify({ action: 'getFamilyTree' }),
-          })
-          const td = await tr.json()
+          const td = await callTree({ action: 'getFamilyTree' })
           if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
         } catch { /* ignore */ }
       }
@@ -802,32 +694,13 @@ export default function AdminDashboard() {
     finally { setMvLoading(false) }
   }
 
-  /* إصلاح مسارات وأجيال الشجرة */
-  const handleRepairTree = async () => {
-    setRepairLoading(true); setRepairResult(null)
-    try {
-      const res  = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({ action: 'repairTreePaths' }),
-      })
-      const data = await res.json()
-      setRepairResult({ ok: data.success, msg: data.message || (data.success ? 'تم الإصلاح' : 'فشل') })
-    } catch { setRepairResult({ ok: false, msg: 'خطأ في الاتصال' }) }
-    finally { setRepairLoading(false) }
-  }
-
   /* البيانات المُشتقة */
-  const scriptUsage   = stats?.scriptUsage   ?? 0
-  const scriptCount   = stats?.scriptCount   ?? 0
-  const scriptLimit   = stats?.scriptLimit   ?? 6_000
-  const todayRequests = stats?.todayRequests ?? 0
-  const weekRequests  = stats?.weekRequests  ?? 0
-  const onlineUsers   = stats?.onlineUsers   ?? 1
-  const dailyStats    = stats?.dailyStats    ?? [0, 0, 0, 0, 0, 0, 0]
-  const maxStat       = Math.max(...dailyStats, 1)
-  const theme         = usageTheme(scriptUsage)
+  // رابط مباشر لصفحة الاستخدام الحقيقية بلوحة Supabase (حجم القاعدة، نقل
+  // البيانات، التخزين) — هذي الأرقام تبقى هناك دائمًا (المصدر الأدق)، بدل
+  // تكرارها هنا بشكل أقل دقة
+  const SUPABASE_USAGE_URL = 'https://supabase.com/dashboard/project/smdyaausztnoghcuclfl/settings/billing/usage'
 
-  const jobStats       = stats?.jobStats        ?? {}
+  const jobStats       = treeStats?.jobStats    ?? {}
   const totalEmployees = jobStats['موظف']        ?? 0
   const totalStudents  = jobStats['طالب']        ?? 0
   const totalRetirees  = jobStats['متقاعد']      ?? 0
@@ -978,6 +851,14 @@ export default function AdminDashboard() {
           <p className="mt-2 font-nav text-gray-400">مرحباً {user?.firstName} — {today}</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
+          <a href={SUPABASE_USAGE_URL} target="_blank" rel="noopener noreferrer"
+            className="font-nav text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5"
+            style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 20V10M12 20V4M6 20v-6"/>
+            </svg>
+            إحصائيات
+          </a>
           <button onClick={() => setOpenSec(p => Object.fromEntries(Object.keys(p).map(k => [k, true])))}
             className="font-nav text-xs px-3 py-1.5 rounded-xl"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.72)' }}>
@@ -991,232 +872,75 @@ export default function AdminDashboard() {
         </div>
       </div>
 
-      {/* ══ الصف الأول ══ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-
-        {/* 1 — استهلاك السكربت */}
-        <DashCard
-          color={{ bg: 'rgba(234,179,8,0.07)', border: 'rgba(234,179,8,0.22)', soft: 'rgba(234,179,8,0.12)', accent: '#fbbf24' }}
-          title="استهلاك السكربت"
-          badge={`${scriptUsage}%`}
-          badgeStyle={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.bar}44` }}
-          open={openSec.scriptStats}
-          onToggle={() => toggleSec('scriptStats')}
-        >
-
-          <div className="flex items-start justify-between mb-7">
-            <div>
-              <p className="font-nav text-sm text-gray-400 mb-3">استهلاك السكربت اليومي</p>
-              <div className="flex items-baseline gap-3 flex-wrap">
-                <span
-                  className="text-4xl sm:text-6xl font-black tabular-nums transition-colors duration-500"
-                  style={{ color: theme.text }}
-                >
-                  {scriptUsage}%
-                </span>
-                <span
-                  className="font-nav text-sm px-3 py-1.5 rounded-full font-semibold"
-                  style={{ background: theme.bg, color: theme.text, border: `1px solid ${theme.bar}28` }}
-                >
-                  {theme.label}
-                </span>
-              </div>
-              <p className="mt-2 font-nav text-xs text-gray-500">
-                {scriptCount.toLocaleString('ar')} من أصل {scriptLimit.toLocaleString('ar')} طلب يومي
-              </p>
-            </div>
-
-            <div
-              className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0"
-              style={{ background: theme.bg, border: `1px solid ${theme.bar}28` }}
-            >
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none"
-                stroke={theme.bar} strokeWidth="2.2" strokeLinecap="round">
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
-              </svg>
-            </div>
+      {/* ══ الصف الأول — إحصائيات العائلة الحقيقية ══ */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        {[
+          { label: 'إجمالي الأعضاء',      value: stats?.totalMembers,          color: 'var(--gold-main)', bg: 'rgba(198,161,107,0.08)', border: 'rgba(198,161,107,0.22)' },
+          { label: 'أعضاء نشطون',         value: stats?.activeMembers,         color: '#4ade80',           bg: 'rgba(74,222,128,0.08)',  border: 'rgba(74,222,128,0.22)' },
+          { label: 'طلبات تسجيل معلّقة',  value: stats?.pendingRegistrations,  color: '#fbbf24',           bg: 'rgba(251,191,36,0.08)',  border: 'rgba(251,191,36,0.22)' },
+          { label: 'الصناديق',            value: stats?.totalFunds,            color: '#60a5fa',           bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.22)' },
+          { label: 'المقالات',            value: stats?.totalArticles,         color: '#a78bfa',           bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)' },
+        ].map(c => (
+          <div key={c.label} className="rounded-2xl sm:rounded-[24px] p-4 sm:p-5 text-center"
+            style={{ background: c.bg, border: `1px solid ${c.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+            <p className="text-2xl sm:text-4xl font-black tabular-nums" style={{ color: c.color }}>
+              {statsLoading ? '—' : (c.value ?? 0).toLocaleString('ar')}
+            </p>
+            <p className="font-nav text-[11px] sm:text-xs mt-2 text-gray-400">{c.label}</p>
           </div>
+        ))}
+      </div>
 
-          {/* شريط التقدم بمناطق الألوان */}
-          <div style={{ direction: 'ltr' }}>
+      {/* ══ المتواجدون الآن + عدّاد الزيارات ══ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
 
-            {/* المسار */}
-            <div
-              className="relative h-5 rounded-full overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.05)' }}
-            >
-              {/* خلفية مناطق الألوان */}
-              <div
-                className="absolute inset-0 opacity-[0.18]"
-                style={{
-                  background:
-                    'linear-gradient(to right,' +
-                    '#22c55e 0%,#22c55e 55%,' +
-                    '#eab308 55%,#eab308 75%,' +
-                    '#f97316 75%,#f97316 90%,' +
-                    '#ef4444 90%,#ef4444 100%)',
-                }}
-              />
-              {/* شريط الملء */}
-              <div
-                className="absolute inset-y-0 left-0 rounded-full transition-all duration-1000 ease-out"
-                style={{
-                  width:     `${animated}%`,
-                  background: theme.bar,
-                  boxShadow:  `0 0 14px ${theme.glow}`,
-                }}
-              />
-            </div>
-
-            {/* علامات العتبات */}
-            <div className="relative h-5 mt-1">
-              {[
-                { at: 55, label: '55%', color: '#eab308' },
-                { at: 75, label: '75%', color: '#f97316' },
-                { at: 90, label: '90%', color: '#ef4444' },
-              ].map(m => (
-                <div
-                  key={m.at}
-                  className="absolute flex flex-col items-center"
-                  style={{ left: `${m.at}%`, transform: 'translateX(-50%)' }}
-                >
-                  <div className="w-px h-2" style={{ background: m.color, opacity: 0.55 }} />
-                  <span className="font-nav text-[9px] mt-0.5" style={{ color: m.color }}>
-                    {m.label}
-                  </span>
-                </div>
+        {/* المتواجدون الآن — نشاط حقيقي (نبض دوري كل دقيقة)، بلا أي بيانات وهمية */}
+        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-6" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-nav text-sm text-gray-400">المتواجدون الآن</p>
+            <span className="w-2 h-2 rounded-full" style={{ background: '#4ade80', boxShadow: '0 0 8px #4ade8088' }} />
+          </div>
+          <p className="text-4xl font-black tabular-nums" style={{ color: '#4ade80' }}>
+            {onlineMembers ? onlineMembers.count : '—'}
+          </p>
+          {onlineMembers?.members?.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {onlineMembers.members.map((m, i) => (
+                <span key={i} className="font-nav text-[11px] px-2.5 py-1 rounded-full"
+                  style={{ background: 'rgba(74,222,128,0.1)', border: '1px solid rgba(74,222,128,0.22)', color: '#86efac' }}>
+                  {m.name}
+                </span>
               ))}
             </div>
+          )}
+          <p className="mt-3 font-nav text-[11px] text-gray-600">نشطون خلال آخر دقيقتين — يُحدَّث تلقائيًا</p>
+        </div>
 
-            {/* تسميات المناطق */}
-            <div className="flex font-nav text-[10px] mt-0.5">
-              <span style={{ width: '55%', color: '#22c55e', opacity: 0.65 }}>طبيعي</span>
-              <span style={{ width: '20%', color: '#eab308', opacity: 0.65 }}>متوسط</span>
-              <span style={{ width: '15%', color: '#f97316', opacity: 0.65 }}>مرتفع</span>
-              <span style={{ color: '#ef4444', opacity: 0.65 }}>حرج</span>
-            </div>
-
-          </div>
-
-          <p className="mt-5 font-nav text-xs text-gray-600">
-            يتجدد حد الاستخدام تلقائياً كل 24 ساعة منتصف الليل
-          </p>
-        </DashCard>
-
-        {/* بطاقة المتواجدين */}
-        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7 flex flex-col" style={{ background: 'rgba(34,197,94,0.07)', border: '1px solid rgba(34,197,94,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-          <div className="flex items-center justify-between">
-            <p className="font-nav text-sm text-gray-400">المتواجدون الآن</p>
-            <span
-              className="w-2.5 h-2.5 rounded-full"
-              style={{ background: '#4ade80', boxShadow: '0 0 8px #4ade8088' }}
-            />
-          </div>
-
-          <div className="flex-1 flex items-center justify-center py-6">
-            <div className="text-center">
-              <div className="relative w-24 h-24 sm:w-32 sm:h-32 mx-auto">
-                <div
-                  className="absolute inset-0 rounded-full animate-ping"
-                  style={{ background: 'rgba(34,197,94,0.07)', animationDuration: '2.2s' }}
-                />
-                <div
-                  className="absolute inset-3 rounded-full animate-ping"
-                  style={{ background: 'rgba(34,197,94,0.05)', animationDuration: '2.2s', animationDelay: '0.4s' }}
-                />
-                <div
-                  className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full flex items-center justify-center"
-                  style={{
-                    background: 'radial-gradient(circle, rgba(34,197,94,0.14) 0%, rgba(34,197,94,0.04) 100%)',
-                    border:     '1.5px solid rgba(34,197,94,0.28)',
-                    boxShadow:  '0 0 36px rgba(34,197,94,0.14)',
-                  }}
-                >
-                  <span className="text-3xl sm:text-5xl font-black text-green-400 tabular-nums">
-                    {onlineUsers}
-                  </span>
-                </div>
+        {/* عدّاد زيارات الموقع */}
+        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-6" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+          <p className="font-nav text-sm text-gray-400 mb-4">زيارات الموقع</p>
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'اليوم', value: visitStats?.today },
+              { label: 'آخر 7 أيام', value: visitStats?.last7Days },
+              { label: 'الإجمالي', value: visitStats?.total },
+            ].map(v => (
+              <div key={v.label} className="text-center">
+                <p className="text-2xl font-black tabular-nums text-indigo-400 tabular-nums">
+                  {visitStats ? (v.value ?? 0).toLocaleString('ar') : '—'}
+                </p>
+                <p className="font-nav text-[10px] mt-1 text-gray-500">{v.label}</p>
               </div>
-              <p className="mt-5 font-nav text-gray-400 text-sm">زائر نشط</p>
-              <p className="mt-1 font-nav text-[11px] text-gray-600">يُحدَّث كل دقيقة</p>
-            </div>
+            ))}
           </div>
         </div>
 
       </div>
 
       {/* ══════════════════════════════════════
-          الصف الثاني: إحصائيات الطلبات + بيانات المدير
+          الصف الثاني: بيانات المدير
          ══════════════════════════════════════ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-        {/* إحصائيات الطلبات */}
-        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(99,102,241,0.07)', border: '1px solid rgba(99,102,241,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-          <p className="font-nav text-sm text-gray-400 mb-6">إحصائيات طلبات API</p>
-
-          {/* اليوم / الأسبوع */}
-          <div className="grid grid-cols-2 gap-4 mb-7">
-            <div
-              className="rounded-2xl p-5 text-center"
-              style={{
-                background: 'rgba(198,161,107,0.07)',
-                border:     '1px solid rgba(198,161,107,0.18)',
-              }}
-            >
-              <p className="font-nav text-xs text-gray-400 mb-3">اليوم</p>
-              <p className="text-3xl sm:text-5xl font-black text-[var(--gold-main)] tabular-nums leading-none">
-                {todayRequests}
-              </p>
-              <p className="font-nav text-xs text-gray-500 mt-3">طلب</p>
-            </div>
-
-            <div
-              className="rounded-2xl p-5 text-center"
-              style={{
-                background: 'rgba(99,102,241,0.07)',
-                border:     '1px solid rgba(99,102,241,0.22)',
-              }}
-            >
-              <p className="font-nav text-xs text-gray-400 mb-3">هذا الأسبوع</p>
-              <p className="text-3xl sm:text-5xl font-black text-indigo-400 tabular-nums leading-none">
-                {weekRequests}
-              </p>
-              <p className="font-nav text-xs text-gray-500 mt-3">طلب</p>
-            </div>
-          </div>
-
-          {/* رسم بياني صغير — آخر 7 أيام */}
-          <div>
-            <p className="font-nav text-xs text-gray-500 mb-3">آخر 7 أيام</p>
-            <div className="flex items-end gap-1.5 h-16" style={{ direction: 'ltr' }}>
-              {dailyStats.map((val, i) => {
-                const isToday = i === dailyStats.length - 1
-                const h       = Math.max(8, (val / maxStat) * 100)
-                return (
-                  <div
-                    key={i}
-                    className="flex-1 rounded-t-sm transition-all duration-700"
-                    style={{
-                      height:           `${h}%`,
-                      background:       isToday ? 'var(--gold-main)' : 'rgba(198,161,107,0.2)',
-                      boxShadow:        isToday ? '0 0 10px rgba(198,161,107,0.4)' : 'none',
-                      transitionDelay:  `${i * 70}ms`,
-                    }}
-                    title={`${val} طلب`}
-                  />
-                )
-              })}
-            </div>
-            <div
-              className="flex mt-2 font-nav text-[9px] text-gray-600"
-              style={{ direction: 'ltr' }}
-            >
-              {['أحد','اثن','ثلا','أرب','خمس','جمع','اليوم'].map(d => (
-                <span key={d} className="flex-1 text-center">{d}</span>
-              ))}
-            </div>
-          </div>
-        </div>
 
         {/* بيانات المدير الشخصية */}
         <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(198,161,107,0.07)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
@@ -1347,7 +1071,7 @@ export default function AdminDashboard() {
                 <div key={c.label} className="rounded-2xl p-4 text-center"
                   style={{ background: c.bg, border: `1px solid ${c.border}` }}>
                   <p className="text-2xl font-black tabular-nums" style={{ color: c.color }}>
-                    {statsLoading ? '—' : c.value.toLocaleString('ar')}
+                    {treeStatsLoading ? '—' : c.value.toLocaleString('ar')}
                   </p>
                   <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
                 </div>
@@ -2260,7 +1984,6 @@ export default function AdminDashboard() {
               { key: 'delete', label: 'احذف جد' },
               { key: 'insert', label: 'إدراج جد وسيط' },
               { key: 'root',   label: 'إضافة فوق الجذر' },
-              { key: 'repair', label: 'إصلاح المسارات' },
               { key: 'move',   label: 'نقل عضو' },
             ].map(t => (
               <button key={t.key} onClick={() => setTreeManageTab(t.key)}
@@ -2526,30 +2249,6 @@ export default function AdminDashboard() {
                 className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
                 style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)', color: '#a5b4fc' }}>
                 {mvLoading ? 'جاري النقل...' : 'نقل العضو'}
-              </button>
-            </div>
-          )}
-
-          {treeManageTab === 'repair' && (
-            <div className="mt-5 space-y-4">
-              <div className="rounded-2xl p-4"
-                style={{ background: 'rgba(245,158,11,0.07)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                <p className="font-nav text-sm font-bold mb-1" style={{ color: '#fbbf24' }}>إصلاح مسارات وأجيال الشجرة</p>
-                <p className="font-nav text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
-                  يُعيد بناء عمود المسار ومستوى الجيل لجميع عقد الشجرة بناءً على هيكلها الفعلي —
-                  استخدم هذا الإصلاح بعد حذف جد أو أي عملية تسببت في خلل في المسارات.
-                </p>
-              </div>
-              {repairResult && (
-                <div className="px-4 py-3 rounded-2xl font-nav text-sm"
-                  style={{ background: repairResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: repairResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: repairResult.ok ? '#4ade80' : '#f87171' }}>
-                  {repairResult.msg}
-                </div>
-              )}
-              <button onClick={handleRepairTree} disabled={repairLoading}
-                className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-                style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24' }}>
-                {repairLoading ? 'جاري الإصلاح...' : 'إصلاح المسارات والأجيال'}
               </button>
             </div>
           )}

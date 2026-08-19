@@ -5,6 +5,8 @@ import PhoneInput from '../components/PhoneInput';
 import DateInput from '../components/DateInput';
 import PasswordInput from '../components/PasswordInput';
 import { normalizeDigits } from '../utils/normalizeInput';
+import { callFunction } from '../services/api';
+import { supabase } from '../services/supabaseClient';
 
 // يستخرج الاسم الأول مع دعم الأسماء المركبة (عبد الله، أبو بكر...)
 const COMPOUND = ['عبد', 'أبو', 'ابو', 'أبي', 'ابي', 'أم', 'ام'];
@@ -64,56 +66,38 @@ export default function Register() {
     if (name === 'nationalId') {
       const digits = newVal.replace(/\D/g, '');
       if (digits.length === 10) {
-        fetch(import.meta.env.VITE_API_URL, {
-          method: 'POST',
-          body: JSON.stringify({ action: 'checkRegistrant', nationalId: digits }),
-        })
-          .then(r => r.json())
-          .then(d => {
-            if (!d.success || !d.found) { setRegistrantHint(null); return; }
-            if (d.type === 'child_record') {
-              setRegistrantHint({ type: 'child', text: `تم العثور على بياناتك في سجلات الأبناء — ابحث عن والدك "${d.fatherName}" واضغط "هذا والدي"` });
-            } else if (d.type === 'admin_member') {
-              setRegistrantHint({ type: 'admin', text: `وُجد حسابك في النظام — بياناتك ستُكمَل تلقائياً عند الموافقة` });
-            } else if (d.type === 'already_registered') {
-              setRegistrantHint({ type: 'error', text: 'هذا الرقم مسجَّل مسبقاً، يرجى تسجيل الدخول' });
-            }
-          })
-          .catch(() => setRegistrantHint(null));
+        callFunction('check-registrant', { nationalId: digits }).then(d => {
+          if (!d.success || !d.found) { setRegistrantHint(null); return; }
+          if (d.type === 'child_record') {
+            setRegistrantHint({ type: 'child', text: `تم العثور على بياناتك في سجلات الأبناء — ابحث عن والدك "${d.fatherName}" واضغط "هذا والدي"` });
+          } else if (d.type === 'already_registered') {
+            setRegistrantHint({ type: 'error', text: 'هذا الرقم مسجَّل مسبقاً، يرجى تسجيل الدخول' });
+          }
+        });
       } else {
         setRegistrantHint(null);
       }
     }
   };
 
-  // تحميل الشجرة
+  // تحميل الشجرة (عامة — لا تحتاج تسجيل دخول، البنات مستبعدات من الخادم أصلاً)
   useEffect(() => {
     let mounted = true;
-    fetch(import.meta.env.VITE_API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'getFamilyTree' }),
-    })
-      .then(r => r.json())
+    callFunction('manage-tree', { action: 'getFamilyTree' })
       .then(d => { if (mounted && d.success && d.tree) setTreeData(d.tree); })
-      .catch(() => {})
       .finally(() => { if (mounted) setTreeLoading(false); });
     return () => { mounted = false; };
   }, []);
 
-  // قراءة رقم جوال المدير ديناميكياً من جدول "الإعدادات" (بدل ترميزه ثابتاً في الكود)
+  // قراءة رقم جوال المدير ديناميكياً من View العام "الإعدادات العامة" —
+  // قراءة مباشرة عبر عميل Supabase (بلا Edge Function) لأنها القيمة العامة
+  // الوحيدة المسموح كشفها من جدول "الإعدادات" (انظر 08-سياسات-الحماية-RLS.sql)
   useEffect(() => {
     let mounted = true;
-    fetch(import.meta.env.VITE_API_URL, {
-      method: 'POST',
-      body: JSON.stringify({ action: 'getSettings' }),
-    })
-      .then(r => r.json())
-      .then(d => {
-        if (mounted && d.success && d.settings) {
-          setAdminPhone(normalizeToIntlPhone(d.settings['رقم جوال المدير']));
-        }
-      })
-      .catch(() => {});
+    supabase.from('الإعدادات العامة').select('*').eq('المفتاح', 'رقم جوال المدير').maybeSingle()
+      .then(({ data }) => {
+        if (mounted && data) setAdminPhone(normalizeToIntlPhone(data['القيمة']));
+      });
     return () => { mounted = false; };
   }, []);
 
@@ -223,44 +207,46 @@ export default function Register() {
 
     setLoading(true);
     try {
-      const res = await fetch(import.meta.env.VITE_API_URL, {
-        method: 'POST',
-        body: JSON.stringify({
-          action:          'register',
-          firstName:       formData.firstName.trim(),
-          phone:           countryCode + formData.phone.trim(),
-          nationalId:      formData.nationalId.trim(),
-          birthDate:       formData.birthDate,
-          job:             jobFinal,
-          maritalStatus:   formData.maritalStatus,
-          password:        formData.password,
-          email:           formData.email.trim(),
-          city:            formData.city.trim(),
-          parentNodeId:    selectedSelf ? (selectedSelf.parentId || '')
-                         : selectedSon  ? selectedSon.derivedParentId
-                         : parentNode.id,
-          fatherName:      selectedSelf  ? extractFirstName(selectedSelf.parentName || '')
-                         : selectedSon   ? selectedSon.derivedFatherName
-                         : selectedFather ? extractFirstName(selectedFather.name)
-                         : fatherNotInTree.trim(),
-          grandfatherName: selectedSelf  ? (selectedSelf.derivedGrandfatherName || '')
-                         : selectedSon   ? selectedSon.derivedGrandfatherName
-                         : selectedFather ? extractFirstName(selectedFather.parentName || '')
-                         : extractFirstName(selectedGrandfa?.name || ''),
-          generation:      selectedSelf  ? String(selectedSelf.generationLevel || 1)
-                         : selectedSon   ? String(selectedSon.derivedGeneration)
-                         : String((parentNode.generationLevel || 0) + 1),
-          branch:          selectedSelf  ? (selectedSelf.branch || '')
-                         : selectedSon   ? (selectedSon.branch || '')
-                         : (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
-          matchedInFather: !selectedSelf && !selectedSon && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
-          fatherNotInTree: !selectedSelf && !selectedSon && Boolean(selectedGrandfa && !grandfaChildMatch),
-          grandfatherId:   !selectedSelf && !selectedSon && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
-          sonNodeId:       selectedSon  ? selectedSon.id  : undefined,
-          selfNodeId:      selectedSelf ? selectedSelf.id : undefined,
-        }),
+      const data = await callFunction('submit-registration', {
+        firstName:       formData.firstName.trim(),
+        phone:           countryCode + formData.phone.trim(),
+        nationalId:      formData.nationalId.trim(),
+        birthDate:       formData.birthDate,
+        job:             jobFinal,
+        maritalStatus:   formData.maritalStatus,
+        password:        formData.password,
+        email:           formData.email.trim(),
+        city:            formData.city.trim(),
+        // فارغة عمدًا لحالة "جد فقط بلا تطابق اسم الأب" (parentNode = الجد
+        // نفسه بهذي الحالة) — الأب غير موجود فعليًا كعقدة بالشجرة، فلا
+        // معنى لربط العضو تحت جده مباشرة؛ الطلب يبقى بلا "رقم عقدة أب"
+        // وتُخزَّن ملاحظة توضيحية بدلاً منه (انظر submit-registration) حتى
+        // يتدخل المدير يدويًا: يضيف الأب تحت الجد، ثم يربط العضو تحته
+        parentNodeId:    selectedSelf ? (selectedSelf.parentId || '')
+                       : selectedSon  ? selectedSon.derivedParentId
+                       : selectedFather ? selectedFather.id
+                       : grandfaChildMatch ? grandfaChildMatch.id
+                       : '',
+        fatherName:      selectedSelf  ? extractFirstName(selectedSelf.parentName || '')
+                       : selectedSon   ? selectedSon.derivedFatherName
+                       : selectedFather ? extractFirstName(selectedFather.name)
+                       : fatherNotInTree.trim(),
+        grandfatherName: selectedSelf  ? (selectedSelf.derivedGrandfatherName || '')
+                       : selectedSon   ? selectedSon.derivedGrandfatherName
+                       : selectedFather ? extractFirstName(selectedFather.parentName || '')
+                       : extractFirstName(selectedGrandfa?.name || ''),
+        generation:      selectedSelf  ? String(selectedSelf.generationLevel || 1)
+                       : selectedSon   ? String(selectedSon.derivedGeneration)
+                       : String((parentNode.generationLevel || 0) + 1),
+        branch:          selectedSelf  ? (selectedSelf.branch || '')
+                       : selectedSon   ? (selectedSon.branch || '')
+                       : (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
+        matchedInFather: !selectedSelf && !selectedSon && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
+        fatherNotInTree: !selectedSelf && !selectedSon && Boolean(selectedGrandfa && !grandfaChildMatch),
+        grandfatherId:   !selectedSelf && !selectedSon && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
+        sonNodeId:       selectedSon  ? selectedSon.id  : undefined,
+        selfNodeId:      selectedSelf ? selectedSelf.id : undefined,
       });
-      const data = await res.json();
       if (data.success) {
         const branchFinal = selectedSelf  ? (selectedSelf.branch  || '')
                           : selectedSon   ? (selectedSon.branch   || '')

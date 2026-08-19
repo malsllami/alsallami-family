@@ -28,7 +28,6 @@ import FamilyTree from './pages/FamilyTree'
 
 import MemberDashboard from './pages/MemberDashboard'
 
-import PendingRequests from './pages/PendingRequests'
 
 import AdminDashboard from './pages/AdminDashboard'
 
@@ -129,25 +128,6 @@ export default function Router() {
               >
 
                 <AdminDashboard />
-
-              </ProtectedRoute>
-
-            }
-          />
-
-          {/* الطلبات المعلقة */}
-
-          <Route
-            path="/pending-requests"
-            element={
-
-              <ProtectedRoute
-
-                allowedRoles={['admin']}
-
-              >
-
-                <PendingRequests />
 
               </ProtectedRoute>
 

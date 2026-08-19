@@ -3,15 +3,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import useAuth from '../context/useAuth'
 import PasswordInput from '../components/PasswordInput'
 import PhoneInput from '../components/PhoneInput'
-import { loginUsernameless, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
+import { loginWithPasskey, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
 import BiometricIcon from '../components/BiometricIcon'
-
-const API = import.meta.env.VITE_API_URL
-const post = (body) =>
-  fetch(API, { method: 'POST', body: JSON.stringify(body) }).then(r => r.json())
-
-// إعداد جهة الاعتماد (Relying Party) لبصمة الجهاز — يجب أن يطابق النطاق الفعلي للموقع
-const RP_ID = 'malsllami.github.io'
+import { callFunction } from '../services/api'
+import { loginWithCredentials, applySessionAndUser } from '../services/auth'
 
 /* mode: 'login' | 'forgot' | 'changeRequired' */
 
@@ -55,21 +50,16 @@ export default function Login() {
     setIsRejected(false)
     try {
       setLoading(true)
-      const result = await post({
-        action:     'login',
-        nationalId: nationalId.trim(),
-        password:   password.trim(),
-      })
+      const result = await loginWithCredentials(nationalId.trim(), password.trim())
       if (result.success) {
+        sessionStorage.removeItem('adminUnlocked')
+        login(result.user) // الجلسة الحقيقية + نسخة التوافق بـlocalStorage مضبوطتان أصلًا داخل loginWithCredentials
         if (result.requireChange) {
           /* كلمة مرور مؤقتة — اجبر على التغيير قبل الدخول */
           setPendingUser(result.user)
           setNewPw(''); setConfirmPw(''); setChangeError('')
           setMode('changeRequired')
         } else {
-          sessionStorage.removeItem('adminUnlocked')
-          localStorage.setItem('user', JSON.stringify(result.user))
-          login(result.user)
           navigate('/member-dashboard')
         }
       } else if (result.rejected) {
@@ -101,9 +91,9 @@ export default function Login() {
     setBioReady(null)
     try {
       setBioLoading(true)
-      const begin = await post({ action: 'beginUsernamelessLogin' })
+      const begin = await callFunction('manage-webauthn', { action: 'beginLogin' })
       if (!begin.success) { setError(begin.message || 'تعذّر الدخول بالبصمة'); return }
-      setBioReady(begin.challenge)
+      setBioReady(begin.options)
     } catch {
       setError('تعذّر الاتصال بالخادم')
     } finally {
@@ -117,14 +107,12 @@ export default function Login() {
     try {
       setBioLoading(true)
       // نداء واجهة البصمة أولاً وفوراً — بلا أي await قبله — للحفاظ على "تفاعل المستخدم الحديث"
-      const assertion = await loginUsernameless({ challenge: bioReady, rpId: RP_ID })
-      const result = await post({
-        action: 'completeUsernamelessLogin', credentialId: assertion.credentialId,
-        clientDataJSON: assertion.clientDataJSON, authenticatorData: assertion.authenticatorData, signature: assertion.signature,
-      })
+      const assertion = await loginWithPasskey(bioReady)
+      const result = await callFunction('manage-webauthn', { action: 'completeLogin', response: assertion })
       if (result.success) {
         sessionStorage.removeItem('adminUnlocked')
-        localStorage.setItem('user', JSON.stringify(result.user))
+        const applied = await applySessionAndUser(result.session, result.user)
+        if (!applied.success) { setError(applied.message); return }
         login(result.user)
         navigate('/member-dashboard')
       } else {
@@ -146,16 +134,14 @@ export default function Login() {
     setChangeError('')
     try {
       setChangeLoading(true)
-      const result = await post({
-        action:       'changePassword',
-        memberId:     pendingUser.memberId,
-        newPassword:  newPw,
-        isTempChange: true,
-      })
+      // الجلسة مضبوطة أصلًا من نجاح تسجيل الدخول قبل قليل (حتى مع كلمة مرور
+      // مؤقتة) — الدالة تحدّد العضو من رمز الجلسة نفسه، لا حاجة لتمرير memberId
+      const result = await callFunction('manage-member', { action: 'changePassword', newPassword: newPw })
       if (result.success) {
         sessionStorage.removeItem('adminUnlocked')
-        localStorage.setItem('user', JSON.stringify(pendingUser))
-        login(pendingUser)
+        const updatedUser = { ...pendingUser, mustChangePassword: 'N' }
+        localStorage.setItem('user', JSON.stringify(updatedUser))
+        login(updatedUser)
         navigate('/member-dashboard')
       } else {
         setChangeError(result.message || 'حدث خطأ أثناء تغيير كلمة المرور')
@@ -171,22 +157,10 @@ export default function Login() {
   const handleForgot = async (e) => {
     e.preventDefault()
     setFpResult(null)
-    try {
-      setFpLoading(true)
-      const result = await post({
-        action:     'forgotPassword',
-        nationalId: fpNid.trim(),
-        phone:      fpCC + fpPhone.trim(),
-      })
-      setFpResult({
-        status:  result.status || (result.success ? 'approved' : 'not_found'),
-        message: result.message,
-      })
-    } catch {
-      setFpResult({ status: 'error', message: 'تعذّر الاتصال بالخادم' })
-    } finally {
-      setFpLoading(false)
-    }
+    setFpLoading(true)
+    const result = await callFunction('forgot-password', { nationalId: fpNid, phone: fpCC + fpPhone.trim() })
+    setFpResult({ status: result.status || (result.success ? 'approved' : 'error'), message: result.message || 'حدث خطأ' })
+    setFpLoading(false)
   }
 
   /* ── styles ── */
