@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { callFunction } from '../services/api'
+import SearchableSelect from '../components/SearchableSelect'
 
 /* ════ ألوان ═══════════════════════════════════════════════════════════════ */
 const C = {
@@ -178,10 +179,25 @@ export default function Funds() {
   useEffect(() => { loadMembers(active) }, [active, loadMembers])
   useEffect(() => { loadExpenses(active) }, [active, loadExpenses])
 
+  /* يجد عمق جد الفخذ ديناميكيًا — يسير في الابن الوحيد من الجذر حتى يصل لتفرع
+     (نفس نمط findBranchDepth في AdminDashboard.jsx) */
+  function findBranchDepthRaw(roots) {
+    let cur = (roots && roots.length === 1) ? roots[0] : null
+    if (!cur) return 0
+    let depth = 0
+    while (true) {
+      const kids = cur.children || []
+      if (kids.length !== 1) return depth + 1
+      cur = kids[0]
+      depth++
+    }
+  }
+  const [branchDepth, setBranchDepth] = useState(0)
+
   /* ── قائمة كل عقد الشجرة (لاختيار فرد لإضافته للصندوق) ──
-     نحمل اسم الأب والجد أيضًا (من مسار الشجرة نفسه أثناء المشي عليها) —
-     أسماء الأفراد الأولى وحدها تتكرر كثيرًا (أحمد، محمد...)، فبدونهما
-     يستحيل التمييز بين شخصين مختلفين بنفس الاسم الأول بالقائمة المنسدلة.
+     نحمل مصفوفة كل الأجداد (الأقرب أولاً) من مسار الشجرة نفسه أثناء المشي
+     عليها — أسماء الأفراد الأولى وحدها تتكرر كثيرًا (أحمد، محمد...)، وأحيانًا
+     حتى بعد الجد المباشر، فيستحيل التمييز بدون السلسلة كاملة حتى جد الفخذ.
      نستبعد العقد الاصطناعية غير المربوطة فعليًا بالشجرة (son_...) لأنها
      ليست صفوفًا حقيقية بجدول "الشجرة العائلية" — لا يمكن اختيارها كعضو. */
   const loadTreeNodes = useCallback(async () => {
@@ -190,20 +206,25 @@ export default function Funds() {
       const data = await callFunction('manage-tree', { action: 'getFamilyTree' })
       if (!data.success) return
       const flat = []
-      const walk = (n, fatherName, grandfatherName) => {
+      const walk = (n, depth, ancestors) => {
         if (!String(n.id).startsWith('son_')) {
-          flat.push({ treeNodeId: n.id, memberId: n.memberId || null, name: n.name, fatherName, grandfatherName })
+          flat.push({ treeNodeId: n.id, memberId: n.memberId || null, name: n.name, depth, ancestors })
         }
-        ;(n.children || []).forEach(c => walk(c, n.name, fatherName))
+        ;(n.children || []).forEach(c => walk(c, depth + 1, [n.name, ...ancestors]))
       }
-      ;(data.tree || []).forEach(root => walk(root, '', ''))
+      ;(data.tree || []).forEach(root => walk(root, 0, []))
+      setBranchDepth(findBranchDepthRaw(data.tree || []))
       setTreeNodes(flat)
     } catch { /* ignore */ }
   }, [treeNodes.length])
 
-  /* اسم كامل مميّز لعرضه بقائمة الاختيار — الاسم + الأب + الجد (إن وُجدا) */
-  const fullDisplayName = (m) =>
-    [m.name, m.fatherName, m.grandfatherName].filter(Boolean).join(' بن ')
+  /* اسم كامل مميّز لعرضه بقائمة الاختيار — الاسم + كل الأجداد حتى جد الفخذ
+     (ما فوق جد الفخذ مشترك بين الجميع فلا يميّز شيئًا، لذا يُحذف) */
+  const fullDisplayName = (m) => {
+    if (!m || !m.name) return ''
+    const keep = Math.max(0, (m.depth || 0) - branchDepth)
+    return [m.name, ...(m.ancestors || []).slice(0, keep)].join(' بن ')
+  }
 
   /* ── فتح مودال الصندوق ── */
   const openNew = () => {
@@ -266,8 +287,7 @@ export default function Funds() {
   const setM = (field) => (e) => setMemberDraft(d => ({ ...d, [field]: e.target.value }))
 
   /* اختيار فرد من الشجرة يملأ الاسم ورقم العضو (إن كان مسجَّلاً) تلقائيًا */
-  const pickTreeNode = (e) => {
-    const treeNodeId = e.target.value
+  const pickTreeNode = (treeNodeId) => {
     const picked = treeNodes.find(n => n.treeNodeId === treeNodeId)
     setMemberDraft(d => ({ ...d, treeNodeId, name: picked ? picked.name : d.name, memberId: picked?.memberId || null }))
   }
@@ -773,12 +793,13 @@ export default function Funds() {
               {memberModal === 'new' ? (
                 <div>
                   <label className="font-nav text-xs text-gray-500 mb-1.5 block">اختر الفرد من الشجرة *</label>
-                  <select value={memberDraft.treeNodeId} onChange={pickTreeNode} className="form-input">
-                    <option value="">— اختر —</option>
-                    {treeNodes.map(n => (
-                      <option key={n.treeNodeId} value={n.treeNodeId}>{fullDisplayName(n)}</option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={treeNodes}
+                    value={memberDraft.treeNodeId}
+                    onChange={pickTreeNode}
+                    getId={n => n.treeNodeId}
+                    getLabel={n => fullDisplayName(n)}
+                  />
                 </div>
               ) : (
                 <div>

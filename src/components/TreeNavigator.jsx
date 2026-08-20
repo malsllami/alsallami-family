@@ -80,10 +80,17 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
       const genNum   = firstOpt?.generationLevel || ''
       const prevName = pathNodes[i - 1]?.name?.split(' ')[0] || ''
 
+      // سلسلة الأجداد الكاملة لخيارات هذا المستوى — من جد الفخذ وحتى الأب
+      // المباشر (بلا حد مستويين)، لتمييز الأسماء المتكررة عبر الأجيال.
+      // pathNodes مسبوقة بـfixedPath (السلسلة المشتركة قبل الفخذ) فتُستبعد
+      // بالبدء من fixedPath.length — لا قيمة تمييزية لأجداد مشتركين للجميع
+      const ancestorNames = pathNodes.slice(fixedPath.length, i).map(n => n.name).reverse()
+
       levels.push({
         index:      i,
         options,
         genNum,
+        ancestorNames,
         label:      i === fixedPath.length
           ? `الجيل ${genNum} — اختر الفخذ`
           : `الجيل ${genNum} — أبناء ${prevName}`,
@@ -165,9 +172,10 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
             <option value="">— اختر —</option>
             {lvl.options.map(n => {
               var isCurrent = currentMemberId && n.memberId === currentMemberId
+              var fullName  = [n.name, ...lvl.ancestorNames].join(' بن ')
               return (
                 <option key={n.id} value={n.id} disabled={isCurrent}>
-                  {n.name}{n.alive === false ? ' (متوفى)' : ' (حي)'}{isCurrent ? ' (أنت)' : ''}
+                  {fullName}{n.alive === false ? ' (متوفى)' : ' (حي)'}{isCurrent ? ' (أنت)' : ''}
                 </option>
               )
             })}

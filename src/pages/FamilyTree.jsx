@@ -819,6 +819,42 @@ export default function FamilyTree({ viewerMode = false }) {
   const treeStats = useMemo(() => computeTreeStats(treeRoot), [treeRoot])
   const branchPointDepth = useMemo(() => findBranchPointDepth(treeRoot, 0), [treeRoot])
 
+  /* ── فهرس بحث بالاسم — الاسم الكامل حتى جد الفخذ فقط (بلا الأجداد المشتركين
+     فوقه، فلا يميّزون شيئًا)، لنفس سبب استخدام هذا النمط بلوحة المدير/الصناديق:
+     تشابه الأسماء يحدث أحيانًا حتى بعد الجد المباشر بفروع كبيرة. يقتصر على
+     الذكور غير الزوجات لأنها العقد الوحيدة المعروضة فعليًا بهذا العرض ── */
+  const searchIndex = useMemo(() => {
+    if (!treeRoot) return []
+    const out = []
+    function walk(n, depth, ancestors) {
+      if (n.isWife || n.gender === 'female') return
+      const keep = Math.max(0, depth - (branchPointDepth + 1))
+      out.push({ id: n.id, fullName: [n.name, ...ancestors.slice(0, keep)].join(' بن ') })
+      ;(n.children || []).forEach(c => walk(c, depth + 1, [n.name, ...ancestors]))
+    }
+    walk(treeRoot, 0, [])
+    return out
+  }, [treeRoot, branchPointDepth])
+
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen,  setSearchOpen]  = useState(false)
+  const [pendingSelectId, setPendingSelectId] = useState(null)
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return []
+    return searchIndex.filter(n => n.fullName.toLowerCase().includes(q)).slice(0, 30)
+  }, [searchQuery, searchIndex])
+
+  /* اختيار نتيجة بحث: يعزل مسار العقدة وفرعها الكامل (نفس آلية اختيار الفخذ)
+     ثم يفتح نافذة تفاصيلها بعد إعادة حساب العقد المرئية */
+  const handleSearchPick = (id) => {
+    setBranch(id)
+    setLineageMode(false)
+    setPendingSelectId(id)
+    setSearchQuery('')
+    setSearchOpen(false)
+  }
+
   /* ── جلب بيانات الشجرة الحقيقية من الخادم — متاحة حتى للزائر غير المسجَّل
      (البنات مستبعدات من جهة الخادم أصلًا). لا بيانات وهمية عند الفشل —
      تُعرض حالة خطأ حقيقية بدل شجرة تجريبية ثابتة ── */
@@ -856,6 +892,15 @@ export default function FamilyTree({ viewerMode = false }) {
       svgH: Math.max(0, ...allY) + PAD,
     }
   }, [effectiveRoot, showWives, branch, branchPointDepth, lineageMode])
+
+  /* بعد اختيار نتيجة بحث وإعادة حساب العقد المرئية لفرعها الجديد — افتح
+     نافذة تفاصيلها تلقائياً (التمركز/التكبير مُتكفَّل به أصلاً عبر تأثير
+     تغيّر الفخذ الموجود مسبقاً) */
+  useEffect(() => {
+    if (!pendingSelectId) return
+    const n = nodes.find(x => x.id === pendingSelectId)
+    if (n) { setSel(n); setPendingSelectId(null) }
+  }, [nodes, pendingSelectId])
 
   /* ── موقع العضو الحالي في الشجرة ── */
   const myNode = useMemo(() => {
@@ -1116,6 +1161,51 @@ export default function FamilyTree({ viewerMode = false }) {
 
         {/* أدوات التحكم */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap' }}>
+
+          {/* بحث بالاسم — يعزل مسار العضو المطابق وفرعه ويفتح بياناته */}
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => { setSearchQuery(e.target.value); setSearchOpen(true) }}
+              onFocus={() => setSearchOpen(true)}
+              onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+              placeholder="🔍 ابحث بالاسم..."
+              className="font-nav text-sm rounded-xl px-3 py-1.5 outline-none"
+              style={{
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.90)',
+                width: 'clamp(90px, 26vw, 170px)',
+                direction: 'rtl',
+              }}
+            />
+            {searchOpen && searchQuery.trim() && (
+              <div style={{
+                position: 'absolute', top: '100%', marginTop: 6, right: 0,
+                width: 'clamp(220px, 70vw, 300px)', maxHeight: 280, overflowY: 'auto',
+                background: '#182230', border: '1px solid rgba(255,255,255,0.14)',
+                borderRadius: 14, boxShadow: '0 16px 40px rgba(0,0,0,0.5)', zIndex: 80,
+              }}>
+                {searchResults.length === 0 ? (
+                  <div className="font-nav text-sm px-3 py-2.5" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                    لا توجد نتائج مطابقة
+                  </div>
+                ) : searchResults.map(r => (
+                  <div key={r.id}
+                    onMouseDown={e => e.preventDefault()}
+                    onClick={() => handleSearchPick(r.id)}
+                    className="font-nav text-sm px-3 py-2 cursor-pointer transition-colors"
+                    style={{ color: 'rgba(255,255,255,0.85)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    {r.fullName}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* فلتر الفخذ */}
           <select

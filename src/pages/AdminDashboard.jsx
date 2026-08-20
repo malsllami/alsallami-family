@@ -2,19 +2,25 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
+import SearchableSelect from '../components/SearchableSelect'
 import { normalizeDigits } from '../utils/normalizeInput'
 import PhoneInput from '../components/PhoneInput'
 import { callFunction } from '../services/api'
 
-/* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور */
+/* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور
+   — يمرّر مصفوفة أسماء كل الأجداد تراكميًا أثناء المشي (الأقرب أولاً) بدل
+   مستويين ثابتين فقط، لأن تشابه الأسماء يحدث أحيانًا حتى بعد الجد المباشر
+   (مثال: "أحمد بن محمد بن أحمد بن محمد بن صاحب"). عرض السلسلة الكاملة
+   يُقتصَر لاحقًا (بدالة nodeFullName) على ما بعد جد الفخذ فقط — الأجداد
+   المشتركون فوق الفخذ لا يُميّزون شيئًا فتُحذف لتقصير الاسم */
 function buildFlatTree(roots) {
   const flat = []
-  function walk(n, pId, pGen, depth) {
+  function walk(n, pId, pGen, depth, ancestors) {
     if (n.isWife) return
     if (!n.isChildRecord) {
       const g = n.generation || 1
-      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth })
-      ;(n.children || []).forEach(c => walk(c, n.id, g, depth + 1))
+      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors })
+      ;(n.children || []).forEach(c => walk(c, n.id, g, depth + 1, [n.name, ...ancestors]))
     } else if (!n.isDaughter && n.childRecordId) {
       flat.push({
         id: 'child_' + n.childRecordId,
@@ -24,10 +30,11 @@ function buildFlatTree(roots) {
         gen: (pGen || 1) + 1,
         depth: depth + 1,
         isChildRecord: true,
+        ancestors: [n.name, ...ancestors],
       })
     }
   }
-  roots.forEach(r => walk(r, '', 0, 0))
+  roots.forEach(r => walk(r, '', 0, 0, []))
   return flat
 }
 
@@ -717,6 +724,15 @@ export default function AdminDashboard() {
   /* اسم كامل مميّز — الاسم + الأب + الجد (تفاديًا لتشابه الأسماء الأولى) */
   const memberFullName = (m) => [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' بن ')
 
+  /* اسم كامل مميّز لعقدة شجرة — يعرض السلسلة كاملة من العضو حتى جد الفخذ نفسه
+     (وليس مستويين ثابتين فقط)، لأن التشابه يحدث أحيانًا حتى بعد الجد المباشر.
+     ما فوق جد الفخذ (الأجداد المشتركون بين الجميع) يُحذف لأنه لا يميّز شيئًا */
+  const nodeFullName = (n) => {
+    if (!n || !n.name) return ''
+    const keep = Math.max(0, (n.depth || 0) - amBranchDepth)
+    return [n.name, ...(n.ancestors || []).slice(0, keep)].join(' بن ')
+  }
+
   /* إضافة عقدة جديدة تحت أب مُختار — اختياريًا مربوطة بعضو حقيقي */
   const handleAddTreeNode = async () => {
     if (!anParentId) return setAnResult({ ok: false, msg: 'اختر الأب من الشجرة' })
@@ -1341,14 +1357,14 @@ export default function AdminDashboard() {
                           <select className="form-input text-xs" value={level.selectedId}
                             onChange={e => handleEditCascadeChange(i, e.target.value)}>
                             <option value="">— اتركه فارغاً لاختيار الأب الحالي —</option>
-                            {level.options.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                            {level.options.map(n => <option key={n.id} value={n.id}>{nodeFullName(n)}</option>)}
                           </select>
                         </div>
                       ))}
                       {editFields['رقم عقدة الأب'] && (
                         <p className="font-nav text-[10px] px-3 py-1.5 rounded-xl"
                           style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)' }}>
-                          الأب المختار: {amFlatTree.find(n => n.id === editFields['رقم عقدة الأب'])?.name || editFields['رقم عقدة الأب']}
+                          الأب المختار: {nodeFullName(amFlatTree.find(n => n.id === editFields['رقم عقدة الأب']) || {}) || editFields['رقم عقدة الأب']}
                         </p>
                       )}
                     </div>
@@ -1877,7 +1893,7 @@ export default function AdminDashboard() {
                   <select className="form-input" value={level.selectedId}
                     onChange={e => handleCascadeChange(i, e.target.value)}>
                     <option value="">— اتركه فارغاً لاختيار الأب الحالي —</option>
-                    {level.options.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                    {level.options.map(n => <option key={n.id} value={n.id}>{nodeFullName(n)}</option>)}
                   </select>
                 </AmField>
               ))}
@@ -2050,14 +2066,14 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة المراد تعديلها *</label>
-                  <select className="form-input" value={eaTargetId} onChange={e => setEaTargetId(e.target.value)}>
-                    <option value="">— اختر من الشجرة —</option>
-                    {amFlatTree.filter(n => !n.isChildRecord).map(n => (
-                      <option key={n.id} value={n.id}>
-                        {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={amFlatTree.filter(n => !n.isChildRecord)}
+                    value={eaTargetId}
+                    onChange={id => setEaTargetId(id)}
+                    getId={n => n.id}
+                    getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                    emptyLabel="— اختر من الشجرة —"
+                  />
                 </div>
                 <div>
                   <label className="block mb-1.5 font-nav text-xs text-gray-500">الاسم الجديد</label>
@@ -2109,20 +2125,19 @@ export default function AdminDashboard() {
               </div>
               <div>
                 <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة المراد حذفها *</label>
-                <select className="form-input" value={daTargetId}
-                  onChange={e => { setDaTargetId(e.target.value); setDaConfirm(false) }}>
-                  <option value="">— اختر من الشجرة —</option>
-                  {amFlatTree.filter(n => !n.isChildRecord).map(n => (
-                    <option key={n.id} value={n.id}>
-                      {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={amFlatTree.filter(n => !n.isChildRecord)}
+                  value={daTargetId}
+                  onChange={id => { setDaTargetId(id); setDaConfirm(false) }}
+                  getId={n => n.id}
+                  getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                  emptyLabel="— اختر من الشجرة —"
+                />
               </div>
               {daConfirm && (
                 <div className="px-4 py-3 rounded-2xl font-nav text-sm"
                   style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
-                  هل أنت متأكد من حذف &quot;{amFlatTree.find(n => n.id === daTargetId)?.name}&quot;؟ اضغط مرة أخرى للتأكيد.
+                  هل أنت متأكد من حذف &quot;{nodeFullName(amFlatTree.find(n => n.id === daTargetId) || {})}&quot;؟ اضغط مرة أخرى للتأكيد.
                 </div>
               )}
               {daResult && (
@@ -2150,14 +2165,14 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block mb-1.5 font-nav text-xs text-gray-500">العقدة التي ستصبح ابناً *</label>
-                  <select className="form-input" value={iaaTargetId} onChange={e => setIaaTargetId(e.target.value)}>
-                    <option value="">— اختر من الشجرة —</option>
-                    {amFlatTree.filter(n => !n.isChildRecord).map(n => (
-                      <option key={n.id} value={n.id}>
-                        {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                    options={amFlatTree.filter(n => !n.isChildRecord)}
+                    value={iaaTargetId}
+                    onChange={id => setIaaTargetId(id)}
+                    getId={n => n.id}
+                    getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                    emptyLabel="— اختر من الشجرة —"
+                  />
                 </div>
                 <div>
                   <label className="block mb-1.5 font-nav text-xs text-gray-500">اسم الجد الوسيط *</label>
@@ -2249,14 +2264,14 @@ export default function AdminDashboard() {
               {/* العضو المراد نقله */}
               <div>
                 <label className="block mb-1.5 font-nav text-xs text-gray-500">العضو المراد نقله *</label>
-                <select className="form-input" value={mvSourceId} onChange={e => { setMvSourceId(e.target.value); setMvResult(null) }}>
-                  <option value="">— اختر العضو —</option>
-                  {amFlatTree.filter(n => !n.isChildRecord).map(n => (
-                    <option key={n.id} value={n.id}>
-                      {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={amFlatTree.filter(n => !n.isChildRecord)}
+                  value={mvSourceId}
+                  onChange={id => { setMvSourceId(id); setMvResult(null) }}
+                  getId={n => n.id}
+                  getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                  emptyLabel="— اختر العضو —"
+                />
               </div>
 
               {/* الأب الجديد — محدد تسلسلي ديناميكي */}
@@ -2273,14 +2288,14 @@ export default function AdminDashboard() {
                     <select className="form-input text-xs" value={level.selectedId}
                       onChange={e => handleMvCascadeChange(i, e.target.value)}>
                       <option value="">— اتركه فارغاً لاختيار هذا المستوى —</option>
-                      {level.options.map(n => <option key={n.id} value={n.id}>{n.name}</option>)}
+                      {level.options.map(n => <option key={n.id} value={n.id}>{nodeFullName(n)}</option>)}
                     </select>
                   </div>
                 ))}
                 {mvTargetId && (
                   <p className="font-nav text-[10px] px-3 py-1.5 rounded-xl"
                     style={{ background: 'rgba(99,102,241,0.1)', color: '#a5b4fc' }}>
-                    الأب الجديد المختار: {amFlatTree.find(n => n.id === mvTargetId)?.name || mvTargetId}
+                    الأب الجديد المختار: {nodeFullName(amFlatTree.find(n => n.id === mvTargetId) || {}) || mvTargetId}
                   </p>
                 )}
               </div>
@@ -2311,14 +2326,14 @@ export default function AdminDashboard() {
 
               <div>
                 <label className="block mb-1.5 font-nav text-xs text-gray-500">الأب (تحته تُضاف العقدة الجديدة) *</label>
-                <select className="form-input" value={anParentId} onChange={e => setAnParentId(e.target.value)}>
-                  <option value="">— اختر من الشجرة —</option>
-                  {amFlatTree.filter(n => !n.isChildRecord).map(n => (
-                    <option key={n.id} value={n.id}>
-                      {'  '.repeat(Math.max(0, (n.gen || 1) - 1))}{n.name} (جيل {n.gen || 1})
-                    </option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={amFlatTree.filter(n => !n.isChildRecord)}
+                  value={anParentId}
+                  onChange={id => setAnParentId(id)}
+                  getId={n => n.id}
+                  getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                  emptyLabel="— اختر من الشجرة —"
+                />
               </div>
 
               <div>
@@ -2330,12 +2345,14 @@ export default function AdminDashboard() {
                 <label className="block mb-1.5 font-nav text-xs text-gray-500">
                   ربط بعضو حقيقي <span className="text-gray-600">(اختياري — فقط لو العقدة تمثّل عضوًا مسجَّلاً مسبقًا)</span>
                 </label>
-                <select className="form-input" value={anMemberId} onChange={e => setAnMemberId(e.target.value)}>
-                  <option value="">— بلا ربط (اسم عرض فقط) —</option>
-                  {amMembers.map(m => (
-                    <option key={m.memberId} value={m.memberId}>{memberFullName(m)}</option>
-                  ))}
-                </select>
+                <SearchableSelect
+                  options={amMembers}
+                  value={anMemberId}
+                  onChange={id => setAnMemberId(id)}
+                  getId={m => m.memberId}
+                  getLabel={m => memberFullName(m)}
+                  emptyLabel="— بلا ربط (اسم عرض فقط) —"
+                />
               </div>
 
               <div>
