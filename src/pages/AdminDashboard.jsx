@@ -365,7 +365,17 @@ export default function AdminDashboard() {
   const handleSaveEdit = async (requestId) => {
     try {
       setEditLoading(true)
-      const result = await callRegistrations({ action: 'updatePendingRequest', requestId, ...editFields, 'رقم الجوال': editReqPhoneCountry + (editFields['رقم الجوال'] || '') })
+      // "الفخذ" حقل نصي وصفي منفصل عن رابط الشجرة الفعلي ('رقم عقدة الأب') —
+      // عند اختيار جد من السلسلة الثابتة مباشرة (بدل فخذ قائم)، العضو نفسه
+      // يصبح فخذًا جديدًا، فيُسجَّل اسمه هو الوصف بدل إرسال الرمز الداخلي
+      const branchValue = String(editFields['الفخذ'] || '').startsWith(TRUNK_PREFIX)
+        ? (editFields['الاسم الأول'] || '')
+        : editFields['الفخذ']
+      const result = await callRegistrations({
+        action: 'updatePendingRequest', requestId, ...editFields,
+        'الفخذ': branchValue,
+        'رقم الجوال': editReqPhoneCountry + (editFields['رقم الجوال'] || ''),
+      })
       if (result.success) {
         setRegRequests(prev => prev.map(r => r.requestId !== requestId ? r : {
           ...r,
@@ -374,7 +384,7 @@ export default function AdminDashboard() {
           grandName:    editFields['اسم الجد'],
           phone:        editFields['رقم الجوال'],
           nationalId:   editFields['رقم الهوية'],
-          branch:       editFields['الفخذ'],
+          branch:       branchValue,
           generation:   editFields['الجيل'],
           job:          editFields['المهنة'],
           birthDate:    editFields['تاريخ الميلاد'],
@@ -500,7 +510,35 @@ export default function AdminDashboard() {
   const amBranchDepth = findBranchDepth(amFlatTree)
   const amBranches = amFlatTree.filter(n => n.depth === amBranchDepth && !n.isChildRecord)
 
-  const handleBranchChange = branchName => {
+  /* سلسلة الأجداد فوق الفخوذ (الجد الأول وأي جد وسيط بينه وبين الفخوذ من
+     أجداد بابن وحيد) — كل عقد الفخوذ تشترك بنفس هذه السلسلة تمامًا، فتُؤخَذ
+     من أول عقدة فخذ فقط. تُحسَب ديناميكيًا من روابط parentId الحيّة بالشجرة
+     الحالية (وليست مجرد نص محفوظ) فتتكيّف تلقائيًا مع أي تعديل مستقبلي —
+     مثل إضافة جد جديد فوق الجذر عبر تبويب "إضافة فوق الجذر" — بلا أي حاجة
+     لتعديل الكود. كل عقدة منها قابلة للاختيار مباشرة كأب جديد (وليست نصًا
+     للعرض فقط) لتمكين نقل/إضافة عضو ليصبح فخذًا جديدًا مباشرة تحت الجد
+     الأول، أو تحت أي جد وسيط، بدل الاقتصار على الفخوذ الحالية فقط */
+  const trunkNodes = (() => {
+    const chain = []
+    let cur = amBranches[0]
+    while (cur && cur.parentId) {
+      const parent = amFlatTree.find(n => n.id === cur.parentId && !n.isChildRecord)
+      if (!parent) break
+      chain.push(parent)
+      cur = parent
+    }
+    return chain.reverse() // من الجد الأول نزولاً حتى مباشرة فوق الفخوذ
+  })()
+  const TRUNK_PREFIX = '__trunk__:'
+
+  const handleBranchChange = val => {
+    if (val.startsWith(TRUNK_PREFIX)) {
+      const node = amFlatTree.find(n => n.id === val.slice(TRUNK_PREFIX.length) && !n.isChildRecord)
+      setAmData(p => ({ ...p, branch: val, parentNodeId: node?.id || '', parentName: node?.name || '' }))
+      setAmCascade([])
+      return
+    }
+    const branchName = val
     const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
     setAmData(p => ({ ...p, branch: branchName, parentNodeId: bn?.id || '', parentName: bn?.name || '' }))
     if (bn) {
@@ -527,7 +565,15 @@ export default function AdminDashboard() {
   }
 
   /* مساعدات شجرة نموذج التعديل */
-  const handleEditBranchChange = branchName => {
+  const handleEditBranchChange = val => {
+    if (val.startsWith(TRUNK_PREFIX)) {
+      const node = amFlatTree.find(n => n.id === val.slice(TRUNK_PREFIX.length) && !n.isChildRecord)
+      setEditTreeBranch(val)
+      setEditFields(p => ({ ...p, 'الفخذ': val, 'رقم عقدة الأب': node?.id || '' }))
+      setEditCascade([])
+      return
+    }
+    const branchName = val
     const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
     setEditTreeBranch(branchName)
     setEditFields(p => ({ ...p, 'الفخذ': branchName, 'رقم عقدة الأب': bn?.id || '' }))
@@ -562,6 +608,10 @@ export default function AdminDashboard() {
       return setAmResult({ success: false, message: 'كلمة المرور المؤقتة يجب أن تكون 6 أحرف على الأقل' })
     const jobFinal   = amData.job === 'أخرى' ? amData.jobOther : amData.job
     const parentNode = amFlatTree.find(n => n.id === amData.parentNodeId)
+    // "الفخذ" حقل نصي وصفي منفصل عن رابط الشجرة الفعلي (parentNodeId) — عند
+    // اختيار جد من السلسلة الثابتة مباشرة (بدل فخذ قائم)، العضو الجديد نفسه
+    // يصبح فخذًا جديدًا، فيُسجَّل اسمه هو الوصف بدل إرسال الرمز الداخلي
+    const branchValue = amData.branch.startsWith(TRUNK_PREFIX) ? amData.firstName : amData.branch
     try {
       setAmLoading(true)
       setAmResult(null)
@@ -570,7 +620,7 @@ export default function AdminDashboard() {
         nationalId:           amData.nationalId,
         firstName:            amData.firstName,
         phone:                amPhoneCountry + amData.phone,
-        branch:               amData.branch,
+        branch:               branchValue,
         parentNodeId:         amData.parentNodeId,
         parentChildRecordId:  parentNode?.childRecordId || '',
         fatherName:           amData.parentName,
@@ -666,7 +716,15 @@ export default function AdminDashboard() {
   }
 
   /* نقل عضو إلى أب جديد */
-  const handleMvBranchChange = branchName => {
+  const handleMvBranchChange = val => {
+    if (val.startsWith(TRUNK_PREFIX)) {
+      const node = amFlatTree.find(n => n.id === val.slice(TRUNK_PREFIX.length) && !n.isChildRecord)
+      setMvBranch(val)
+      setMvTargetId(node?.id || '')
+      setMvCascade([])
+      return
+    }
+    const branchName = val
     const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
     setMvBranch(branchName)
     setMvTargetId(bn?.id || '')
@@ -1349,6 +1407,9 @@ export default function AdminDashboard() {
                         <option value="">
                           {editTreeLoading ? '— جاري تحميل الشجرة... —' : '— اختر الفخذ —'}
                         </option>
+                        {trunkNodes.map(n => (
+                          <option key={n.id} value={TRUNK_PREFIX + n.id}>⬆ {n.name} — أب مباشر (فخذ جديد)</option>
+                        ))}
                         {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                       </select>
                       {editCascade.map((level, i) => (
@@ -1871,6 +1932,9 @@ export default function AdminDashboard() {
               <select className="form-input" value={amData.branch}
                 onChange={e => handleBranchChange(e.target.value)}>
                 <option value="">— اختر الفخذ —</option>
+                {trunkNodes.map(n => (
+                  <option key={n.id} value={TRUNK_PREFIX + n.id}>⬆ {n.name} — أب مباشر (فخذ جديد)</option>
+                ))}
                 {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
               </select>
             </AmField>
@@ -2280,6 +2344,9 @@ export default function AdminDashboard() {
                 <p className="font-nav text-[10px]" style={{ color: '#a5b4fc' }}>الأب الجديد</p>
                 <select className="form-input text-xs" value={mvBranch} onChange={e => handleMvBranchChange(e.target.value)}>
                   <option value="">— اختر الفخذ —</option>
+                  {trunkNodes.map(n => (
+                    <option key={n.id} value={TRUNK_PREFIX + n.id}>⬆ {n.name} — أب مباشر (فخذ جديد)</option>
+                  ))}
                   {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
                 </select>
                 {mvCascade.map((level, i) => (
