@@ -1113,6 +1113,18 @@ export default function AdminDashboard() {
             </svg>
             إحصائيات
           </a>
+          <button onClick={() => toggleSec('adminProfile')}
+            className="font-nav text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5"
+            style={{
+              background: openSec.adminProfile ? 'rgba(198,161,107,0.15)' : 'rgba(255,255,255,0.04)',
+              border:     openSec.adminProfile ? '1px solid rgba(198,161,107,0.4)' : '1px solid rgba(255,255,255,0.08)',
+              color:      openSec.adminProfile ? 'var(--gold-main)' : 'rgba(255,255,255,0.72)',
+            }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
+            </svg>
+            بيانات المدير
+          </button>
           <button onClick={() => setOpenSec(p => Object.fromEntries(Object.keys(p).map(k => [k, true])))}
             className="font-nav text-xs px-3 py-1.5 rounded-xl"
             style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.72)' }}>
@@ -1192,15 +1204,32 @@ export default function AdminDashboard() {
       </div>
 
       {/* ══════════════════════════════════════
-          الصف الثاني: بيانات المدير
+          بيانات المدير الشخصية
          ══════════════════════════════════════ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(198,161,107,0.07)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
 
-        {/* بيانات المدير الشخصية */}
-        <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(198,161,107,0.07)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-          <p className="font-nav text-sm text-gray-400 mb-5">بيانات المدير الشخصية</p>
+        <div className="flex items-start justify-between cursor-pointer" onClick={() => toggleSec('adminProfile')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">بيانات المدير الشخصية</p>
+            {openSec.adminProfile && <p className="font-nav text-xs text-gray-600">بياناتك الشخصية وتغيير كلمة المرور</p>}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.25)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="var(--gold-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
+              </svg>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
+              style={{ transform: openSec.adminProfile ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
 
-          <div className="divide-y divide-white/[0.06]">
+        <div style={{ display: openSec.adminProfile ? 'block' : 'none' }}>
+          <div className="mt-5 divide-y divide-white/[0.06]">
             {[
               { label: 'الاسم',       value: user?.firstName,    style: { color: 'var(--gold-main)', fontWeight: 700, fontSize: 18 } },
               { label: 'رقم العضوية', value: `#${user?.memberId}`,style: { fontFamily: 'monospace', color: '#fff' } },
@@ -1262,142 +1291,7 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-
         </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          إحصائيات الشجرة العائلية
-         ══════════════════════════════════════ */}
-      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7"
-        style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <p className="font-nav text-sm text-gray-400 mb-1">إحصائيات الشجرة العائلية</p>
-            <p className="font-nav text-xs text-gray-600">توزيع الأعضاء على الأجيال مع متوسط الأعمار</p>
-          </div>
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.25)' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
-              stroke="var(--gold-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
-          </div>
-        </div>
-
-        {treeStatsLoading ? (
-          <div className="space-y-3">
-            {[1,2,3].map(i => (
-              <div key={i} className="h-12 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
-            ))}
-          </div>
-        ) : treeStats ? (
-          <>
-            {/* الإجماليات */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              {[
-                { label: 'إجمالي الشجرة',   value: treeStats.totalNodes,      color: 'var(--gold-main)',  bg: 'rgba(198,161,107,0.1)',  border: 'rgba(198,161,107,0.25)' },
-                { label: 'مسجلون في الموقع', value: treeStats.totalRegistered, color: '#a78bfa',            bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)' },
-                { label: 'أحياء',            value: treeStats.totalAlive,      color: '#4ade80',            bg: 'rgba(74,222,128,0.08)',  border: 'rgba(74,222,128,0.22)' },
-                { label: 'متوفون',           value: treeStats.totalDead,       color: '#9ca3af',            bg: 'rgba(156,163,175,0.08)', border: 'rgba(156,163,175,0.18)' },
-              ].map(c => (
-                <div key={c.label} className="rounded-2xl p-4 text-center"
-                  style={{ background: c.bg, border: `1px solid ${c.border}` }}>
-                  <p className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: c.color }}>
-                    {c.value?.toLocaleString('ar') ?? '—'}
-                  </p>
-                  <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* توزيع المهن */}
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {[
-                { label: 'موظفون',   value: totalEmployees, color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.22)' },
-                { label: 'طلاب',     value: totalStudents,  color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.22)' },
-                { label: 'متقاعدون', value: totalRetirees,  color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.22)' },
-              ].map(c => (
-                <div key={c.label} className="rounded-2xl p-4 text-center"
-                  style={{ background: c.bg, border: `1px solid ${c.border}` }}>
-                  <p className="text-2xl font-black tabular-nums" style={{ color: c.color }}>
-                    {treeStatsLoading ? '—' : c.value.toLocaleString('ar')}
-                  </p>
-                  <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
-                </div>
-              ))}
-            </div>
-
-            {/* جدول الأجيال */}
-            <div className="overflow-x-auto">
-              <table className="w-full font-nav text-sm" style={{ borderCollapse: 'separate', borderSpacing: '0 6px' }}>
-                <thead>
-                  <tr>
-                    {['الجيل', 'الإجمالي', 'أحياء', 'متوفون', 'متوسط العمر'].map(h => (
-                      <th key={h} className="text-center pb-2 font-semibold"
-                        style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 600 }}>
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(treeStats.generations || []).map(g => {
-                    const pctAlive = g.total > 0 ? Math.round((g.alive / g.total) * 100) : 0
-                    return (
-                      <tr key={g.gen}>
-                        {/* الجيل */}
-                        <td className="text-center py-2.5 px-2">
-                          <span className="font-nav text-xs font-bold px-2.5 py-1 rounded-full"
-                            style={{ background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
-                            {g.gen}
-                          </span>
-                        </td>
-                        {/* الإجمالي */}
-                        <td className="text-center py-2.5 px-2">
-                          <span className="font-bold text-white">{g.total}</span>
-                        </td>
-                        {/* أحياء */}
-                        <td className="text-center py-2.5 px-2">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className="font-bold" style={{ color: '#4ade80' }}>{g.alive}</span>
-                            <div className="w-12 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                              <div className="h-full rounded-full" style={{ width: `${pctAlive}%`, background: '#4ade80' }} />
-                            </div>
-                            <span className="text-[10px]" style={{ color: 'rgba(74,222,128,0.6)' }}>{pctAlive}%</span>
-                          </div>
-                        </td>
-                        {/* متوفون */}
-                        <td className="text-center py-2.5 px-2">
-                          <span className="font-bold" style={{ color: '#6b7280' }}>{g.dead}</span>
-                        </td>
-                        {/* متوسط العمر */}
-                        <td className="text-center py-2.5 px-2">
-                          {g.avgAge != null ? (
-                            <span className="font-nav text-xs px-2.5 py-1 rounded-full"
-                              style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.2)' }}>
-                              {g.avgAge} سنة
-                            </span>
-                          ) : (
-                            <span style={{ color: 'rgba(255,255,255,0.50)', fontSize: 12 }}>—</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </>
-        ) : (
-          <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.58)' }}>
-            تعذّر تحميل إحصائيات الشجرة
-          </p>
-        )}
       </div>
 
       {/* ══════════════════════════════════════
@@ -1728,267 +1622,6 @@ export default function AdminDashboard() {
 
               </div>
             ))}
-          </div>
-        )}
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════
-          طلبات الربط بالشجرة
-         ══════════════════════════════════════ */}
-      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-
-        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSec('treeReq')}>
-          <div>
-            <p className="font-nav text-sm text-gray-400 mb-1">طلبات الربط بالشجرة العائلية</p>
-            {openSec.treeReq && <p className="font-nav text-xs text-gray-600">مراجعة طلبات الأعضاء للانتساب إلى شجرة العائلة</p>}
-          </div>
-          <div className="flex items-center gap-2">
-            {treeRequests.length > 0 && (
-              <span className="font-nav text-xs px-2.5 py-1 rounded-full font-bold"
-                style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.28)', color: '#34d399' }}>
-                {treeRequests.length}
-              </span>
-            )}
-            <button onClick={e => { e.stopPropagation(); fetchTreeRequests() }}
-              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 hover:opacity-80"
-              style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.22)', color: '#34d399' }}>
-              تحديث
-            </button>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
-              style={{ transform: openSec.treeReq ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', flexShrink: 0 }}>
-              <polyline points="6 9 12 15 18 9"/>
-            </svg>
-          </div>
-        </div>
-
-        <div style={{ display: openSec.treeReq ? 'block' : 'none' }}>
-        {treeRequestsLoading ? (
-          <div className="space-y-3">
-            {[1,2].map(i => (
-              <div key={i} className="h-20 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
-            ))}
-          </div>
-        ) : treeRequests.length === 0 ? (
-          <div className="py-10 text-center font-nav text-sm text-gray-600">
-            لا توجد طلبات معلقة
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {treeRequests.map(req => {
-              const isNotFound  = req.parentId === 'NOTFOUND'
-              const panelOpen   = notFoundPanel === req.requestId
-              return (
-                <div key={req.requestId}>
-                  <div className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
-                    style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isNotFound ? 'rgba(251,146,60,0.2)' : 'rgba(16,185,129,0.12)'}` }}>
-
-                    <div className="flex-1 min-w-0 cursor-pointer select-none"
-                      onClick={() => setExpandedTreeId(expandedTreeId === req.requestId ? null : req.requestId)}>
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <p className="font-bold text-sm text-white">{req.memberName}</p>
-                        <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
-                          style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.22)' }}>
-                          #{req.memberId}
-                        </span>
-                        {isNotFound
-                          ? <span className="font-nav text-[10px] px-2 py-0.5 rounded-full font-bold"
-                              style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.28)' }}>
-                              أب غير موجود
-                            </span>
-                          : <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
-                              style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
-                              الجيل {req.generation}
-                            </span>
-                        }
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2"
-                          style={{ transform: expandedTreeId === req.requestId ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s', flexShrink: 0 }}>
-                          <polyline points="6 9 12 15 18 9"/>
-                        </svg>
-                      </div>
-                      <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.80)' }}>
-                        {isNotFound
-                          ? <span style={{ color: '#fb923c' }}>الأب المفقود: <span className="font-semibold" style={{ color: '#fdba74' }}>{req.parentName}</span></span>
-                          : <>الأب: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{req.parentName}</span></>
-                        }
-                      </p>
-                      <p className="font-nav text-xs mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.82)', direction: 'rtl' }}>
-                        {req.path
-                          ? <>{req.path} ← <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span></>
-                          : <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span>
-                        }
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2 flex-shrink-0">
-                      {isNotFound ? (
-                        <button
-                          onClick={() => { setNotFoundPanel(panelOpen ? null : req.requestId); setAdminAncestor(null) }}
-                          disabled={!!treeActionLoading}
-                          className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
-                          style={{ background: panelOpen ? 'rgba(251,146,60,0.18)' : 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)', color: '#fb923c' }}>
-                          {panelOpen ? 'إلغاء' : 'حدد موقع الأب'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleTreeAction(req.requestId, 'approveTreeRequest')}
-                          disabled={!!treeActionLoading}
-                          className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
-                          style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
-                          {treeActionLoading === req.requestId + 'approveTreeRequest' ? '...' : 'موافقة'}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => { setTreeRejectingId(treeRejectingId === req.requestId ? null : req.requestId); setTreeRejectReason('') }}
-                        disabled={!!treeActionLoading}
-                        className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
-                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
-                        {treeRejectingId === req.requestId ? 'إلغاء' : 'رفض'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* وضع رفض طلب الشجرة مع سبب */}
-                  {treeRejectingId === req.requestId && (
-                    <div className="space-y-3 pt-3 border-t border-white/[0.06]">
-                      <p className="font-nav text-xs" style={{ color: '#f87171' }}>سبب الرفض — سيظهر للعضو في لوحته</p>
-                      <textarea
-                        className="form-input w-full resize-none font-nav text-sm"
-                        rows={3} style={{ direction: 'rtl' }}
-                        placeholder="مثال: الاسم المختار لا يطابق التسلسل الشجري المعروف..."
-                        value={treeRejectReason}
-                        onChange={e => setTreeRejectReason(e.target.value)} />
-                      <div className="flex gap-2">
-                        <button onClick={() => handleConfirmTreeReject(req.requestId)} disabled={!!treeActionLoading}
-                          className="flex-1 font-nav text-xs py-2.5 rounded-xl font-bold transition-all"
-                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
-                          {treeActionLoading === req.requestId + 'rejectTreeRequest' ? 'جاري الرفض...' : 'تأكيد الرفض'}
-                        </button>
-                        <button onClick={() => { setTreeRejectingId(null); setTreeRejectReason('') }}
-                          className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
-                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.72)' }}>
-                          إلغاء
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* لوحة تحديد موقع الأب المفقود */}
-                  {isNotFound && panelOpen && (
-                    <div className="rounded-2xl p-5 mt-1.5"
-                      style={{ background: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.18)' }}>
-                      <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.80)' }}>
-                        اختر في الشجرة الشخص الذي يُعدّ أباً لـ &quot;{req.parentName}&quot; — الجيل يُحسب تلقائياً
-                      </p>
-                      {adminTreeLoading ? (
-                        <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.62)' }}>
-                          جاري تحميل الشجرة...
-                        </p>
-                      ) : (
-                        <TreeNavigator
-                          treeData={adminTreeData}
-                          onSelect={setAdminAncestor}
-                          selected={adminAncestor}
-                        />
-                      )}
-                      {adminAncestor && (
-                        <button
-                          onClick={() => handleApproveNotFound(req.requestId)}
-                          disabled={!!treeActionLoading}
-                          className="mt-4 w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
-                          style={{ background: 'rgba(251,146,60,0.14)', border: '1px solid rgba(251,146,60,0.38)', color: '#fb923c' }}>
-                          {treeActionLoading === req.requestId + 'approveTreeRequest'
-                            ? 'جاري الإضافة...'
-                            : `تأكيد: إضافة "${req.parentName}" تحت ${adminAncestor.parentName} — الجيل ${adminAncestor.generationLevel}`}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* ── لوحة التفاصيل الموسعة ── */}
-                  {expandedTreeId === req.requestId && (
-                    <div className="rounded-2xl p-4 mt-1.5 space-y-4"
-                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(16,185,129,0.1)' }}>
-
-                      {/* شارة الشجرة */}
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/\[SON:[A-Z0-9]+\]/.test(req.notes || '') ? (
-                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
-                            style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
-                            موجود في الشجرة
-                          </span>
-                        ) : isNotFound ? (
-                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
-                            style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.28)', color: '#fb923c' }}>
-                            يحتاج تحديد موقع الأب
-                          </span>
-                        ) : (
-                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
-                            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
-                            والده موجود في الشجرة
-                          </span>
-                        )}
-                      </div>
-
-                      {/* مسار التسلسل */}
-                      <div>
-                        <p className="font-nav text-[10px] text-gray-500 mb-2">مسار التسلسل في الشجرة</p>
-                        <div className="flex items-center gap-1 flex-wrap" style={{ direction: 'rtl' }}>
-                          {(req.path ? req.path.split(' ← ') : []).concat(req.memberName).filter(Boolean).map((node, idx, arr) => (
-                            <span key={idx} className="flex items-center gap-1">
-                              <span className="font-nav text-xs px-2.5 py-1 rounded-xl"
-                                style={{
-                                  background: idx === arr.length - 1 ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.04)',
-                                  border: idx === arr.length - 1 ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(255,255,255,0.07)',
-                                  color: idx === arr.length - 1 ? '#34d399' : 'rgba(255,255,255,0.85)',
-                                  fontWeight: idx === arr.length - 1 ? 700 : 400,
-                                }}>
-                                {node}
-                              </span>
-                              {idx < arr.length - 1 && <span className="font-nav text-[10px] text-gray-600">←</span>}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* بيانات تفصيلية */}
-                      <div className="grid grid-cols-2 gap-2">
-                        {[
-                          { label: 'رقم العضو', value: req.memberId },
-                          { label: 'الجيل', value: req.generation ? `الجيل ${req.generation}` : '' },
-                          { label: 'الأب المقترح', value: req.parentName },
-                          { label: 'تاريخ الطلب', value: req.date },
-                        ].filter(f => f.value).map(field => (
-                          <div key={field.label} className="rounded-xl px-3 py-2"
-                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                            <p className="font-nav text-[10px] text-gray-500 mb-0.5">{field.label}</p>
-                            <p className="font-nav text-xs text-white">{field.value}</p>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* رقم عقدة الأب في الشجرة */}
-                      {!isNotFound && req.parentId && (
-                        <div className="rounded-xl px-3 py-2"
-                          style={{ background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.18)' }}>
-                          <p className="font-nav text-[10px] mb-0.5" style={{ color: 'rgba(16,185,129,0.7)' }}>رقم عقدة الأب في الشجرة</p>
-                          <p className="font-mono text-xs select-all" style={{ color: '#34d399', letterSpacing: '0.02em' }}>{req.parentId}</p>
-                        </div>
-                      )}
-
-                      {req.notes && !/\[SON:/.test(req.notes) && (
-                        <div className="rounded-xl px-3 py-2"
-                          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <p className="font-nav text-[10px] text-gray-500 mb-0.5">ملاحظات</p>
-                          <p className="font-nav text-xs text-gray-300">{req.notes}</p>
-                        </div>
-                      )}
-
-                    </div>
-                  )}
-                </div>
-              )
-            })}
           </div>
         )}
         </div>
@@ -2747,6 +2380,401 @@ export default function AdminDashboard() {
           )}
 
         </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          طلبات الربط بالشجرة
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-center justify-between cursor-pointer" onClick={() => toggleSec('treeReq')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">طلبات الربط بالشجرة العائلية</p>
+            {openSec.treeReq && <p className="font-nav text-xs text-gray-600">مراجعة طلبات الأعضاء للانتساب إلى شجرة العائلة</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {treeRequests.length > 0 && (
+              <span className="font-nav text-xs px-2.5 py-1 rounded-full font-bold"
+                style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.28)', color: '#34d399' }}>
+                {treeRequests.length}
+              </span>
+            )}
+            <button onClick={e => { e.stopPropagation(); fetchTreeRequests() }}
+              className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200 hover:opacity-80"
+              style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.22)', color: '#34d399' }}>
+              تحديث
+            </button>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
+              style={{ transform: openSec.treeReq ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s', flexShrink: 0 }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ display: openSec.treeReq ? 'block' : 'none' }}>
+        {treeRequestsLoading ? (
+          <div className="space-y-3">
+            {[1,2].map(i => (
+              <div key={i} className="h-20 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+            ))}
+          </div>
+        ) : treeRequests.length === 0 ? (
+          <div className="py-10 text-center font-nav text-sm text-gray-600">
+            لا توجد طلبات معلقة
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {treeRequests.map(req => {
+              const isNotFound  = req.parentId === 'NOTFOUND'
+              const panelOpen   = notFoundPanel === req.requestId
+              return (
+                <div key={req.requestId}>
+                  <div className="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-start justify-between gap-4"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isNotFound ? 'rgba(251,146,60,0.2)' : 'rgba(16,185,129,0.12)'}` }}>
+
+                    <div className="flex-1 min-w-0 cursor-pointer select-none"
+                      onClick={() => setExpandedTreeId(expandedTreeId === req.requestId ? null : req.requestId)}>
+                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                        <p className="font-bold text-sm text-white">{req.memberName}</p>
+                        <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                          style={{ background: 'rgba(16,185,129,0.12)', color: '#34d399', border: '1px solid rgba(16,185,129,0.22)' }}>
+                          #{req.memberId}
+                        </span>
+                        {isNotFound
+                          ? <span className="font-nav text-[10px] px-2 py-0.5 rounded-full font-bold"
+                              style={{ background: 'rgba(251,146,60,0.12)', color: '#fb923c', border: '1px solid rgba(251,146,60,0.28)' }}>
+                              أب غير موجود
+                            </span>
+                          : <span className="font-nav text-[10px] px-2 py-0.5 rounded-full"
+                              style={{ background: 'rgba(198,161,107,0.1)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
+                              الجيل {req.generation}
+                            </span>
+                        }
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.58)" strokeWidth="2"
+                          style={{ transform: expandedTreeId === req.requestId ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.25s', flexShrink: 0 }}>
+                          <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                      </div>
+                      <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.80)' }}>
+                        {isNotFound
+                          ? <span style={{ color: '#fb923c' }}>الأب المفقود: <span className="font-semibold" style={{ color: '#fdba74' }}>{req.parentName}</span></span>
+                          : <>الأب: <span style={{ color: 'rgba(255,255,255,0.75)' }}>{req.parentName}</span></>
+                        }
+                      </p>
+                      <p className="font-nav text-xs mt-1.5 leading-relaxed" style={{ color: 'rgba(255,255,255,0.82)', direction: 'rtl' }}>
+                        {req.path
+                          ? <>{req.path} ← <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span></>
+                          : <span className="font-bold" style={{ color: '#4ade80' }}>{req.memberName}</span>
+                        }
+                      </p>
+                    </div>
+
+                    <div className="flex gap-2 flex-shrink-0">
+                      {isNotFound ? (
+                        <button
+                          onClick={() => { setNotFoundPanel(panelOpen ? null : req.requestId); setAdminAncestor(null) }}
+                          disabled={!!treeActionLoading}
+                          className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                          style={{ background: panelOpen ? 'rgba(251,146,60,0.18)' : 'rgba(251,146,60,0.1)', border: '1px solid rgba(251,146,60,0.35)', color: '#fb923c' }}>
+                          {panelOpen ? 'إلغاء' : 'حدد موقع الأب'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleTreeAction(req.requestId, 'approveTreeRequest')}
+                          disabled={!!treeActionLoading}
+                          className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                          style={{ background: 'rgba(16,185,129,0.14)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
+                          {treeActionLoading === req.requestId + 'approveTreeRequest' ? '...' : 'موافقة'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setTreeRejectingId(treeRejectingId === req.requestId ? null : req.requestId); setTreeRejectReason('') }}
+                        disabled={!!treeActionLoading}
+                        className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50"
+                        style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
+                        {treeRejectingId === req.requestId ? 'إلغاء' : 'رفض'}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* وضع رفض طلب الشجرة مع سبب */}
+                  {treeRejectingId === req.requestId && (
+                    <div className="space-y-3 pt-3 border-t border-white/[0.06]">
+                      <p className="font-nav text-xs" style={{ color: '#f87171' }}>سبب الرفض — سيظهر للعضو في لوحته</p>
+                      <textarea
+                        className="form-input w-full resize-none font-nav text-sm"
+                        rows={3} style={{ direction: 'rtl' }}
+                        placeholder="مثال: الاسم المختار لا يطابق التسلسل الشجري المعروف..."
+                        value={treeRejectReason}
+                        onChange={e => setTreeRejectReason(e.target.value)} />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleConfirmTreeReject(req.requestId)} disabled={!!treeActionLoading}
+                          className="flex-1 font-nav text-xs py-2.5 rounded-xl font-bold transition-all"
+                          style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                          {treeActionLoading === req.requestId + 'rejectTreeRequest' ? 'جاري الرفض...' : 'تأكيد الرفض'}
+                        </button>
+                        <button onClick={() => { setTreeRejectingId(null); setTreeRejectReason('') }}
+                          className="font-nav text-xs py-2.5 px-4 rounded-xl transition-all"
+                          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.72)' }}>
+                          إلغاء
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* لوحة تحديد موقع الأب المفقود */}
+                  {isNotFound && panelOpen && (
+                    <div className="rounded-2xl p-5 mt-1.5"
+                      style={{ background: 'rgba(251,146,60,0.04)', border: '1px solid rgba(251,146,60,0.18)' }}>
+                      <p className="font-nav text-xs mb-4" style={{ color: 'rgba(255,255,255,0.80)' }}>
+                        اختر في الشجرة الشخص الذي يُعدّ أباً لـ &quot;{req.parentName}&quot; — الجيل يُحسب تلقائياً
+                      </p>
+                      {adminTreeLoading ? (
+                        <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.62)' }}>
+                          جاري تحميل الشجرة...
+                        </p>
+                      ) : (
+                        <TreeNavigator
+                          treeData={adminTreeData}
+                          onSelect={setAdminAncestor}
+                          selected={adminAncestor}
+                        />
+                      )}
+                      {adminAncestor && (
+                        <button
+                          onClick={() => handleApproveNotFound(req.requestId)}
+                          disabled={!!treeActionLoading}
+                          className="mt-4 w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                          style={{ background: 'rgba(251,146,60,0.14)', border: '1px solid rgba(251,146,60,0.38)', color: '#fb923c' }}>
+                          {treeActionLoading === req.requestId + 'approveTreeRequest'
+                            ? 'جاري الإضافة...'
+                            : `تأكيد: إضافة "${req.parentName}" تحت ${adminAncestor.parentName} — الجيل ${adminAncestor.generationLevel}`}
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* ── لوحة التفاصيل الموسعة ── */}
+                  {expandedTreeId === req.requestId && (
+                    <div className="rounded-2xl p-4 mt-1.5 space-y-4"
+                      style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(16,185,129,0.1)' }}>
+
+                      {/* شارة الشجرة */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/\[SON:[A-Z0-9]+\]/.test(req.notes || '') ? (
+                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                            style={{ background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.28)', color: '#4ade80' }}>
+                            موجود في الشجرة
+                          </span>
+                        ) : isNotFound ? (
+                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                            style={{ background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.28)', color: '#fb923c' }}>
+                            يحتاج تحديد موقع الأب
+                          </span>
+                        ) : (
+                          <span className="font-nav text-xs px-3 py-1.5 rounded-full font-bold"
+                            style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', color: '#34d399' }}>
+                            والده موجود في الشجرة
+                          </span>
+                        )}
+                      </div>
+
+                      {/* مسار التسلسل */}
+                      <div>
+                        <p className="font-nav text-[10px] text-gray-500 mb-2">مسار التسلسل في الشجرة</p>
+                        <div className="flex items-center gap-1 flex-wrap" style={{ direction: 'rtl' }}>
+                          {(req.path ? req.path.split(' ← ') : []).concat(req.memberName).filter(Boolean).map((node, idx, arr) => (
+                            <span key={idx} className="flex items-center gap-1">
+                              <span className="font-nav text-xs px-2.5 py-1 rounded-xl"
+                                style={{
+                                  background: idx === arr.length - 1 ? 'rgba(16,185,129,0.18)' : 'rgba(255,255,255,0.04)',
+                                  border: idx === arr.length - 1 ? '1px solid rgba(16,185,129,0.35)' : '1px solid rgba(255,255,255,0.07)',
+                                  color: idx === arr.length - 1 ? '#34d399' : 'rgba(255,255,255,0.85)',
+                                  fontWeight: idx === arr.length - 1 ? 700 : 400,
+                                }}>
+                                {node}
+                              </span>
+                              {idx < arr.length - 1 && <span className="font-nav text-[10px] text-gray-600">←</span>}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* بيانات تفصيلية */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { label: 'رقم العضو', value: req.memberId },
+                          { label: 'الجيل', value: req.generation ? `الجيل ${req.generation}` : '' },
+                          { label: 'الأب المقترح', value: req.parentName },
+                          { label: 'تاريخ الطلب', value: req.date },
+                        ].filter(f => f.value).map(field => (
+                          <div key={field.label} className="rounded-xl px-3 py-2"
+                            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                            <p className="font-nav text-[10px] text-gray-500 mb-0.5">{field.label}</p>
+                            <p className="font-nav text-xs text-white">{field.value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* رقم عقدة الأب في الشجرة */}
+                      {!isNotFound && req.parentId && (
+                        <div className="rounded-xl px-3 py-2"
+                          style={{ background: 'rgba(16,185,129,0.04)', border: '1px solid rgba(16,185,129,0.18)' }}>
+                          <p className="font-nav text-[10px] mb-0.5" style={{ color: 'rgba(16,185,129,0.7)' }}>رقم عقدة الأب في الشجرة</p>
+                          <p className="font-mono text-xs select-all" style={{ color: '#34d399', letterSpacing: '0.02em' }}>{req.parentId}</p>
+                        </div>
+                      )}
+
+                      {req.notes && !/\[SON:/.test(req.notes) && (
+                        <div className="rounded-xl px-3 py-2"
+                          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <p className="font-nav text-[10px] text-gray-500 mb-0.5">ملاحظات</p>
+                          <p className="font-nav text-xs text-gray-300">{req.notes}</p>
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
+          إحصائيات الشجرة العائلية
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7"
+        style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">إحصائيات الشجرة العائلية</p>
+            <p className="font-nav text-xs text-gray-600">توزيع الأعضاء على الأجيال مع متوسط الأعمار</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.25)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="var(--gold-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+          </div>
+        </div>
+
+        {treeStatsLoading ? (
+          <div className="space-y-3">
+            {[1,2,3].map(i => (
+              <div key={i} className="h-12 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+            ))}
+          </div>
+        ) : treeStats ? (
+          <>
+            {/* الإجماليات */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              {[
+                { label: 'إجمالي الشجرة',   value: treeStats.totalNodes,      color: 'var(--gold-main)',  bg: 'rgba(198,161,107,0.1)',  border: 'rgba(198,161,107,0.25)' },
+                { label: 'مسجلون في الموقع', value: treeStats.totalRegistered, color: '#a78bfa',            bg: 'rgba(167,139,250,0.08)', border: 'rgba(167,139,250,0.22)' },
+                { label: 'أحياء',            value: treeStats.totalAlive,      color: '#4ade80',            bg: 'rgba(74,222,128,0.08)',  border: 'rgba(74,222,128,0.22)' },
+                { label: 'متوفون',           value: treeStats.totalDead,       color: '#9ca3af',            bg: 'rgba(156,163,175,0.08)', border: 'rgba(156,163,175,0.18)' },
+              ].map(c => (
+                <div key={c.label} className="rounded-2xl p-4 text-center"
+                  style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <p className="text-2xl sm:text-3xl font-black tabular-nums" style={{ color: c.color }}>
+                    {c.value?.toLocaleString('ar') ?? '—'}
+                  </p>
+                  <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* توزيع المهن */}
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              {[
+                { label: 'موظفون',   value: totalEmployees, color: '#60a5fa', bg: 'rgba(96,165,250,0.08)',  border: 'rgba(96,165,250,0.22)' },
+                { label: 'طلاب',     value: totalStudents,  color: '#34d399', bg: 'rgba(52,211,153,0.08)',  border: 'rgba(52,211,153,0.22)' },
+                { label: 'متقاعدون', value: totalRetirees,  color: '#f59e0b', bg: 'rgba(245,158,11,0.08)', border: 'rgba(245,158,11,0.22)' },
+              ].map(c => (
+                <div key={c.label} className="rounded-2xl p-4 text-center"
+                  style={{ background: c.bg, border: `1px solid ${c.border}` }}>
+                  <p className="text-2xl font-black tabular-nums" style={{ color: c.color }}>
+                    {treeStatsLoading ? '—' : c.value.toLocaleString('ar')}
+                  </p>
+                  <p className="font-nav text-[11px] mt-1.5 text-gray-400">{c.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* جدول الأجيال */}
+            <div className="overflow-x-auto">
+              <table className="w-full font-nav text-sm" style={{ borderCollapse: 'separate', borderSpacing: '0 6px' }}>
+                <thead>
+                  <tr>
+                    {['الجيل', 'الإجمالي', 'أحياء', 'متوفون', 'متوسط العمر'].map(h => (
+                      <th key={h} className="text-center pb-2 font-semibold"
+                        style={{ color: 'rgba(255,255,255,0.70)', fontSize: 11, fontWeight: 600 }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(treeStats.generations || []).map(g => {
+                    const pctAlive = g.total > 0 ? Math.round((g.alive / g.total) * 100) : 0
+                    return (
+                      <tr key={g.gen}>
+                        {/* الجيل */}
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-nav text-xs font-bold px-2.5 py-1 rounded-full"
+                            style={{ background: 'rgba(198,161,107,0.12)', color: 'var(--gold-main)', border: '1px solid rgba(198,161,107,0.22)' }}>
+                            {g.gen}
+                          </span>
+                        </td>
+                        {/* الإجمالي */}
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-bold text-white">{g.total}</span>
+                        </td>
+                        {/* أحياء */}
+                        <td className="text-center py-2.5 px-2">
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="font-bold" style={{ color: '#4ade80' }}>{g.alive}</span>
+                            <div className="w-12 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                              <div className="h-full rounded-full" style={{ width: `${pctAlive}%`, background: '#4ade80' }} />
+                            </div>
+                            <span className="text-[10px]" style={{ color: 'rgba(74,222,128,0.6)' }}>{pctAlive}%</span>
+                          </div>
+                        </td>
+                        {/* متوفون */}
+                        <td className="text-center py-2.5 px-2">
+                          <span className="font-bold" style={{ color: '#6b7280' }}>{g.dead}</span>
+                        </td>
+                        {/* متوسط العمر */}
+                        <td className="text-center py-2.5 px-2">
+                          {g.avgAge != null ? (
+                            <span className="font-nav text-xs px-2.5 py-1 rounded-full"
+                              style={{ background: 'rgba(167,139,250,0.1)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.2)' }}>
+                              {g.avgAge} سنة
+                            </span>
+                          ) : (
+                            <span style={{ color: 'rgba(255,255,255,0.50)', fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.58)' }}>
+            تعذّر تحميل إحصائيات الشجرة
+          </p>
+        )}
       </div>
 
     </div>
