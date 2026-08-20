@@ -173,6 +173,7 @@ export default function AdminDashboard() {
   const [eaTargetId, setEaTargetId] = useState('')
   const [eaName,     setEaName]     = useState('')
   const [eaStatus,   setEaStatus]   = useState('')
+  const [eaOrderDate,setEaOrderDate]= useState('') // ترتيب الميلاد (schema/17) — لترتيب ظهور الأبناء بالشجرة
   const [eaLoading,  setEaLoading]  = useState(false)
   const [eaResult,   setEaResult]   = useState(null)
   const [daTargetId, setDaTargetId] = useState('')
@@ -710,12 +711,16 @@ export default function AdminDashboard() {
   /* تعديل اسم جد */
   const handleEditAncestor = async () => {
     if (!eaTargetId) return setEaResult({ ok: false, msg: 'اختر العقدة أولاً' })
-    if (!eaName.trim() && !eaStatus.trim()) return setEaResult({ ok: false, msg: 'أدخل الاسم أو الحالة' })
+    if (!eaName.trim() && !eaStatus.trim() && !eaOrderDate) return setEaResult({ ok: false, msg: 'أدخل الاسم أو الحالة أو تاريخ الترتيب' })
     setEaLoading(true); setEaResult(null)
     try {
-      const data = await callTree({ action: 'updateTreeNode', nodeId: eaTargetId, name: eaName.trim() || undefined, status: eaStatus || undefined })
+      const data = await callTree({
+        action: 'updateTreeNode', nodeId: eaTargetId,
+        name: eaName.trim() || undefined, status: eaStatus || undefined,
+        birthOrderDate: eaOrderDate || undefined,
+      })
       setEaResult({ ok: data.success, msg: data.message || (data.success ? 'تم التعديل' : 'فشل') })
-      if (data.success) { setEaTargetId(''); setEaName(''); setEaStatus('') }
+      if (data.success) { setEaTargetId(''); setEaName(''); setEaStatus(''); setEaOrderDate('') }
     } catch { setEaResult({ ok: false, msg: 'خطأ في الاتصال' }) }
     finally { setEaLoading(false) }
   }
@@ -2355,6 +2360,16 @@ export default function AdminDashboard() {
                   <input className="form-input" placeholder="اتركه فارغاً للاحتفاظ بالاسم" value={eaName}
                     onChange={e => setEaName(e.target.value)} />
                 </div>
+              </div>
+              <div>
+                <label className="block mb-1.5 font-nav text-xs text-gray-500">
+                  تاريخ الترتيب بين الإخوة <span className="text-gray-600">(اختياري — الأكبر يظهر يمينًا)</span>
+                </label>
+                <input type="date" className="form-input" value={eaOrderDate}
+                  onChange={e => setEaOrderDate(e.target.value)} />
+                <p className="font-nav text-[10px] text-gray-600 mt-1.5">
+                  للعضو المسجَّل: تُستخدَم تلقائيًا من تاريخ ميلاده الحقيقي بلا حاجة لتعبئة هذا الحقل. للجد المتوفى/غير المسجَّل بلا تاريخ ميلاد معروف: أدخل أي تاريخ تقريبي يضعه بالترتيب الصحيح بين إخوته (ليس شرطًا تاريخه الحقيقي).
+                </p>
               </div>
               <div>
                 <p className="font-nav text-xs text-gray-500 mb-2">الحالة الجديدة</p>
