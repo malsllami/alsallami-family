@@ -83,6 +83,40 @@ export default function AdminDashboard() {
   const [phase,    setPhase]    = useState(() => sessionStorage.getItem('adminUnlocked') === '1' ? 'open' : 'locked')
   const [pin,      setPin]      = useState('')
   const [pinError, setPinError] = useState('')
+  const [backupLoading, setBackupLoading] = useState(false)
+
+  /* نسخة احتياطية لكل بيانات الجداول الحقيقية (بلا بنية DDL — موثَّقة أصلًا
+     بملفات schema/*.sql محليًا) — مشاركة مباشرة (قوقل درايف/حفظ للجهاز) عبر
+     Web Share API إن دعمها المتصفح، وإلا تحميل مباشر كخطة بديلة عامة */
+  const handleExportBackup = async () => {
+    setBackupLoading(true)
+    try {
+      const data = await callSettings({ action: 'exportBackup' })
+      if (!data.success) { alert(data.message || 'فشل سحب النسخة الاحتياطية'); return }
+
+      const json = JSON.stringify({ exportedAt: data.exportedAt, tables: data.tables }, null, 2)
+      const filename = `نسخة-احتياطية-عائلة-السلامي-${new Date().toISOString().slice(0, 10)}.json`
+      const file = new File([json], filename, { type: 'application/json' })
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'نسخة احتياطية — عائلة السلامي', text: filename })
+        } catch { /* المستخدم ألغى المشاركة أو فشلت — الملف لم يُفقد، يقدر يعيد الضغط */ }
+        return
+      }
+
+      // تحميل مباشر — خطة بديلة للمتصفحات التي لا تدعم مشاركة الملفات (Web Share API)
+      const url = URL.createObjectURL(file)
+      const a = document.createElement('a')
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      alert('خطأ في الاتصال أثناء سحب النسخة الاحتياطية')
+    } finally {
+      setBackupLoading(false)
+    }
+  }
 
   const handleVerifyPin = async () => {
     if (!pin.trim()) { setPinError('أدخل رمز الدخول'); return }
@@ -1123,6 +1157,15 @@ export default function AdminDashboard() {
               <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
             </svg>
             بيانات المدير
+          </button>
+          <button onClick={handleExportBackup} disabled={backupLoading}
+            className="font-nav text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5 disabled:opacity-50"
+            style={{ background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)', color: '#34d399' }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+              <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            {backupLoading ? 'جاري السحب...' : 'نسخة احتياطية'}
           </button>
           <button onClick={() => setOpenSec(p => Object.fromEntries(Object.keys(p).map(k => [k, true])))}
             className="font-nav text-xs px-3 py-1.5 rounded-xl"
