@@ -19,7 +19,7 @@ function buildFlatTree(roots) {
     if (n.isWife) return
     if (!n.isChildRecord) {
       const g = n.generation || 1
-      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors })
+      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors, memberId: n.memberId || '', photoUrl: n.photoUrl || '' })
       ;(n.children || []).forEach(c => walk(c, n.id, g, depth + 1, [n.name, ...ancestors]))
     } else if (!n.isDaughter && n.childRecordId) {
       flat.push({
@@ -200,10 +200,28 @@ export default function AdminDashboard() {
   const [anResult,    setAnResult]    = useState(null)
   const [amMembers,   setAmMembers]   = useState([]) // قائمة كل الأعضاء المسجَّلين — تُحمَّل عند فتح التبويب فقط
 
+  /* أرشفة/استعادة فخذ أو فرع كامل (schema/16) — بديل آمن قابل للاسترجاع
+     تمامًا عن الحذف الحقيقي الممنوع نهائيًا لبيانات مستخدمين حقيقية */
+  const [archNodeId,        setArchNodeId]        = useState('')
+  const [archConfirm,       setArchConfirm]       = useState(false)
+  const [archLoading,       setArchLoading]       = useState(false)
+  const [archResult,        setArchResult]        = useState(null)
+  const [archivedBranches,  setArchivedBranches]  = useState([])
+  const [archListLoaded,    setArchListLoaded]    = useState(false)
+  const [restoringId,       setRestoringId]       = useState('')
+
+  /* تغيير صورة عقدة شجرة (المدير) — الصور تُخزَّن الآن في Supabase Storage
+     بدل Google Drive سابقًا. يشمل كل عقد الشجرة (مسجَّلين وأجداد متوفين/غير
+     مسجَّلين بلا حساب عضوية — schema/15) وليس الأعضاء المسجَّلين فقط */
+  const [phNodeId,     setPhNodeId]     = useState('')
+  const [phCurrentUrl, setPhCurrentUrl] = useState('')
+  const [phUploading,  setPhUploading]  = useState(false)
+  const [phError,      setPhError]      = useState('')
+
   const [openSec, setOpenSec] = useState({
     scriptStats: false, platformStats: false, onlineUsers: false,
     regReq: false, treeReq: false, treeStats: false,
-    addMember: false, treeManage: false, adminProfile: false,
+    addMember: false, memberPhoto: false, treeManage: false, adminProfile: false,
   })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
 
@@ -811,6 +829,112 @@ export default function AdminDashboard() {
       }
     } catch { setAnResult({ ok: false, msg: 'خطأ في الاتصال' }) }
     finally { setAnLoading(false) }
+  }
+
+  /* جلب قائمة الفروع المؤرشفة حاليًا (لعرضها + استعادتها) — بلا شرط، دائمًا
+     يجلب نسخة طازجة (استُخدمت "دالة تحميل مرة واحدة" منفصلة أدناه لفتح
+     التبويب فقط؛ الاعتماد عليها هنا بعد الأرشفة كان يسبب علّة إغلاق قديم
+     (stale closure) — archListLoaded باللحظة التي أُنشئت فيها الدالة يبقى
+     "true" رغم استدعاء setArchListLoaded(false) قبلها مباشرة بنفس الدالة،
+     فيُلغى التحديث ولا تظهر القائمة الجديدة) */
+  const fetchArchivedBranches = async () => {
+    try {
+      const data = await callTree({ action: 'getArchivedBranches' })
+      if (data.success) { setArchivedBranches(data.branches || []); setArchListLoaded(true) }
+    } catch { /* ignore */ }
+  }
+  const loadArchivedBranches = () => {
+    if (archListLoaded) return
+    fetchArchivedBranches()
+  }
+
+  /* أرشفة فرع (يتطلب ضغطًا مرتين للتأكيد — نفس نمط "احذف جد") */
+  const handleArchiveBranch = async () => {
+    if (!archNodeId) return setArchResult({ ok: false, msg: 'اختر الفرع المراد أرشفته' })
+    if (!archConfirm) { setArchConfirm(true); return }
+    setArchLoading(true); setArchResult(null)
+    try {
+      const data = await callTree({ action: 'archiveBranch', nodeId: archNodeId })
+      setArchResult({ ok: data.success, msg: data.message || (data.success ? 'تمت الأرشفة' : 'فشل') })
+      if (data.success) {
+        setArchNodeId(''); setArchConfirm(false)
+        try {
+          const td = await callTree({ action: 'getFamilyTree' })
+          if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
+        } catch { /* ignore */ }
+        fetchArchivedBranches()
+      }
+    } catch { setArchResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setArchLoading(false) }
+  }
+
+  /* استعادة فرع مؤرشف */
+  const handleRestoreBranch = async (nodeId) => {
+    setRestoringId(nodeId)
+    try {
+      const data = await callTree({ action: 'restoreBranch', nodeId })
+      if (data.success) {
+        setArchivedBranches(prev => prev.filter(b => b.nodeId !== nodeId))
+        try {
+          const td = await callTree({ action: 'getFamilyTree' })
+          if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
+        } catch { /* ignore */ }
+      } else {
+        setArchResult({ ok: false, msg: data.message || 'تعذّرت الاستعادة' })
+      }
+    } catch { setArchResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setRestoringId('') }
+  }
+
+  /* اختيار عضو لتغيير صورته — يجلب صورته الحالية (إن وُجدت) للمعاينة قبل الرفع */
+  const handlePhSelectNode = (nodeId) => {
+    setPhNodeId(nodeId)
+    setPhError('')
+    const node = amFlatTree.find(n => n.id === nodeId)
+    setPhCurrentUrl(node?.photoUrl || '')
+  }
+
+  /* ضغط الصورة قبل الرفع (نفس أسلوب MemberDashboard.jsx بالضبط — حد أقصى
+     400px وجودة 0.82 — لتوحيد حجم الصور المخزَّنة بالباكت بلا فرق حسب من رفعها */
+  const compressImage = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX = 400
+        const ratio  = Math.min(MAX / img.width, MAX / img.height, 1)
+        const canvas = document.createElement('canvas')
+        canvas.width  = Math.round(img.width  * ratio)
+        canvas.height = Math.round(img.height * ratio)
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+        resolve(canvas.toDataURL('image/jpeg', 0.82))
+      }
+      img.onerror = reject
+      img.src = e.target.result
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(file)
+  })
+
+  /* رفع صورة لعضو آخر (صلاحية المدير مدعومة أصلاً بدالة upload-member-photo) */
+  const handlePhUpload = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file || !phNodeId) return
+    setPhUploading(true); setPhError('')
+    try {
+      const dataUrl = await compressImage(file)
+      const base64  = dataUrl.split(',')[1]
+      const res = await callFunction('upload-member-photo', { nodeId: phNodeId, base64, mimeType: 'image/jpeg' })
+      if (res.success) {
+        setPhCurrentUrl(res.photoUrl)
+        // تحديث النسخة المحلية بالذاكرة فورًا لتبقى متطابقة لو أُعيد فتح
+        // نفس القائمة بلا حاجة لإعادة تحميل الشجرة كاملة من الخادم
+        setAmFlatTree(prev => prev.map(n => n.id === phNodeId ? { ...n, photoUrl: res.photoUrl } : n))
+      } else {
+        setPhError(res.message || 'فشل رفع الصورة')
+      }
+    } catch { setPhError('خطأ في الاتصال') }
+    finally { setPhUploading(false); e.target.value = '' }
   }
 
   /* البيانات المُشتقة */
@@ -2076,6 +2200,82 @@ export default function AdminDashboard() {
       </div>
 
       {/* ══════════════════════════════════════
+          صورة العضو — تُخزَّن الآن في Supabase Storage بدل Google Drive
+          سابقًا. الرفع لعضو آخر مدعوم أصلاً بدالة upload-member-photo
+          (صلاحية مدير)، لكن لم تكن له واجهة بلوحة المدير قبل الآن
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(59,130,246,0.06)', border: '1px solid rgba(59,130,246,0.2)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-start justify-between cursor-pointer"
+          onClick={() => toggleSec('memberPhoto')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">صورة عضو الشجرة</p>
+            {openSec.memberPhoto && <p className="font-nav text-xs text-gray-600">رفع أو تغيير الصورة لأي فرد بالشجرة — حتى الأجداد المتوفين بلا حساب عضوية</p>}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.25)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="#60a5fa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="3"/>
+                <circle cx="9" cy="9" r="2"/>
+                <path d="m21 15-5-5L5 21"/>
+              </svg>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
+              style={{ transform: openSec.memberPhoto ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ display: openSec.memberPhoto ? 'block' : 'none' }}>
+          <div className="mt-5 max-w-sm space-y-4">
+            <div>
+              <label className="block mb-1.5 font-nav text-xs text-gray-500">اختر من الشجرة * (يشمل الأجداد المتوفين وغير المسجَّلين)</label>
+              <SearchableSelect
+                options={amFlatTree.filter(n => !n.isChildRecord)}
+                value={phNodeId}
+                onChange={id => handlePhSelectNode(id)}
+                getId={n => n.id}
+                getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                emptyLabel="— اختر من الشجرة —"
+              />
+            </div>
+
+            {phNodeId && (
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(59,130,246,0.08)', border: '2px solid rgba(59,130,246,0.3)' }}>
+                  {phCurrentUrl ? (
+                    <img src={phCurrentUrl} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                  ) : (
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(96,165,250,0.55)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="8" r="4"/><path d="M6 20v-2a6 6 0 0 1 12 0v2"/>
+                    </svg>
+                  )}
+                </div>
+                <label htmlFor="admin-photo-upload"
+                  className="font-nav text-sm py-2.5 px-5 rounded-2xl font-bold transition-all duration-200 cursor-pointer disabled:opacity-50"
+                  style={{ background: 'rgba(59,130,246,0.14)', border: '1px solid rgba(59,130,246,0.35)', color: '#60a5fa' }}>
+                  {phUploading ? 'جاري الرفع...' : 'اختيار صورة ورفعها'}
+                </label>
+                <input id="admin-photo-upload" type="file" accept="image/*" className="hidden"
+                  disabled={phUploading} onChange={handlePhUpload} />
+              </div>
+            )}
+
+            {phError && (
+              <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171' }}>
+                {phError}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════
           إدارة الشجرة العائلية (4 تبويبات)
          ══════════════════════════════════════ */}
       <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
@@ -2111,8 +2311,13 @@ export default function AdminDashboard() {
               { key: 'root',    label: 'إضافة فوق الجذر' },
               { key: 'move',    label: 'نقل عضو' },
               { key: 'addNode', label: 'إضافة عقدة' },
+              { key: 'archive', label: 'أرشفة فرع' },
             ].map(t => (
-              <button key={t.key} onClick={() => { setTreeManageTab(t.key); if (t.key === 'addNode') loadAllMembersForTree() }}
+              <button key={t.key} onClick={() => {
+                setTreeManageTab(t.key)
+                if (t.key === 'addNode') loadAllMembersForTree()
+                if (t.key === 'archive') loadArchivedBranches()
+              }}
                 className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200"
                 style={{
                   background: treeManageTab === t.key ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.04)',
@@ -2450,6 +2655,73 @@ export default function AdminDashboard() {
                 style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.35)', color: '#34d399' }}>
                 {anLoading ? 'جاري الإضافة...' : 'إضافة العقدة'}
               </button>
+            </div>
+          )}
+
+          {/* أرشفة فرع — بديل آمن قابل للاسترجاع عن الحذف الحقيقي الممنوع */}
+          {treeManageTab === 'archive' && (
+            <div className="mt-5 space-y-6">
+              <div className="p-4 rounded-2xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                <p className="font-nav text-xs" style={{ color: 'rgba(252,165,165,0.85)' }}>
+                  الأرشفة تُخفي الفرع كاملاً عن الجميع فورًا — بلا أي حذف حقيقي وبلا إيقاف أي حساب، وقابلة للاستعادة الكاملة في أي وقت. تسجيل دخول أعضاء الفرع يبقى يعمل طبيعيًا تمامًا، ويرون فرعهم الخاص عند الدخول، بينما لا يظهر لأي شخص آخر.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>أرشفة فرع جديد</p>
+                <div>
+                  <label className="block mb-1.5 font-nav text-xs text-gray-500">الفرع المراد أرشفته (يشمل كل من تحته) *</label>
+                  <SearchableSelect
+                    options={amFlatTree.filter(n => !n.isChildRecord)}
+                    value={archNodeId}
+                    onChange={id => { setArchNodeId(id); setArchConfirm(false); setArchResult(null) }}
+                    getId={n => n.id}
+                    getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                    emptyLabel="— اختر من الشجرة —"
+                  />
+                </div>
+
+                {archConfirm && (
+                  <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                    style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#fca5a5' }}>
+                    هل أنت متأكد من أرشفة &quot;{nodeFullName(amFlatTree.find(n => n.id === archNodeId) || {})}&quot; وكل من تحته؟ اضغط مرة أخرى للتأكيد.
+                  </div>
+                )}
+                {archResult && (
+                  <div className="px-4 py-3 rounded-2xl font-nav text-sm"
+                    style={{ background: archResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: archResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: archResult.ok ? '#4ade80' : '#f87171' }}>
+                    {archResult.msg}
+                  </div>
+                )}
+                <button onClick={handleArchiveBranch} disabled={archLoading}
+                  className="font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                  style={{ background: archConfirm ? 'rgba(239,68,68,0.16)' : 'rgba(239,68,68,0.08)', border: `1px solid rgba(239,68,68,${archConfirm ? 0.4 : 0.22})`, color: '#f87171' }}>
+                  {archLoading ? 'جاري الأرشفة...' : archConfirm ? 'تأكيد الأرشفة' : 'أرشفة الفرع'}
+                </button>
+              </div>
+
+              <div className="pt-2 space-y-3" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                <p className="font-nav text-sm font-semibold pt-4" style={{ color: 'var(--gold-main)' }}>الفروع المؤرشفة حاليًا</p>
+                {!archivedBranches.length && (
+                  <p className="font-nav text-xs text-gray-600">لا توجد فروع مؤرشفة حاليًا</p>
+                )}
+                {archivedBranches.map(b => (
+                  <div key={b.nodeId} className="flex items-center justify-between px-4 py-3 rounded-2xl"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <div>
+                      <p className="font-nav text-sm font-semibold text-white">{b.name}</p>
+                      <p className="font-nav text-[10px] text-gray-500 mt-0.5">
+                        {b.nodeCount} عقدة{b.archivedAt ? ` — أُرشِف بتاريخ ${new Date(b.archivedAt).toLocaleDateString('ar-SA')}` : ''}
+                      </p>
+                    </div>
+                    <button onClick={() => handleRestoreBranch(b.nodeId)} disabled={restoringId === b.nodeId}
+                      className="font-nav text-xs py-2 px-4 rounded-xl transition-all duration-200 disabled:opacity-50 flex-shrink-0"
+                      style={{ background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', color: '#4ade80' }}>
+                      {restoringId === b.nodeId ? 'جاري الاستعادة...' : 'استعادة'}
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
