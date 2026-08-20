@@ -81,9 +81,13 @@ export default function Register() {
   };
 
   // تحميل الشجرة (عامة — لا تحتاج تسجيل دخول، البنات مستبعدات من الخادم أصلاً)
+  // forRegistration: يشمل الفروع المؤرشفة أيضًا — المسجِّل الجديد بلا حساب
+  // بعد، فلا طريقة لمعرفة هل هو من نفس فرع مؤرشف أم لا؛ إخفاء الفرع هنا
+  // يمنع أبناء الفرع المؤرشف نهائيًا من إيجاد أبيهم عند التسجيل. القرار
+  // المتعمَّد: الشجرة كاملة أثناء التسجيل فقط (وليس بالتصفح العام)
   useEffect(() => {
     let mounted = true;
-    callFunction('manage-tree', { action: 'getFamilyTree' })
+    callFunction('manage-tree', { action: 'getFamilyTree', forRegistration: true })
       .then(d => { if (mounted && d.success && d.tree) setTreeData(d.tree); })
       .finally(() => { if (mounted) setTreeLoading(false); });
     return () => { mounted = false; };

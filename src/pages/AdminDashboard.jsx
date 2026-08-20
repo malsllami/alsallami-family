@@ -19,7 +19,7 @@ function buildFlatTree(roots) {
     if (n.isWife) return
     if (!n.isChildRecord) {
       const g = n.generation || 1
-      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors, memberId: n.memberId || '', photoUrl: n.photoUrl || '' })
+      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors, memberId: n.memberId || '', photoUrl: n.photoUrl || '', archived: !!n.__archived })
       ;(n.children || []).forEach(c => walk(c, n.id, g, depth + 1, [n.name, ...ancestors]))
     } else if (!n.isDaughter && n.childRecordId) {
       flat.push({
@@ -808,6 +808,12 @@ export default function AdminDashboard() {
     const keep = Math.max(0, (n.depth || 0) - amBranchDepth)
     return [n.name, ...(n.ancestors || []).slice(0, keep)].join(' بن ')
   }
+
+  /* نص خيار موحَّد لكل قوائم اختيار عقدة الشجرة — الاسم الكامل + الجيل، مع
+     تنبيه "(مؤرشف)" إن كانت العقدة ضمن فرع مؤرشف حاليًا (المدير وحده يرى
+     هذي العقد أصلاً بفضل فلترة الرؤية بـmanage-tree، فلا حاجة له لاستعادة
+     الفرع أولاً قبل إضافة/نقل أعضاء تحته) */
+  const nodeOptionLabel = (n) => `${nodeFullName(n)} (جيل ${n.gen || 1})${n.archived ? ' — مؤرشف 📦' : ''}`
 
   /* إضافة عقدة جديدة تحت أب مُختار — اختياريًا مربوطة بعضو حقيقي */
   const handleAddTreeNode = async () => {
@@ -2238,7 +2244,7 @@ export default function AdminDashboard() {
                 value={phNodeId}
                 onChange={id => handlePhSelectNode(id)}
                 getId={n => n.id}
-                getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                getLabel={n => nodeOptionLabel(n)}
                 emptyLabel="— اختر من الشجرة —"
               />
             </div>
@@ -2340,7 +2346,7 @@ export default function AdminDashboard() {
                     value={eaTargetId}
                     onChange={id => setEaTargetId(id)}
                     getId={n => n.id}
-                    getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                    getLabel={n => nodeOptionLabel(n)}
                     emptyLabel="— اختر من الشجرة —"
                   />
                 </div>
@@ -2399,7 +2405,7 @@ export default function AdminDashboard() {
                   value={daTargetId}
                   onChange={id => { setDaTargetId(id); setDaConfirm(false) }}
                   getId={n => n.id}
-                  getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                  getLabel={n => nodeOptionLabel(n)}
                   emptyLabel="— اختر من الشجرة —"
                 />
               </div>
@@ -2439,7 +2445,7 @@ export default function AdminDashboard() {
                     value={iaaTargetId}
                     onChange={id => setIaaTargetId(id)}
                     getId={n => n.id}
-                    getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                    getLabel={n => nodeOptionLabel(n)}
                     emptyLabel="— اختر من الشجرة —"
                   />
                 </div>
@@ -2538,7 +2544,7 @@ export default function AdminDashboard() {
                   value={mvSourceId}
                   onChange={id => { setMvSourceId(id); setMvResult(null) }}
                   getId={n => n.id}
-                  getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                  getLabel={n => nodeOptionLabel(n)}
                   emptyLabel="— اختر العضو —"
                 />
               </div>
@@ -2603,7 +2609,7 @@ export default function AdminDashboard() {
                   value={anParentId}
                   onChange={id => setAnParentId(id)}
                   getId={n => n.id}
-                  getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                  getLabel={n => nodeOptionLabel(n)}
                   emptyLabel="— اختر من الشجرة —"
                 />
               </div>
@@ -2676,7 +2682,7 @@ export default function AdminDashboard() {
                     value={archNodeId}
                     onChange={id => { setArchNodeId(id); setArchConfirm(false); setArchResult(null) }}
                     getId={n => n.id}
-                    getLabel={n => `${nodeFullName(n)} (جيل ${n.gen || 1})`}
+                    getLabel={n => nodeOptionLabel(n)}
                     emptyLabel="— اختر من الشجرة —"
                   />
                 </div>
