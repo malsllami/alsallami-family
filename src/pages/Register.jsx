@@ -349,7 +349,6 @@ export default function Register() {
               <DateInput
                 value={formData.birthDate}
                 onChange={val => setFormData(prev => ({ ...prev, birthDate: val }))}
-                required
               />
             </Field>
           </div>

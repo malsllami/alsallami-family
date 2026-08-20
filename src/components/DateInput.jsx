@@ -79,7 +79,33 @@ function initFromValue(value) {
   return { y: THIS_YEAR - 30, m: 1, d: 1 }
 }
 
-export default function DateInput({ value, onChange, required }) {
+/* مكوّنات فرعية على مستوى الملف (وليس داخل جسم DateInput) — تعريفها داخل
+   دالة العرض كان يعيد إنشاءها من جديد مع كل عملية عرض، فيفقد React هويتها
+   ويعيد تركيب عناصر الـDOM بالكامل مع كل تغيير (فقدان التركيز/حالة القائمة
+   المفتوحة، أداء أسوأ) */
+const Arrow = () => (
+  <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.70)', fontSize:10, pointerEvents:'none' }}>▼</span>
+)
+
+const DaySelect = ({ days, val, onChg }) => (
+  <div style={{ position:'relative' }}>
+    <select value={val} onChange={e => onChg(+e.target.value)} style={SEL}>
+      {Array.from({ length: days }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
+    </select>
+    <Arrow />
+  </div>
+)
+
+const MonthSelect = ({ months, val, onChg }) => (
+  <div style={{ position:'relative' }}>
+    <select value={val} onChange={e => onChg(+e.target.value)} style={SEL}>
+      {months.map((name, i) => <option key={i+1} value={i+1}>{name}</option>)}
+    </select>
+    <Arrow />
+  </div>
+)
+
+export default function DateInput({ value, onChange }) {
   const [mode, setMode] = useState('gregorian')
 
   // Gregorian state — initialised from value prop
@@ -110,28 +136,6 @@ export default function DateInput({ value, onChange, required }) {
   const gDays  = gregorianDaysInMonth(gMonth, gYear)
   const safeHDay = Math.min(hDay, hDays)
   const safeGDay = Math.min(gDay, gDays)
-
-  const Arrow = () => (
-    <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'rgba(255,255,255,0.70)', fontSize:10, pointerEvents:'none' }}>▼</span>
-  )
-
-  const DaySelect = ({ days, val, onChg }) => (
-    <div style={{ position:'relative' }}>
-      <select value={val} onChange={e => onChg(+e.target.value)} style={SEL}>
-        {Array.from({ length: days }, (_, i) => i + 1).map(d => <option key={d} value={d}>{d}</option>)}
-      </select>
-      <Arrow />
-    </div>
-  )
-
-  const MonthSelect = ({ months, val, onChg }) => (
-    <div style={{ position:'relative' }}>
-      <select value={val} onChange={e => onChg(+e.target.value)} style={SEL}>
-        {months.map((name, i) => <option key={i+1} value={i+1}>{name}</option>)}
-      </select>
-      <Arrow />
-    </div>
-  )
 
   return (
     <div>

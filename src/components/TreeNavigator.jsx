@@ -1,21 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
 
-const RAW_TREE = {
-  id:'root', name:'إبراهيم العفريتي', gender:'male', alive:false,
-  children:[
-    {
-      id:'c0', name:'أحمد', gender:'male', alive:false,
-      children:[
-        { id:'c1', name:'شامي',    gender:'male', alive:false, children:[] },
-        { id:'c2', name:'صاحب',   gender:'male', alive:false, children:[] },
-        { id:'c3', name:'يحيى',   gender:'male', alive:false, children:[] },
-        { id:'c4', name:'علي',    gender:'male', alive:false, children:[] },
-        { id:'c5', name:'إبراهيم', gender:'male', alive:false, children:[] },
-      ]
-    },
-  ],
-}
-
 function addLevels(node, level = 1) {
   const kids = (node.children || [])
     .filter(c => !c.gender || c.gender === 'male')
@@ -25,17 +9,20 @@ function addLevels(node, level = 1) {
 
 /* ═══════════════════════════════════════════════════════════════════════ */
 export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, onSelectSelf, selectedSelfId, onSelectSon, selectedSonId, minFatherGen = 1 }) {
+  // لا بيانات وهمية عند غياب treeData (جاري التحميل أو فشل الجلب) — tree
+  // تبقى null وتُعرض حالة "لا توجد بيانات" حقيقية بدل شجرة اختبار مزيَّفة
   const tree = useMemo(() => {
+    if (!treeData) return null
     const raw = Array.isArray(treeData)
       ? { id: 'root', name: 'الشجرة', gender: 'male', alive: true, generationLevel: 0, children: treeData }
-      : (treeData ?? RAW_TREE)
+      : treeData
     return addLevels(raw, raw.generationLevel || 0)
   }, [treeData])
 
   // المستويات الثابتة: أي مستوى فيه خيار واحد فقط يُثبَّت تلقائياً
   const fixedPath = useMemo(() => {
     const fp = []
-    let options = tree.children || []
+    let options = tree?.children || []
     while (options.length === 1) {
       fp.push(options[0])
       options = options[0].children || []
@@ -71,7 +58,7 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
 
   const displayLevels = useMemo(() => {
     const levels = []
-    let options = tree.children || []
+    let options = tree?.children || []
 
     for (let i = 0; ; i++) {
       if (!options.length) break
@@ -110,6 +97,14 @@ export default function TreeNavigator({ treeData, onSelect, selected, currentMem
   const lastNode   = pathNodes[pathNodes.length - 1] ?? null
   const isSelf     = Boolean(selectedSelfId && lastNode?.id === selectedSelfId)
   const myGenLevel = lastNode ? (isSelf ? lastNode.generationLevel : lastNode.generationLevel + 1) : null
+
+  if (!tree) {
+    return (
+      <p className="font-nav text-sm text-center py-4" style={{ color: 'rgba(255,255,255,0.55)' }}>
+        تعذّر تحميل الشجرة العائلية. تحقق من اتصالك وأعد المحاولة.
+      </p>
+    )
+  }
 
   return (
     <div className="space-y-3">

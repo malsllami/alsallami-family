@@ -35,8 +35,6 @@ import Articles from './pages/Articles'
 
 import Funds from './pages/Funds'
 
-import TreeViewer from './pages/TreeViewer'
-
 /**************************************************
  * Protected Route
  **************************************************/
@@ -53,9 +51,6 @@ export default function Router() {
 
         {/* شجرة العائلة — صفحة مستقلة بلا navbar (فل سكرين) */}
         <Route path="/family-tree" element={<FamilyTree />} />
-
-        {/* مشاهد الشجرة — للأهل بدون تسجيل */}
-        <Route path="/tree-view" element={<TreeViewer />} />
 
         {/* Layout — باقي الصفحات */}
 
