@@ -8,7 +8,7 @@ function addLevels(node, level = 1) {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════ */
-export default function TreeNavigator({ treeData, onSelect, selected, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, onSelectSelf, selectedSelfId, onSelectSon, selectedSonId, minFatherGen = 1 }) {
+export default function TreeNavigator({ treeData, onSelect, currentMemberId, onSelectFather, selectedFatherId, onSelectGrandfather, selectedGrandfatherId, onSelectSelf, selectedSelfId, onSelectSon, selectedSonId, minFatherGen = 1 }) {
   // لا بيانات وهمية عند غياب treeData (جاري التحميل أو فشل الجلب) — tree
   // تبقى null وتُعرض حالة "لا توجد بيانات" حقيقية بدل شجرة اختبار مزيَّفة
   const tree = useMemo(() => {

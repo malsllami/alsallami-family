@@ -60,14 +60,6 @@ function findBranchPointDepth(node, depth) {
   if (kids.length !== 1) return depth || 0
   return findBranchPointDepth(kids[0], (depth || 0) + 1)
 }
-function findNodeById(node, id) {
-  if (node.id === id) return node
-  for (const c of (node.children || [])) {
-    const r = findNodeById(c, id)
-    if (r) return r
-  }
-  return null
-}
 function updateNodeInTree(node, nodeId, updates) {
   if (node.id === nodeId) return { ...node, ...updates }
   return { ...node, children: (node.children || []).map(c => updateNodeInTree(c, nodeId, updates)) }
@@ -805,7 +797,6 @@ export default function FamilyTree({ viewerMode = false }) {
   const [treeRoot,   setTreeRoot]  = useState(null)
   const [loading,    setLoading]   = useState(true)
   const [loadError,  setLoadError] = useState(false)
-  const pub = true
   const [branch,     setBranch]    = useState(null)
   const [sel,        setSel]       = useState(null)
   const [tx,         setTx]        = useState({ x: 0, y: 0, s: 0.5 })
@@ -935,16 +926,6 @@ export default function FamilyTree({ viewerMode = false }) {
     }
     return segs
   }, [ancestryPath, nodes])
-
-  const centerOn = (n) => {
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    setTx(prev => ({
-      s: prev.s,
-      x: vw / 2 - n.cx * prev.s,
-      y: BAR_H + (vh - BAR_H) / 2 - n.cy * prev.s,
-    }))
-  }
 
   const handleUpdateNode = (nodeId, updates) => {
     setTreeRoot(prev => updateWifeInTree(updateNodeInTree(prev, nodeId, updates), nodeId, updates))

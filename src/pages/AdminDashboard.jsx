@@ -77,7 +77,6 @@ export default function AdminDashboard() {
 
   const callSettings      = (body) => callFunction('manage-settings', body)
   const callTree          = (body) => callFunction('manage-tree', body)
-  const callMember        = (body) => callFunction('manage-member', body)
   const callRegistrations = (body) => callFunction('manage-registrations', body)
 
   /* ── بوابة الرمز — phase: 'locked' | 'verifying' | 'success' | 'open' ── */
@@ -2780,36 +2779,6 @@ export default function AdminDashboard() {
     </div>
   </>
 )
-}
-
-function DashCard({ color, title, badge, badgeStyle, open, onToggle, children }) {
-  return (
-    <div className="rounded-2xl sm:rounded-[28px]"
-      style={{ background: color.bg, border: `1px solid ${color.border}`, boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
-      <div className="flex items-center justify-between cursor-pointer px-5 py-4 sm:px-6 sm:py-5 select-none" onClick={onToggle}>
-        <span className="font-nav text-sm font-semibold text-white">{title}</span>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {badge != null && (
-            <span className="font-nav text-xs font-bold px-2.5 py-1 rounded-full"
-              style={badgeStyle || { background: color.soft || 'rgba(255,255,255,0.08)', color: color.accent || '#fff', border: `1px solid ${color.border}` }}>
-              {badge}
-            </span>
-          )}
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.55)" strokeWidth="2"
-            style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.35s cubic-bezier(0.23,1,0.32,1)', flexShrink: 0 }}>
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
-        </div>
-      </div>
-      <div style={{ display: 'grid', gridTemplateRows: open ? '1fr' : '0fr', transition: 'grid-template-rows 0.4s cubic-bezier(0.23,1,0.32,1)' }}>
-        <div style={{ overflow: 'hidden' }}>
-          <div className="px-5 pb-6 sm:px-6 sm:pb-7">
-            {children}
-          </div>
-        </div>
-      </div>
-    </div>
-  )
 }
 
 function AmField({ label, children }) {
