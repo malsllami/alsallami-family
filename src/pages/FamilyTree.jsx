@@ -789,7 +789,7 @@ function PR({ label, value, color }) {
 }
 
 /* ════ الصفحة الرئيسية ════════════════════════════════════════════════════ */
-export default function FamilyTree({ viewerMode = false }) {
+export default function FamilyTree({ viewerMode = false, includeArchived = false }) {
   const navigate   = useNavigate()
   const user       = JSON.parse(localStorage.getItem('user') || 'null')
 
@@ -851,7 +851,10 @@ export default function FamilyTree({ viewerMode = false }) {
      تُعرض حالة خطأ حقيقية بدل شجرة تجريبية ثابتة ── */
   useEffect(() => {
     const load = async () => {
-      const d = await callFunction('manage-tree', { action: 'getFamilyTree' })
+      // includeArchived: تُفعَّل فقط من نافذة "عرض شجرة المؤرشفين" بلوحة
+      // المدير (البند 4/2) — بلا أثر لأي متصل غير مدير (الخادم يتحقق من
+      // الدور فعليًا قبل أي تجاوز لفلتر الأرشفة)
+      const d = await callFunction('manage-tree', { action: 'getFamilyTree', ...(includeArchived ? { includeArchived: true } : {}) })
       if (d.success && d.tree?.length > 0) setTreeRoot(d.tree[0])
       else setLoadError(true)
       setLoading(false)

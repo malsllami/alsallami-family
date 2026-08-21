@@ -3,9 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
 import SearchableSelect from '../components/SearchableSelect'
+import FamilyTree from './FamilyTree'
 import { normalizeDigits } from '../utils/normalizeInput'
 import PhoneInput from '../components/PhoneInput'
 import { callFunction } from '../services/api'
+// xlsx تُحمَّل ديناميكيًا فقط عند الضغط على زر "نسخة احتياطية" (استيراد داخل
+// handleExportBackup) — مكتبة كبيرة (+300kb) يستخدمها المدير فقط أحيانًا،
+// لا داعي أن يحمّلها كل زائر للموقع ضمن الحزمة الأساسية
 
 /* تحويل شجرة هرمية إلى مصفوفة مسطحة تشمل عقد الأعضاء وسجلات الأبناء الذكور
    — يمرّر مصفوفة أسماء كل الأجداد تراكميًا أثناء المشي (الأقرب أولاً) بدل
@@ -19,7 +23,7 @@ function buildFlatTree(roots) {
     if (n.isWife) return
     if (!n.isChildRecord) {
       const g = n.generation || 1
-      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors, memberId: n.memberId || '', photoUrl: n.photoUrl || '', archived: !!n.__archived })
+      flat.push({ id: n.id, name: n.name, parentId: pId || n.parentId || '', gen: g, depth, ancestors, memberId: n.memberId || '', photoUrl: n.photoUrl || '', archived: !!n.archived })
       ;(n.children || []).forEach(c => walk(c, n.id, g, depth + 1, [n.name, ...ancestors]))
     } else if (!n.isDaughter && n.childRecordId) {
       flat.push({
@@ -86,17 +90,27 @@ export default function AdminDashboard() {
   const [backupLoading, setBackupLoading] = useState(false)
 
   /* نسخة احتياطية لكل بيانات الجداول الحقيقية (بلا بنية DDL — موثَّقة أصلًا
-     بملفات schema/*.sql محليًا) — مشاركة مباشرة (قوقل درايف/حفظ للجهاز) عبر
-     Web Share API إن دعمها المتصفح، وإلا تحميل مباشر كخطة بديلة عامة */
+     بملفات schema/*.sql محليًا) كملف إكسل واحد — كل جدول بورقة (Sheet)
+     مستقلة بنفس اسمه — مشاركة مباشرة (قوقل درايف/حفظ للجهاز) عبر Web Share
+     API إن دعمها المتصفح، وإلا تحميل مباشر كخطة بديلة عامة */
   const handleExportBackup = async () => {
     setBackupLoading(true)
     try {
       const data = await callSettings({ action: 'exportBackup' })
       if (!data.success) { alert(data.message || 'فشل سحب النسخة الاحتياطية'); return }
 
-      const json = JSON.stringify({ exportedAt: data.exportedAt, tables: data.tables }, null, 2)
-      const filename = `نسخة-احتياطية-عائلة-السلامي-${new Date().toISOString().slice(0, 10)}.json`
-      const file = new File([json], filename, { type: 'application/json' })
+      const XLSX = await import('xlsx')
+      const wb = XLSX.utils.book_new()
+      Object.entries(data.tables || {}).forEach(([tableName, rows]) => {
+        const ws = XLSX.utils.json_to_sheet(rows || [])
+        // أسماء أوراق الإكسل محدودة بـ31 حرفًا كحد أقصى — قصّ آمن لأي اسم جدول أطول
+        XLSX.utils.book_append_sheet(wb, ws, tableName.slice(0, 31))
+      })
+      const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+      const filename = `نسخة-احتياطية-عائلة-السلامي-${new Date().toISOString().slice(0, 10)}.xlsx`
+      const file = new File([arrayBuffer], filename, {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      })
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
@@ -186,6 +200,18 @@ export default function AdminDashboard() {
   const [amResult,   setAmResult]   = useState(null)
   const [amFlatTree, setAmFlatTree] = useState([])
   const [amCascade,  setAmCascade]  = useState([])
+
+  /* بطاقة مستقلة: إضافة عضو لفرع مؤرشف — حالة منفصلة تمامًا عن "إضافة عضو
+     مباشرة" العادية أعلاه (لا تشاركها amData) حتى لا يختلط تعبئة إحداهما
+     بالأخرى. الشجرة هنا تُجلَب بنداء includeArchived منفصل (لا تحمَّل إلا
+     عند فتح البطاقة) وتُقتصَر خيارات الأب على العقد المؤرشفة فقط */
+  const [amArchData,        setAmArchData]        = useState(AM_INITIAL)
+  const [amArchLoading,     setAmArchLoading]      = useState(false)
+  const [amArchResult,      setAmArchResult]       = useState(null)
+  const [amArchivedTree,    setAmArchivedTree]     = useState([]) // flat، الشجرة كاملة (ظاهرة + مؤرشفة)
+  const [amArchTreeLoading, setAmArchTreeLoading]  = useState(false)
+  const [amArchPhoneCountry, setAmArchPhoneCountry] = useState('+966')
+  const [showArchivedTreeView, setShowArchivedTreeView] = useState(false)
   const [treeRequestsLoading, setTreeRequestsLoading] = useState(true)
   const [treeActionLoading,   setTreeActionLoading]   = useState(null)
   const [treeRejectingId,     setTreeRejectingId]     = useState(null)
@@ -255,7 +281,7 @@ export default function AdminDashboard() {
   const [openSec, setOpenSec] = useState({
     scriptStats: false, platformStats: false, onlineUsers: false,
     regReq: false, treeReq: false, treeStats: false,
-    addMember: false, memberPhoto: false, treeManage: false, adminProfile: false,
+    addMember: false, addArchivedMember: false, memberPhoto: false, treeManage: false, adminProfile: false,
   })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
 
@@ -694,6 +720,80 @@ export default function AdminDashboard() {
       }
     } catch { setAmResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
     finally  { setAmLoading(false) }
+  }
+
+  /* تحميل الشجرة كاملة (ظاهرة + مؤرشفة) عند فتح بطاقة "إضافة عضو لفرع
+     مؤرشف" لأول مرة — includeArchived لا يُفعَّل إلا هنا وبزر "عرض شجرة
+     المؤرشفين" (البند 2)، وليس بأي نداء آخر بلوحة المدير */
+  useEffect(() => {
+    if (!openSec.addArchivedMember || amArchivedTree.length) return
+    const load = async () => {
+      setAmArchTreeLoading(true)
+      try {
+        const data = await callTree({ action: 'getFamilyTree', includeArchived: true })
+        if (data.success && data.tree?.length) setAmArchivedTree(buildFlatTree(data.tree))
+      } catch { /* ignore network errors */ }
+      setAmArchTreeLoading(false)
+    }
+    load()
+  }, [openSec.addArchivedMember])
+
+  const amArchOptions     = amArchivedTree.filter(n => !n.isChildRecord && n.archived)
+  const amArchBranchDepth = findBranchDepth(amArchivedTree)
+
+  /* اختيار الأب ببطاقة "إضافة عضو لفرع مؤرشف" — قائمة مسطّحة بسيطة (بلا
+     تسلسل فخذ/أبناء متدرّج كالبطاقة العادية): الفخذ يُشتَق تلقائيًا بالمشي
+     على parentId حتى مستوى الفخوذ لعرضه فقط، والعضو الجديد يُربَط مباشرة
+     تحت العقدة المختارة أيًا كان عمقها */
+  const handleArchParentChange = (selectedId) => {
+    const node = amArchivedTree.find(n => n.id === selectedId)
+    let cur = node
+    while (cur && cur.depth > amArchBranchDepth) {
+      cur = amArchivedTree.find(n => n.id === cur.parentId)
+    }
+    setAmArchData(p => ({ ...p, parentNodeId: node?.id || '', parentName: node?.name || '', branch: cur?.name || '' }))
+  }
+
+  /* إضافة عضو لفرع مؤرشف — نفس عملية "addMember" الخلفية تمامًا (لا علاقة
+     لها بالأرشفة من جهة الخادم)؛ الفرق الوحيد هنا هو قائمة اختيار الأب
+     المقتصرة على العقد المؤرشفة (البند 4) */
+  const handleAddArchivedMember = async () => {
+    const isDeceased = amArchData.aliveStatus === 'متوفى'
+    if (!amArchData.firstName) return setAmArchResult({ success: false, message: 'الاسم الأول مطلوب' })
+    if (!amArchData.parentNodeId) return setAmArchResult({ success: false, message: 'يجب اختيار الأب من القائمة' })
+    if (!isDeceased && amArchData.tempPassword && amArchData.tempPassword.length < 6)
+      return setAmArchResult({ success: false, message: 'كلمة المرور المؤقتة يجب أن تكون 6 أحرف على الأقل' })
+    const jobFinal   = amArchData.job === 'أخرى' ? amArchData.jobOther : amArchData.job
+    const parentNode = amArchivedTree.find(n => n.id === amArchData.parentNodeId)
+    try {
+      setAmArchLoading(true)
+      setAmArchResult(null)
+      const result = await callRegistrations({
+        action:               'addMember',
+        nationalId:           amArchData.nationalId,
+        firstName:            amArchData.firstName,
+        phone:                amArchPhoneCountry + amArchData.phone,
+        branch:               amArchData.branch,
+        parentNodeId:         amArchData.parentNodeId,
+        parentChildRecordId:  parentNode?.childRecordId || '',
+        fatherName:           amArchData.parentName,
+        tempPassword:         amArchData.tempPassword,
+        maritalStatus:        amArchData.maritalStatus,
+        job:                  jobFinal,
+        city:                 amArchData.city,
+        role:                 amArchData.role,
+        aliveStatus:          amArchData.aliveStatus,
+      })
+      setAmArchResult(result)
+      if (result.success) {
+        setAmArchData(AM_INITIAL)
+        try {
+          const td = await callTree({ action: 'getFamilyTree', includeArchived: true })
+          if (td.success && td.tree?.length) setAmArchivedTree(buildFlatTree(td.tree))
+        } catch { /* ignore network errors */ }
+      }
+    } catch { setAmArchResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
+    finally  { setAmArchLoading(false) }
   }
 
   /* إدراج جد وسيط فوق أي عقدة */
@@ -1596,12 +1696,14 @@ export default function AdminDashboard() {
                       )}
                     </div>
 
-                    {/* تسلسل عائلي */}
-                    {[req.branch, req.grandName, req.fatherName, req.name].some(Boolean) && (
+                    {/* تسلسل عائلي — كامل من الشجرة الحقيقية (req.fullLineage، بأي عدد
+                        مستويات) إن كان الطلب مرتبطًا بعقدة شجرة فعلية؛ وإلا سقوط
+                        احتياطي للحقول النصية الأربعة المكتوبة يدويًا وقت التسجيل */}
+                    {(req.fullLineage?.length ? req.fullLineage : [req.branch, req.grandName, req.fatherName, req.name].filter(Boolean)).length > 0 && (
                       <div>
                         <p className="font-nav text-[10px] text-gray-500 mb-2">التسلسل العائلي</p>
                         <div className="flex items-center gap-1 flex-wrap" style={{ direction: 'rtl' }}>
-                          {[req.branch, req.grandName, req.fatherName, req.name].filter(Boolean).map((node, idx, arr) => (
+                          {(req.fullLineage?.length ? req.fullLineage : [req.branch, req.grandName, req.fatherName, req.name].filter(Boolean)).map((node, idx, arr) => (
                             <span key={idx} className="flex items-center gap-1">
                               <span className="font-nav text-xs px-2.5 py-1 rounded-xl"
                                 style={{
@@ -1884,6 +1986,210 @@ export default function AdminDashboard() {
 
         </div>
       </div>
+
+      {/* ══════════════════════════════════════
+          إضافة عضو لفرع مؤرشف — بطاقة مستقلة تمامًا للمدير فقط (البند 4).
+          الفروع المؤرشفة لم تعد تظهر في نموذج التسجيل الذاتي ولا أي أداة
+          أخرى بلوحة المدير (البند 5) — هذه البطاقة هي الطريقة الوحيدة
+          لإضافة عضو تحت فرع مؤرشف
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7" style={{ background: 'rgba(107,114,128,0.08)', border: '1px solid rgba(107,114,128,0.25)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-start justify-between cursor-pointer" onClick={() => toggleSec('addArchivedMember')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">إضافة عضو لفرع مؤرشف</p>
+            {openSec.addArchivedMember && <p className="font-nav text-xs text-gray-600">للمدير فقط — الفروع المؤرشفة لا تظهر بنموذج التسجيل الذاتي، فيُضاف أعضاؤها الجدد يدويًا من هنا</p>}
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="w-10 h-10 rounded-2xl flex items-center justify-center"
+              style={{ background: 'rgba(107,114,128,0.12)', border: '1px solid rgba(107,114,128,0.3)' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                stroke="#9ca3af" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 8v6M23 11h-6"/>
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+              </svg>
+            </div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.62)" strokeWidth="2"
+              style={{ transform: openSec.addArchivedMember ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.3s' }}>
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </div>
+        </div>
+
+        <div style={{ display: openSec.addArchivedMember ? 'block' : 'none' }}>
+
+        <button type="button" onClick={() => setShowArchivedTreeView(true)}
+          className="mt-4 font-nav text-xs py-2.5 px-4 rounded-xl transition-all duration-200"
+          style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa' }}>
+          عرض شجرة المؤرشفين
+        </button>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+          <AmField label="الاسم الأول *">
+            <input className="form-input"
+              placeholder={amArchData.aliveStatus === 'متوفى' ? 'اسم المتوفى' : 'محمد'}
+              value={amArchData.firstName}
+              onChange={e => setAmArchData(p => ({ ...p, firstName: e.target.value }))} />
+          </AmField>
+        </div>
+
+        {amArchData.aliveStatus !== 'متوفى' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <AmField label="رقم الهوية (اختياري)">
+              <input className="form-input" placeholder="10 أرقام" inputMode="numeric" maxLength={10}
+                value={amArchData.nationalId}
+                onChange={e => setAmArchData(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))} />
+            </AmField>
+            <AmField label="رقم الجوال (اختياري)">
+              <PhoneInput
+                value={amArchData.phone}
+                onChange={val => setAmArchData(p => ({ ...p, phone: val }))}
+                countryCode={amArchPhoneCountry}
+                onCountryChange={setAmArchPhoneCountry}
+              />
+            </AmField>
+          </div>
+        )}
+
+        <div className="mt-4 p-4 rounded-2xl" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <p className="font-nav text-xs text-gray-500 mb-3">الأب (من الفروع المؤرشفة فقط)</p>
+          {amArchTreeLoading ? (
+            <p className="font-nav text-xs text-gray-600">جاري تحميل الشجرة...</p>
+          ) : (
+            <SearchableSelect
+              options={amArchOptions}
+              value={amArchData.parentNodeId}
+              onChange={handleArchParentChange}
+              getId={n => n.id}
+              getLabel={n => nodeOptionLabel(n)}
+              emptyLabel="— اختر من الفروع المؤرشفة —"
+            />
+          )}
+          {amArchData.parentName && (
+            <p className="font-nav text-[10px] mt-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
+              الفخذ: <span style={{ color: '#9ca3af' }}>{amArchData.branch || '—'}</span>
+            </p>
+          )}
+        </div>
+
+        {amArchData.aliveStatus !== 'متوفى' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+            <AmField label="كلمة المرور المؤقتة (اختياري)">
+              <PasswordInput className="form-input" placeholder="6 أحرف على الأقل"
+                value={amArchData.tempPassword}
+                onChange={e => setAmArchData(p => ({ ...p, tempPassword: e.target.value }))} />
+            </AmField>
+
+            <AmField label="الحالة الاجتماعية">
+              <select className="form-input" value={amArchData.maritalStatus}
+                onChange={e => setAmArchData(p => ({ ...p, maritalStatus: e.target.value }))}>
+                <option value="">— اختر —</option>
+                {MARITAL_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </AmField>
+
+            <AmField label="المهنة">
+              <select className="form-input" value={amArchData.job}
+                onChange={e => setAmArchData(p => ({ ...p, job: e.target.value }))}>
+                <option value="">— اختر —</option>
+                {JOBS_LIST.map(j => <option key={j} value={j}>{j}</option>)}
+              </select>
+            </AmField>
+
+            {amArchData.job === 'أخرى' && (
+              <AmField label="اذكر المهنة">
+                <input className="form-input" placeholder="مثال: مقاول" value={amArchData.jobOther}
+                  onChange={e => setAmArchData(p => ({ ...p, jobOther: e.target.value }))} />
+              </AmField>
+            )}
+
+            <AmField label="المدينة">
+              <input className="form-input" placeholder="الرياض" value={amArchData.city}
+                onChange={e => setAmArchData(p => ({ ...p, city: e.target.value }))} />
+            </AmField>
+          </div>
+        )}
+
+        <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <p className="mb-2 font-nav text-xs text-gray-500">الدور</p>
+            <div className="flex gap-2">
+              {ROLES_LIST.map(r => (
+                <button key={r} type="button"
+                  onClick={() => setAmArchData(p => ({ ...p, role: r }))}
+                  className="flex-1 font-nav text-xs py-2.5 rounded-2xl transition-all duration-200"
+                  style={{
+                    background: amArchData.role === r ? 'rgba(107,114,128,0.15)' : 'rgba(255,255,255,0.03)',
+                    border:     amArchData.role === r ? '1px solid rgba(107,114,128,0.4)' : '1px solid rgba(255,255,255,0.08)',
+                    color:      amArchData.role === r ? '#9ca3af' : 'rgba(255,255,255,0.70)',
+                  }}>
+                  {r}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 font-nav text-xs text-gray-500">حالة العضو</p>
+            <div className="flex gap-3">
+              {['حي', 'متوفى'].map(val => (
+                <button key={val} type="button"
+                  onClick={() => setAmArchData(p => ({ ...p, aliveStatus: val }))}
+                  className="flex-1 font-nav text-sm py-2.5 rounded-2xl transition-all duration-200"
+                  style={{
+                    background: amArchData.aliveStatus === val
+                      ? (val === 'حي' ? 'rgba(34,197,94,0.15)' : 'rgba(107,114,128,0.15)')
+                      : 'rgba(255,255,255,0.03)',
+                    border: amArchData.aliveStatus === val
+                      ? (val === 'حي' ? '1px solid rgba(34,197,94,0.4)' : '1px solid rgba(107,114,128,0.4)')
+                      : '1px solid rgba(255,255,255,0.08)',
+                    color: amArchData.aliveStatus === val
+                      ? (val === 'حي' ? '#4ade80' : '#9ca3af')
+                      : 'rgba(255,255,255,0.70)',
+                  }}>
+                  {val === 'حي' ? '🟢 حي' : '⬜ متوفى'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {amArchResult && (
+          <div className="mt-5 px-4 py-3 rounded-2xl font-nav text-sm"
+            style={{
+              background: amArchResult.success ? 'rgba(34,197,94,0.08)'  : 'rgba(239,68,68,0.08)',
+              border:     amArchResult.success ? '1px solid rgba(34,197,94,0.22)' : '1px solid rgba(239,68,68,0.22)',
+              color:      amArchResult.success ? '#4ade80' : '#f87171',
+            }}>
+            {amArchResult.message}
+          </div>
+        )}
+
+        <button onClick={handleAddArchivedMember} disabled={amArchLoading}
+          className="mt-5 font-nav text-sm py-3 px-8 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+          style={{ background: 'rgba(107,114,128,0.16)', border: '1px solid rgba(107,114,128,0.4)', color: '#d1d5db' }}>
+          {amArchLoading ? 'جاري الإضافة...' : 'إضافة العضو'}
+        </button>
+
+        </div>
+      </div>
+
+      {/* نافذة "عرض شجرة المؤرشفين" — الشجرة الظاهرة حاليًا + الفروع المؤرشفة
+          معًا، مرجع بصري للمدير فقط أثناء اختيار الأب أعلاه */}
+      {showArchivedTreeView && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}
+          onClick={() => setShowArchivedTreeView(false)}>
+          <div className="w-full h-full max-w-6xl rounded-2xl overflow-hidden relative" style={{ background: '#0f172a' }}
+            onClick={e => e.stopPropagation()}>
+            <button onClick={() => setShowArchivedTreeView(false)}
+              className="absolute top-3 left-3 z-10 w-9 h-9 rounded-full flex items-center justify-center font-nav text-sm"
+              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
+              ✕
+            </button>
+            <FamilyTree viewerMode includeArchived />
+          </div>
+        </div>
+      )}
 
       {/* ══════════════════════════════════════
           صورة العضو — تُخزَّن الآن في Supabase Storage بدل Google Drive

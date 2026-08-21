@@ -81,13 +81,9 @@ export default function Register() {
   };
 
   // تحميل الشجرة (عامة — لا تحتاج تسجيل دخول، البنات مستبعدات من الخادم أصلاً)
-  // forRegistration: يشمل الفروع المؤرشفة أيضًا — المسجِّل الجديد بلا حساب
-  // بعد، فلا طريقة لمعرفة هل هو من نفس فرع مؤرشف أم لا؛ إخفاء الفرع هنا
-  // يمنع أبناء الفرع المؤرشف نهائيًا من إيجاد أبيهم عند التسجيل. القرار
-  // المتعمَّد: الشجرة كاملة أثناء التسجيل فقط (وليس بالتصفح العام)
   useEffect(() => {
     let mounted = true;
-    callFunction('manage-tree', { action: 'getFamilyTree', forRegistration: true })
+    callFunction('manage-tree', { action: 'getFamilyTree' })
       .then(d => { if (mounted && d.success && d.tree) setTreeData(d.tree); })
       .finally(() => { if (mounted) setTreeLoading(false); });
     return () => { mounted = false; };
@@ -381,6 +377,18 @@ export default function Register() {
                 onSelectSon={handleSelectSon}
                 selectedSonId={selectedSon?.id}
               />
+            )}
+
+            {/* لم تجد اسمك/جدك/فخذك في القائمة؟ توجيه عام للتواصل مع المدير —
+                بلا أي إشارة لسبب عدم الظهور (يغطي كل الحالات بنفس الرسالة) */}
+            {!treeLoading && (
+              <a
+                href={adminPhone ? `https://wa.me/${adminPhone}?text=${encodeURIComponent('مرحباً، لم أجد اسمي أو جدي أو فخذي في شجرة العائلة أثناء التسجيل. أرجو إضافتي.')}` : undefined}
+                target="_blank" rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 mt-3 py-2.5 rounded-xl font-nav text-xs font-semibold transition-all hover:opacity-90"
+                style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.65)' }}>
+                لم تجد اسمك أو جدك أو فخذك في القائمة؟ تواصل مع المدير لإضافتك
+              </a>
             )}
 
             {/* الوالد المختار */}
