@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TreeNavigator from '../components/TreeNavigator';
 import PhoneInput from '../components/PhoneInput';
@@ -19,6 +19,23 @@ function extractFirstName(fullName) {
 
 // رابط الموقع — يُدرَج داخل رسائل واتساب لتفعيل بطاقة معاينة الشعار (Open Graph)
 const SITE_URL = 'https://malsllami.github.io/alsallami-family/';
+
+// يبحث عن عقدة بمعرِّفها داخل شجرة treeData (مصفوفة عقد جذرية متداخلة عبر
+// children) ويُعيد مسار الأجداد الكامل من الجذر حتى العقدة (شاملةً إياها) —
+// يُستخدَم للربط التلقائي بالوالد عبر رقم الهوية (check-registrant) بنفس
+// الأسلوب الذي يبنيه TreeNavigator عند اختيار المستخدم يدويًا، حتى يبقى
+// الشكل (generationLevel, computedPath, parentName) متطابقًا تمامًا
+function findNodePath(nodes, targetId, path = []) {
+  for (const n of nodes || []) {
+    const newPath = [...path, n];
+    if (n.id === targetId) return newPath;
+    if (n.children?.length) {
+      const found = findNodePath(n.children, targetId, newPath);
+      if (found) return found;
+    }
+  }
+  return null;
+}
 
 // تطبيع رقم جوال سعودي (من جدول الإعدادات) إلى صيغة دولية بدون + لاستخدامه في رابط wa.me
 function normalizeToIntlPhone(raw) {
@@ -54,6 +71,8 @@ export default function Register() {
   const [message,           setMessage]           = useState('');
   const [messageType,       setMessageType]       = useState('');
   const [registrantHint,    setRegistrantHint]    = useState(null);  // { type, text } | null
+  const [pendingAutoLinkId, setPendingAutoLinkId] = useState(null);  // fatherNodeId مطابَق برقم الهوية — يُحلّ فور توفّر الشجرة (useMemo أدناه)
+  const [manualOverride,    setManualOverride]    = useState(false); // المستخدم رفض الربط التلقائي واختار يدوياً
   const [successInfo,       setSuccessInfo]       = useState(null);  // { requestId, branch, name }
   const [adminPhone,        setAdminPhone]        = useState('');    // رقم جوال المدير — يُقرأ ديناميكياً من جدول الإعدادات
 
@@ -64,12 +83,25 @@ export default function Register() {
     setFormData(prev => ({ ...prev, [name]: newVal }));
     if (name === 'firstName' && selectedFather) checkMatch(newVal, selectedFather);
     if (name === 'nationalId') {
+      // أي تعديل على رقم الهوية يُلغي ربطًا تلقائيًا سابقًا (إن وُجد) — رقم
+      // مختلف يحتاج إعادة تحقق من الصفر، لا يبقى الربط القديم عالقًا بالخطأ
+      setPendingAutoLinkId(null);
+      setManualOverride(false);
       const digits = newVal.replace(/\D/g, '');
       if (digits.length === 10) {
         callFunction('check-registrant', { nationalId: digits }).then(d => {
           if (!d.success || !d.found) { setRegistrantHint(null); return; }
           if (d.type === 'child_record') {
-            setRegistrantHint({ type: 'child', text: `تم العثور على بياناتك في سجلات الأبناء — ابحث عن والدك "${d.fatherName}" واضغط "هذا والدي"` });
+            // مطابقة رقم الهوية بسجل "الأبناء" — الأب موجود بالشجرة ومساره
+            // معروف بالضبط: يُربط تلقائيًا (بلا اختيار يدوي للتسلسل) حالما
+            // تُحمَّل الشجرة (انظر useEffect أدناه). لو تعذّر تحديد المسار
+            // (الأب نفسه ليس بالشجرة بعد) يبقى تلميح نصي يوجّه للاختيار اليدوي
+            if (d.fatherNodeId && d.fatherPath) {
+              setPendingAutoLinkId(d.fatherNodeId);
+              setRegistrantHint(null);
+            } else {
+              setRegistrantHint({ type: 'child', text: `تم العثور على بياناتك في سجلات الأبناء لدى والدك "${d.fatherName || ''}"، لكن يتعذّر تحديد مساره بالشجرة تلقائيًا — أكمل الاختيار يدويًا أدناه، أو تواصل مع المدير` });
+            }
           } else if (d.type === 'already_registered') {
             setRegistrantHint({ type: 'error', text: 'هذا الرقم مسجَّل مسبقاً، يرجى تسجيل الدخول' });
           }
@@ -79,6 +111,26 @@ export default function Register() {
       }
     }
   };
+
+  // العقدة المُطابَقة تلقائيًا برقم الهوية — قيمة مُشتَقّة بحتة (لا حالة
+  // منفصلة ولا useEffect) من treeData + pendingAutoLinkId، فتُعاد حسابها
+  // تلقائيًا فور اكتمال تحميل الشجرة مهما كان ترتيب وصول الاثنين (بلا أي
+  // مشكلة تزامن/Race) — بنفس شكل العقدة التي يبنيها TreeNavigator تمامًا
+  // عند اختيار يدوي (generationLevel/computedPath/parentName)
+  const autoFatherNode = useMemo(() => {
+    if (!pendingAutoLinkId || !treeData || manualOverride) return null;
+    const path = findNodePath(treeData, pendingAutoLinkId);
+    if (!path) return null; // لم تُوجَد (مثلاً فرع مؤرشف) — يبقى الاختيار اليدوي متاحاً
+    const target = path[path.length - 1];
+    const parent = path.length >= 2 ? path[path.length - 2] : null;
+    const computedPath = path.map(n => (n.name || '').split(' ')[0]).join(' ← ');
+    const pathParts = computedPath.split(' ← ').map(s => s.trim()).filter(Boolean);
+    const branch = pathParts[2] || pathParts[1] || pathParts[0] || '';
+    return { ...target, generationLevel: path.length, parentName: parent?.name || '', computedPath, branch };
+  }, [treeData, pendingAutoLinkId, manualOverride]);
+  const autoLinkedFather = Boolean(autoFatherNode);
+  // مصدر الحقيقة الفعلي للأب المختار بالفورم كله — تلقائي إن وُجد، وإلا يدوي
+  const effectiveFather = autoFatherNode || selectedFather;
 
   // تحميل الشجرة (عامة — لا تحتاج تسجيل دخول، البنات مستبعدات من الخادم أصلاً)
   useEffect(() => {
@@ -167,7 +219,7 @@ export default function Register() {
     if (!/^\d{10}$/.test(formData.nationalId.replace(/[٠١٢٣٤٥٦٧٨٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))))
                                                         { setMessage('رقم الهوية يجب أن يكون 10 أرقام'); return false; }
     if (!formData.birthDate)                            { setMessage('تاريخ الميلاد مطلوب'); return false; }
-    if (!selectedFather && !selectedSelf && !selectedSon && !(selectedGrandfa && fatherNotInTree.trim()))
+    if (!effectiveFather && !selectedSelf && !selectedSon && !(selectedGrandfa && fatherNotInTree.trim()))
                                                         { setMessage('يجب اختيار والدك من الشجرة، أو اختيار جدك وكتابة اسم والدك'); return false; }
     if (selectedGrandfa && !fatherNotInTree.trim() && !selectedSelf && !selectedSon) { setMessage('يرجى كتابة اسم والدك'); return false; }
     if (!formData.phone.trim())                         { setMessage('رقم الجوال مطلوب'); return false; }
@@ -199,8 +251,8 @@ export default function Register() {
       ? { id: selectedSelf.parentId || '', generationLevel: (selectedSelf.generationLevel || 1) - 1 }
       : selectedSon
         ? { id: selectedSon.derivedParentId, generationLevel: selectedSon.derivedGeneration }
-        : selectedFather
-          ? selectedFather
+        : effectiveFather
+          ? effectiveFather
           : grandfaChildMatch
             ? { ...grandfaChildMatch, branch: selectedGrandfa.branch || '' }
             : selectedGrandfa;
@@ -224,24 +276,24 @@ export default function Register() {
         // يتدخل المدير يدويًا: يضيف الأب تحت الجد، ثم يربط العضو تحته
         parentNodeId:    selectedSelf ? (selectedSelf.parentId || '')
                        : selectedSon  ? selectedSon.derivedParentId
-                       : selectedFather ? selectedFather.id
+                       : effectiveFather ? effectiveFather.id
                        : grandfaChildMatch ? grandfaChildMatch.id
                        : '',
         fatherName:      selectedSelf  ? extractFirstName(selectedSelf.parentName || '')
                        : selectedSon   ? selectedSon.derivedFatherName
-                       : selectedFather ? extractFirstName(selectedFather.name)
+                       : effectiveFather ? extractFirstName(effectiveFather.name)
                        : fatherNotInTree.trim(),
         grandfatherName: selectedSelf  ? (selectedSelf.derivedGrandfatherName || '')
                        : selectedSon   ? selectedSon.derivedGrandfatherName
-                       : selectedFather ? extractFirstName(selectedFather.parentName || '')
+                       : effectiveFather ? extractFirstName(effectiveFather.parentName || '')
                        : extractFirstName(selectedGrandfa?.name || ''),
         generation:      selectedSelf  ? String(selectedSelf.generationLevel || 1)
                        : selectedSon   ? String(selectedSon.derivedGeneration)
                        : String((parentNode.generationLevel || 0) + 1),
         branch:          selectedSelf  ? (selectedSelf.branch || '')
                        : selectedSon   ? (selectedSon.branch || '')
-                       : (selectedFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
-        matchedInFather: !selectedSelf && !selectedSon && (fatherMatch === 'found' || Boolean(grandfaChildMatch)),
+                       : (effectiveFather?.branch) || (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '',
+        matchedInFather: !selectedSelf && !selectedSon && (autoLinkedFather || fatherMatch === 'found' || Boolean(grandfaChildMatch)),
         fatherNotInTree: !selectedSelf && !selectedSon && Boolean(selectedGrandfa && !grandfaChildMatch),
         grandfatherId:   !selectedSelf && !selectedSon && selectedGrandfa && !grandfaChildMatch ? selectedGrandfa.id : undefined,
         sonNodeId:       selectedSon  ? selectedSon.id  : undefined,
@@ -250,7 +302,7 @@ export default function Register() {
       if (data.success) {
         const branchFinal = selectedSelf  ? (selectedSelf.branch  || '')
                           : selectedSon   ? (selectedSon.branch   || '')
-                          : (selectedFather?.branch) ||
+                          : (effectiveFather?.branch) ||
                             (selectedGrandfa?.computedPath || selectedGrandfa?.path || '').split(' ← ')[2] || '';
         setSuccessInfo({ requestId: data.requestId || '', branch: branchFinal, name: formData.firstName.trim() });
         setMessage('تم إرسال طلب التسجيل بنجاح — سيتم مراجعته من قِبل المدير');
@@ -352,67 +404,94 @@ export default function Register() {
           {/* 3. اختيار الأب من الشجرة */}
           <div className="rounded-2xl p-5"
             style={{ background: 'rgba(198,161,107,0.04)', border: '1px solid rgba(198,161,107,0.18)' }}>
-            <p className="font-nav text-base font-bold mb-2" style={{ color: 'var(--gold-main)' }}>
-              اختر والدك من الشجرة *
-            </p>
-            <p className="font-nav text-sm mb-4 leading-relaxed" style={{ color: 'rgba(255,255,255,0.90)' }}>
-              ابدأ باختيار الفخذ ثم تدرّج — اضغط <span style={{ color: 'var(--gold-main)', fontWeight: 700 }}>&quot;هذا والدي&quot;</span> عند والدك، أو <span style={{ color: '#2dd4bf', fontWeight: 700 }}>&quot;هذا أنا&quot;</span> إن كان اسمك موجوداً مسبقاً في الشجرة
-            </p>
 
-            {treeLoading ? (
-              <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.70)' }}>
-                جاري تحميل الشجرة...
-              </p>
-            ) : (
-              <TreeNavigator
-                treeData={treeData}
-                onSelect={() => {}}
-                selected={null}
-                onSelectFather={handleSelectFather}
-                selectedFatherId={selectedFather?.id}
-                onSelectGrandfather={handleSelectGrandfather}
-                selectedGrandfatherId={selectedGrandfa?.id}
-                onSelectSelf={handleSelectSelf}
-                selectedSelfId={selectedSelf?.id}
-                onSelectSon={handleSelectSon}
-                selectedSonId={selectedSon?.id}
-              />
-            )}
-
-            {/* لم تجد اسمك/جدك/فخذك في القائمة؟ توجيه عام للتواصل مع المدير —
-                بلا أي إشارة لسبب عدم الظهور (يغطي كل الحالات بنفس الرسالة) */}
-            {!treeLoading && (
-              <a
-                href={adminPhone ? `https://wa.me/${adminPhone}?text=${encodeURIComponent('مرحباً، لم أجد اسمي أو جدي أو فخذي في شجرة العائلة أثناء التسجيل. أرجو إضافتي.')}` : undefined}
-                target="_blank" rel="noopener noreferrer"
-                className="flex items-center justify-center gap-2 mt-3 py-2.5 rounded-xl font-nav text-xs font-semibold transition-all hover:opacity-90"
-                style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.65)' }}>
-                لم تجد اسمك أو جدك أو فخذك في القائمة؟ تواصل مع المدير لإضافتك
-              </a>
-            )}
-
-            {/* الوالد المختار */}
-            {selectedFather && (
-              <div className="mt-4 rounded-xl p-3"
-                style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>الوالد المختار:</p>
-                <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>{selectedFather.name}</p>
-                {selectedFather.branch && (
-                  <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
-                    الفخذ: <span style={{ color: 'var(--gold-main)' }}>{selectedFather.branch}</span>
-                  </p>
-                )}
-                {fatherMatch === 'found' && (
-                  <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
-                    ✓ تم العثور على اسمك في قائمة أبناء هذا الوالد — سيتم الربط تلقائياً
-                  </p>
-                )}
-                {fatherMatch === 'notfound' && (
-                  <p className="font-nav text-xs mt-2" style={{ color: 'rgba(245,158,11,0.9)' }}>
-                    ⚠ اسمك غير موجود في قائمة أبناء هذا الوالد — سيُرسل الطلب للمدير للمراجعة
-                  </p>
-                )}
+            {autoFatherNode ? (
+              /* ربط تلقائي عبر رقم الهوية (سجَّله والدك كابن له مسبقاً) —
+                 مسار مؤكَّد 100%، يُغني عن اختيار السلسلة يدوياً بالكامل */
+              <div className="rounded-xl p-4"
+                style={{ background: 'rgba(16,185,129,0.07)', border: '1px solid rgba(16,185,129,0.3)' }}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span style={{ fontSize: 18 }}>✓</span>
+                  <p className="font-nav text-sm font-bold" style={{ color: '#34d399' }}>تم التعرّف على مسارك بالشجرة تلقائياً</p>
+                </div>
+                <p className="font-nav text-sm font-semibold leading-relaxed" style={{ color: 'var(--gold-main)' }}>
+                  {autoFatherNode.computedPath}
+                </p>
+                <p className="font-nav text-xs mt-2 leading-relaxed" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                  استنادًا لبيانات والدك <span style={{ color: 'var(--gold-main)' }}>&quot;{autoFatherNode.name}&quot;</span> — لا حاجة لاختيار السلسلة يدوياً.
+                </p>
+                <button type="button"
+                  onClick={() => setManualOverride(true)}
+                  className="mt-3 font-nav text-xs font-semibold underline"
+                  style={{ color: 'rgba(255,255,255,0.55)' }}>
+                  هذا ليس مساري الصحيح — اختر يدوياً
+                </button>
               </div>
+            ) : (
+              <>
+                <p className="font-nav text-base font-bold mb-2" style={{ color: 'var(--gold-main)' }}>
+                  اختر والدك من الشجرة *
+                </p>
+                <p className="font-nav text-sm mb-4 leading-relaxed" style={{ color: 'rgba(255,255,255,0.90)' }}>
+                  ابدأ باختيار الفخذ ثم تدرّج — اضغط <span style={{ color: 'var(--gold-main)', fontWeight: 700 }}>&quot;هذا والدي&quot;</span> عند والدك، أو <span style={{ color: '#2dd4bf', fontWeight: 700 }}>&quot;هذا أنا&quot;</span> إن كان اسمك موجوداً مسبقاً في الشجرة
+                </p>
+
+                {treeLoading ? (
+                  <p className="font-nav text-xs text-center py-4" style={{ color: 'rgba(255,255,255,0.70)' }}>
+                    جاري تحميل الشجرة...
+                  </p>
+                ) : (
+                  <TreeNavigator
+                    treeData={treeData}
+                    onSelect={() => {}}
+                    selected={null}
+                    onSelectFather={handleSelectFather}
+                    selectedFatherId={selectedFather?.id}
+                    onSelectGrandfather={handleSelectGrandfather}
+                    selectedGrandfatherId={selectedGrandfa?.id}
+                    onSelectSelf={handleSelectSelf}
+                    selectedSelfId={selectedSelf?.id}
+                    onSelectSon={handleSelectSon}
+                    selectedSonId={selectedSon?.id}
+                  />
+                )}
+
+                {/* لم تجد اسمك/جدك/فخذك في القائمة؟ توجيه عام للتواصل مع المدير —
+                    بلا أي إشارة لسبب عدم الظهور (يغطي كل الحالات بنفس الرسالة) */}
+                {!treeLoading && (
+                  <a
+                    href={adminPhone ? `https://wa.me/${adminPhone}?text=${encodeURIComponent('مرحباً، لم أجد اسمي أو جدي أو فخذي في شجرة العائلة أثناء التسجيل. أرجو إضافتي.')}` : undefined}
+                    target="_blank" rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 mt-3 py-2.5 rounded-xl font-nav text-xs font-semibold transition-all hover:opacity-90"
+                    style={{ background: 'rgba(255,255,255,0.03)', border: '1px dashed rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.65)' }}>
+                    لم تجد اسمك أو جدك أو فخذك في القائمة؟ تواصل مع المدير لإضافتك
+                  </a>
+                )}
+
+                {/* الوالد المختار */}
+                {selectedFather && (
+                  <div className="mt-4 rounded-xl p-3"
+                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                    <p className="font-nav text-xs mb-1" style={{ color: 'rgba(255,255,255,0.72)' }}>الوالد المختار:</p>
+                    <p className="font-nav text-sm font-semibold" style={{ color: 'var(--gold-main)' }}>{selectedFather.name}</p>
+                    {selectedFather.branch && (
+                      <p className="font-nav text-xs mt-1" style={{ color: 'rgba(255,255,255,0.72)' }}>
+                        الفخذ: <span style={{ color: 'var(--gold-main)' }}>{selectedFather.branch}</span>
+                      </p>
+                    )}
+                    {fatherMatch === 'found' && (
+                      <p className="font-nav text-xs mt-2" style={{ color: '#34d399' }}>
+                        ✓ تم العثور على اسمك في قائمة أبناء هذا الوالد — سيتم الربط تلقائياً
+                      </p>
+                    )}
+                    {fatherMatch === 'notfound' && (
+                      <p className="font-nav text-xs mt-2" style={{ color: 'rgba(245,158,11,0.9)' }}>
+                        ⚠ اسمك غير موجود في قائمة أبناء هذا الوالد — سيُرسل الطلب للمدير للمراجعة
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
             )}
 
             {/* موقعي في الشجرة — هذا أنا */}
@@ -530,7 +609,7 @@ export default function Register() {
           </div>
 
           <div className="pt-4 space-y-3">
-            <button type="submit" disabled={loading || (!selectedFather && !selectedSelf && !selectedSon && !(selectedGrandfa && fatherNotInTree.trim()))}
+            <button type="submit" disabled={loading || (!effectiveFather && !selectedSelf && !selectedSon && !(selectedGrandfa && fatherNotInTree.trim()))}
               className="font-nav bg-[var(--gold-main)] text-black font-bold flex items-center justify-center overflow-hidden transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed w-full"
               style={{ height: 56, borderRadius: loading ? '50%' : 14,
                 transition: 'border-radius 0.5s cubic-bezier(0.23,1,0.32,1)' }}>

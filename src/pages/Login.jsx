@@ -140,6 +140,22 @@ export default function Login() {
       if (result.success) {
         sessionStorage.removeItem('adminUnlocked')
         const updatedUser = { ...pendingUser, mustChangePassword: 'N' }
+        // خلل مُصلَح: تغيير كلمة المرور يُبطِل جلسة الدخول القديمة تلقائيًا
+        // من طرف Supabase — لو تنقّلنا للوحة بنفس الجلسة القديمة تفشل كل
+        // نداءات البيانات بصمت وتظهر لوحة العضو فارغة تمامًا رغم أن الحساب
+        // سليم. الدالة تُصدر جلسة جديدة صالحة وتُعيدها بالاستجابة (result.session)
+        // — نضبطها هنا؛ لو تعذّر إصدارها لأي سبب (أفضل جهد بالخادم)، نُعيد
+        // تسجيل الدخول تلقائيًا بكلمة المرور الجديدة كخطة بديلة بدل تنقّل بجلسة ميتة
+        if (result.session) {
+          const applied = await applySessionAndUser(result.session, updatedUser)
+          if (!applied.success) {
+            const relogin = await loginWithCredentials(nationalId.trim(), newPw.trim())
+            if (!relogin.success) { setChangeError('تم تغيير كلمة المرور، لكن تعذّر بدء الجلسة — سجّل الدخول من جديد'); return }
+          }
+        } else {
+          const relogin = await loginWithCredentials(nationalId.trim(), newPw.trim())
+          if (!relogin.success) { setChangeError('تم تغيير كلمة المرور، لكن تعذّر بدء الجلسة — سجّل الدخول من جديد'); return }
+        }
         localStorage.setItem('user', JSON.stringify(updatedUser))
         login(updatedUser)
         navigate('/member-dashboard')
