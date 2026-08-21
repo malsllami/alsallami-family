@@ -494,6 +494,60 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
   const [editLocation,    setEditLocation]    = useState(node.location || '')
   const [saving,          setSaving]          = useState(false)
 
+  /* ── حذف تكرار (طلب محمد) — أداة مدير فقط لتنظيف ابن مكرر تحت نفس الأب:
+     إما سجل "أبناء" يتيم بلا عقدة شجرة، أو عقدة شجرة حقيقية طرفية (بلا
+     أبناء تحتها) ── */
+  const [deleteMode,      setDeleteMode]      = useState(false)
+  const [deleteAlsoMember,setDeleteAlsoMember]= useState(false)
+  const [deleteConfirm,   setDeleteConfirm]   = useState(false)
+  const [deleting,        setDeleting]        = useState(false)
+  const [deleteError,     setDeleteError]     = useState('')
+
+  /* ── ربط بسجل ابن مكرر (طلب محمد) — بديل يدوي عن الحذف: بدل حذف السجل
+     المكرر، يُربط بالعضو الحقيقي فيختفي تلقائيًا من الشجرة كتكرار. متاح فقط
+     عند تعديل عقدة حقيقية مرتبطة بعضو (node.memberId) ── */
+  const [showLinkPanel,   setShowLinkPanel]   = useState(false)
+  const [unlinkedRecords, setUnlinkedRecords] = useState([])
+  const [unlinkedLoading, setUnlinkedLoading] = useState(false)
+  const [selectedLinkId,  setSelectedLinkId]  = useState('')
+  const [linking,         setLinking]         = useState(false)
+  const [linkResult,      setLinkResult]      = useState(null)
+
+  const loadUnlinkedRecords = async () => {
+    setShowLinkPanel(true)
+    if (unlinkedRecords.length) return
+    setUnlinkedLoading(true)
+    try {
+      const d = await callFunction('manage-tree', { action: 'getUnlinkedChildRecords', nodeId: node.id })
+      if (d.success) setUnlinkedRecords(d.records || [])
+    } catch { /* ignore */ }
+    setUnlinkedLoading(false)
+  }
+
+  const handleLinkChildRecord = async () => {
+    if (!selectedLinkId) return
+    setLinking(true); setLinkResult(null)
+    try {
+      const d = await callFunction('manage-tree', { action: 'linkChildRecordToMember', nodeId: node.id, childRecordId: selectedLinkId })
+      setLinkResult(d)
+      if (d.success) window.location.reload()
+    } catch { setLinkResult({ success: false, message: 'تعذّر الاتصال بالخادم' }) }
+    setLinking(false)
+  }
+
+  const handleDelete = async () => {
+    if (!deleteConfirm) { setDeleteConfirm(true); return }
+    setDeleting(true); setDeleteError('')
+    try {
+      const d = node.isSon
+        ? await callFunction('manage-tree', { action: 'deleteChildRecord', childRecordId: node.childRecordId, alsoDeleteMember: deleteAlsoMember })
+        : await callFunction('manage-tree', { action: 'deleteDuplicateNode', nodeId: node.id, alsoDeleteMember: deleteAlsoMember })
+      if (d.success) { window.location.reload(); return }
+      setDeleteError(d.message || 'تعذّر الحذف')
+    } catch { setDeleteError('تعذّر الاتصال بالخادم') }
+    setDeleting(false)
+  }
+
   /* ── جلب بيانات العضو المسجل إن وجد ── متاحة حتى للزائر (الخادم يُخفي
      رقم الهوية/الجوال تلقائيًا عن غير المسجَّلين دخولهم) ── */
   const [profile,        setProfile]        = useState(null)
@@ -604,15 +658,30 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
                 عضو مسجل
               </span>
             )}
-            {isAdmin && !editing && (
+            {isAdmin && !editing && !deleteMode && (
               <button onClick={() => setEditing(true)}
                 className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
                 style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.25)', color: 'var(--gold-main)' }}>
                 تعديل
               </button>
             )}
+            {/* حذف تكرار — مدير فقط (طلب محمد): لتنظيف ابن مكرر تحت نفس الأب */}
+            {isAdmin && !editing && !deleteMode && (
+              <button onClick={() => setDeleteMode(true)}
+                className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
+                style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)', color: '#f87171' }}>
+                حذف
+              </button>
+            )}
             {isAdmin && editing && (
               <button onClick={cancelEdit}
+                className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
+                style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.80)' }}>
+                إلغاء
+              </button>
+            )}
+            {isAdmin && deleteMode && (
+              <button onClick={() => { setDeleteMode(false); setDeleteConfirm(false); setDeleteAlsoMember(false); setDeleteError('') }}
                 className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all"
                 style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.80)' }}>
                 إلغاء
@@ -688,6 +757,76 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
               className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all disabled:opacity-50"
               style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.3)', color: 'var(--gold-main)' }}>
               {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+            </button>
+
+            {/* ربط بسجل ابن مكرر (طلب محمد) — بديل عن الحذف: يربط سجل "أبناء"
+                يتيمًا بهذا العضو الحقيقي بدل حذفه، فيختفي كتكرار من الشجرة
+                تلقائيًا. متاح فقط لعقدة حقيقية مرتبطة بعضو */}
+            {!isWifeDaughter && node.memberId && (
+              <div className="pt-3 mt-1" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+                {!showLinkPanel ? (
+                  <button onClick={loadUnlinkedRecords}
+                    className="w-full font-nav text-xs py-2.5 rounded-xl transition-all"
+                    style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.22)', color: '#60a5fa' }}>
+                    ربط بسجل ابن مكرر (تصحيح تكرار قديم)
+                  </button>
+                ) : unlinkedLoading ? (
+                  <p className="font-nav text-xs text-center py-2" style={{ color: 'rgba(255,255,255,0.55)' }}>جاري التحميل...</p>
+                ) : !unlinkedRecords.length ? (
+                  <p className="font-nav text-xs text-center py-2" style={{ color: 'rgba(255,255,255,0.5)' }}>لا توجد سجلات أبناء غير مرتبطة لدى هذا الأب</p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="font-nav text-[11px]" style={{ color: 'rgba(255,255,255,0.65)' }}>اختر السجل المكرر المطابق لهذا العضو:</p>
+                    <select value={selectedLinkId} onChange={e => setSelectedLinkId(e.target.value)}
+                      className="form-input w-full" style={{ direction: 'rtl' }}>
+                      <option value="">— اختر —</option>
+                      {unlinkedRecords.map(r => (
+                        <option key={r.id} value={r.id}>{r.name}{r.birthDate ? ` — ${r.birthDate}` : ''}{r.nationalId ? ` — ${r.nationalId}` : ''}</option>
+                      ))}
+                    </select>
+                    {linkResult && !linkResult.success && (
+                      <p className="font-nav text-[11px]" style={{ color: '#f87171' }}>{linkResult.message}</p>
+                    )}
+                    <button onClick={handleLinkChildRecord} disabled={!selectedLinkId || linking}
+                      className="w-full font-nav text-xs py-2.5 rounded-xl font-bold transition-all disabled:opacity-50"
+                      style={{ background: 'rgba(96,165,250,0.14)', border: '1px solid rgba(96,165,250,0.3)', color: '#60a5fa' }}>
+                      {linking ? 'جاري الربط...' : 'تأكيد الربط'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : deleteMode ? (
+          <div className="space-y-3">
+            <p className="font-nav text-sm text-center font-bold" style={{ color: '#f87171' }}>
+              حذف {node.isSon ? 'سجل الابن' : 'العقدة'} "{node.name}"
+            </p>
+            <div className="px-3 py-2.5 rounded-xl" style={{ background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.2)' }}>
+              <p className="font-nav text-[11px] leading-relaxed" style={{ color: 'rgba(252,165,165,0.9)' }}>
+                {node.isSon
+                  ? 'يحذف سجل الابن هذا نهائيًا من جدول الأبناء.'
+                  : 'يحذف هذه العقدة نهائيًا من الشجرة. غير متاح لو لها أبناء تحتها بالشجرة (سيُرفض الحذف تلقائيًا حماية من إسقاط فرع كامل).'}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 px-1 cursor-pointer">
+              <input type="checkbox" checked={deleteAlsoMember} onChange={e => setDeleteAlsoMember(e.target.checked)} />
+              <span className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                احذف حساب العضو المرتبط أيضًا إن وُجد (نهائي — يحذف حسابه وزوجاته وأبناءه المسجَّلين معه)
+              </span>
+            </label>
+            {deleteConfirm && (
+              <p className="font-nav text-xs text-center font-bold" style={{ color: '#f87171' }}>
+                متأكد؟ هذا الإجراء لا يمكن التراجع عنه — اضغط "حذف نهائيًا" مرة أخرى للتأكيد
+              </p>
+            )}
+            {deleteError && (
+              <p className="font-nav text-xs text-center" style={{ color: '#f87171' }}>{deleteError}</p>
+            )}
+            <button onClick={handleDelete} disabled={deleting}
+              className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all disabled:opacity-50"
+              style={{ background: deleteConfirm ? 'rgba(239,68,68,0.22)' : 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171' }}>
+              {deleting ? 'جاري الحذف...' : deleteConfirm ? 'تأكيد الحذف نهائيًا' : 'حذف نهائيًا'}
             </button>
           </div>
         ) : profileLoading ? (
