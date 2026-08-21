@@ -1013,7 +1013,11 @@ export default function FamilyTree({ viewerMode = false, includeArchived = false
       setLoading(false)
     }
     load()
-  }, [])
+    // خلل مُصلَح: بلا includeArchivedFinal بمصفوفة الاعتماديات، لو تغيّر رابط
+    // ?includeArchived=1 لاحقًا بنفس الصفحة المفتوحة أصلًا (بلا إعادة تحميل
+    // كاملة) تبقى الشجرة المعروضة بالحالة القديمة (بمؤرشفين أو بدونهم حسب
+    // أول تحميل) بدل إعادة الجلب بالفلتر الصحيح
+  }, [includeArchivedFinal])
 
   /* ── بناء الشجرة ── */
   // عند اختيار فخذ: أبقِ إبراهيم→أحمد→الفخذ المختار وأزل الفخوذ الأخرى

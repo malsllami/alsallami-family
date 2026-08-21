@@ -2,9 +2,19 @@ import logo from './assets/logo.png'
 import { useNavigate } from 'react-router-dom'
 import { useRef, useState, useCallback, useEffect } from 'react'
 import { callFunction } from './services/api'
+import { supabase } from './services/supabaseClient'
 
 const MAP_EMBED = 'https://maps.google.com/maps?q=18.759126,41.4451226&z=17&output=embed'
 const MAP_LINK  = 'https://maps.app.goo.gl/ZJK3h6mLLRwnuHAk6'
+
+// تطبيع رقم جوال سعودي (من جدول الإعدادات) إلى صيغة دولية بدون + لاستخدامه في رابط wa.me
+function normalizeToIntlPhone(raw) {
+  const digits = String(raw || '').replace(/\D/g, '')
+  if (!digits) return ''
+  if (digits.startsWith('966')) return digits
+  if (digits.startsWith('0'))   return '966' + digits.slice(1)
+  return '966' + digits
+}
 
 /* ── icons ────────────────────────────────────────────────────────────────── */
 const WhatsAppIcon = () => (
@@ -26,6 +36,7 @@ export default function App() {
   const [logoOffset, setLogoOffset] = useState({ x: 0, y: 0 })
   const [stats,      setStats]      = useState(null)
   const [mapOpen,    setMapOpen]    = useState(false)
+  const [adminPhone, setAdminPhone] = useState('')    // رقم جوال المدير — يُقرأ ديناميكياً من جدول الإعدادات (لا رقم ثابت بالكود)
 
   /* parallax */
   const handleMouseMove = useCallback((e) => {
@@ -48,6 +59,20 @@ export default function App() {
     callFunction('track-visit', { skipCount: !!alreadyTracked })
       .then(d => { if (d.success) setStats(d.stats) })
       .catch(() => {})
+  }, [])
+
+  // خلل مُصلَح: رابط واتساب بالتذييل كان رقمًا ثابتًا مكتوبًا بالكود مباشرة
+  // — يخالف قاعدة "لا بيانات ثابتة بالكود" ويبقى معطوبًا بصمت لو تغيّر رقم
+  // المدير الحقيقي بقاعدة البيانات دون تعديل الكود يدويًا. الآن يُقرأ من نفس
+  // الـView العام "الإعدادات العامة" المستخدَم بصفحة التسجيل (بلا Edge Function
+  // — القيمة العامة الوحيدة المسموح كشفها من جدول "الإعدادات")
+  useEffect(() => {
+    let mounted = true
+    supabase.from('الإعدادات العامة').select('*').eq('المفتاح', 'رقم جوال المدير').maybeSingle()
+      .then(({ data }) => {
+        if (mounted && data) setAdminPhone(normalizeToIntlPhone(data['القيمة']))
+      })
+    return () => { mounted = false }
   }, [])
 
   const fmt = (n) => n != null ? Number(n).toLocaleString('ar-SA') : '—'
@@ -336,7 +361,7 @@ export default function App() {
             <div className="flex gap-4">
 
               {/* واتساب */}
-              <a href="https://wa.me/966555889581" target="_blank" rel="noopener noreferrer"
+              <a href={adminPhone ? `https://wa.me/${adminPhone}` : undefined} target="_blank" rel="noopener noreferrer"
                 className="group flex flex-col items-center gap-2 px-5 py-4 rounded-2xl transition-all duration-300"
                 style={{ background: 'rgba(37,211,102,0.08)', border: '1px solid rgba(37,211,102,0.22)' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(37,211,102,0.14)'}
