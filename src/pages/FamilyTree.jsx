@@ -936,15 +936,24 @@ export default function FamilyTree({ viewerMode = false, includeArchived = false
         ? `فخذ ${branches.find(b => b.id === branch)?.name || ''}`
         : `شجرة ${treeRoot?.name || 'العائلة'}`
 
+    // حجم صفحة الطباعة = حجم الرسم الفعلي بالضبط (تحويل بكسل→إنش على 96dpi،
+    // المعيار القياسي لوحدات CSS) — بدل صفحة A3 ثابتة كانت تجبر المتصفح على
+    // تصغير الشجرة (fit-to-page) لتناسب صفحة واحدة، فتظهر مصغَّرة/مشوَّهة
+    // لأي شجرة أكبر من A3. بصفحة مطابقة تمامًا لا يحدث أي تصغير إطلاقًا،
+    // بصرف النظر عن حجم الشجرة (حتى لو نتج عنه PDF بحجم صفحة كبير جدًا —
+    // مقصود: الأولوية للمطابقة الكاملة لرسمتها الحالية، وليس لمقاس ورق قياسي)
+    const DPI = 96
+    const pageWIn = (svgW / DPI).toFixed(2)
+    const pageHIn = (svgH / DPI).toFixed(2)
+
     const win = window.open('', '_blank')
     if (!win) { alert('يرجى السماح بالنوافذ المنبثقة لتصدير الشجرة'); return }
     win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
 <style>
-  @page { size: A3 landscape; margin: 8mm; }
-  html, body { margin: 0; padding: 0; background: #0f1c2e; }
-  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-  svg { max-width: 100%; height: auto; }
-  @media print { body { min-height: 0; } }
+  @page { size: ${pageWIn}in ${pageHIn}in; margin: 0; }
+  * { margin: 0; padding: 0; }
+  html, body { background: #0f1c2e; width: ${svgW}px; height: ${svgH}px; }
+  svg { display: block; width: ${svgW}px; height: ${svgH}px; }
 </style></head><body>${svgMarkup}</body></html>`)
     win.document.close()
     setTimeout(() => { win.focus(); win.print() }, 350)
