@@ -1203,7 +1203,7 @@ export default function FamilyTree({ viewerMode = false, includeArchived = false
 
         {/* العنوان */}
         <span className="font-bold text-[var(--gold-main)] text-lg hidden sm:block" style={{ flexShrink: 0 }}>
-          شجرة عائلة السلامي
+          شجرة قبيلة السلامي
         </span>
 
         {/* أدوات التحكم */}

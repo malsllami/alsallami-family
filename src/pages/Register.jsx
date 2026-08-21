@@ -575,7 +575,7 @@ export default function Register() {
           {/* زر واتساب — رقم المدير يُقرأ ديناميكياً من الإعدادات، ورابط الموقع مُضاف لتفعيل معاينة الشعار في واتساب */}
           <a
             href={`https://wa.me/${adminPhone}?text=${encodeURIComponent(
-              `مرحباً،\nرقم طلب انضمامي: #${successInfo.requestId}\nأطلب اعتماد طلب الانضمام إلى موقع عائلة السلامي\nالتسلسل: ${successInfo.branch || successInfo.name}\n${SITE_URL}`
+              `مرحباً،\nرقم طلب انضمامي: #${successInfo.requestId}\nأطلب اعتماد طلب الانضمام إلى موقع قبيلة السلامي\nالتسلسل: ${successInfo.branch || successInfo.name}\n${SITE_URL}`
             )}`}
             target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-center gap-2.5 w-full py-3.5 rounded-2xl font-nav font-bold text-sm mb-3 transition-all hover:opacity-90"

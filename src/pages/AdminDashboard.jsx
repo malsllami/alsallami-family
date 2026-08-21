@@ -69,7 +69,7 @@ function normalizeToIntlPhone(raw) {
 function buildWelcomeWhatsAppLink(req) {
   const fullName = [req.name, req.fatherName, req.grandName].filter(Boolean).join(' ') || req.name || ''
   const message =
-    `🌿 أهلاً وسهلاً بك ${fullName} في عائلة السلامي – فخذ العفاريت 🌿\n` +
+    `🌿 أهلاً وسهلاً بك ${fullName} في قبيلة السلامي – فخذ العفاريت 🌿\n` +
     `تم قبول طلب عضويتك بنجاح ✅\n${SITE_URL}`
   return `https://wa.me/${normalizeToIntlPhone(req.phone)}?text=${encodeURIComponent(message)}`
 }
@@ -113,7 +113,7 @@ export default function AdminDashboard() {
 
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: 'نسخة احتياطية — عائلة السلامي', text: filename })
+          await navigator.share({ files: [file], title: 'نسخة احتياطية — قبيلة السلامي', text: filename })
         } catch { /* المستخدم ألغى المشاركة أو فشلت — الملف لم يُفقد، يقدر يعيد الضغط */ }
         return
       }

@@ -393,7 +393,7 @@ export default function Funds() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-4xl font-bold text-[var(--gold-main)]">الصناديق</h1>
-          <p className="mt-2 font-nav text-sm text-gray-400">صناديق عائلة السلامي لدعم ورعاية أبنائها</p>
+          <p className="mt-2 font-nav text-sm text-gray-400">صناديق قبيلة السلامي لدعم ورعاية أبنائها</p>
         </div>
         {isAdmin && (
           <button onClick={openNew}

@@ -130,7 +130,7 @@ export default function MainLayout() {
             >
               <img
                 src={logo}
-                alt="شعار عائلة السلامي"
+                alt="شعار قبيلة السلامي"
                 className="w-full h-full object-contain"
                 style={{
                   filter: 'contrast(1.3) saturate(1.5) brightness(0.92) drop-shadow(0 2px 4px rgba(0,0,0,0.5)) drop-shadow(0 -1px 1px rgba(220,170,70,0.2))',
@@ -138,7 +138,7 @@ export default function MainLayout() {
               />
             </div>
             <div className="hidden sm:block text-right">
-              <h2 className="font-brand font-bold text-base tracking-wide">عائلة السلامي</h2>
+              <h2 className="font-brand font-bold text-base tracking-wide">قبيلة السلامي</h2>
               <p className="font-nav text-xs text-[var(--gold-main)] opacity-80 tracking-widest">جذورنا واحدة</p>
             </div>
           </div>

@@ -76,7 +76,7 @@ export default function App() {
               أهلاً بكم في
               <br />
               <span className="lg:mr-8 block">الموقع الرسمي</span>
-              <span className="lg:mr-20 block text-[var(--gold-main)]">لعائلة السلامي</span>
+              <span className="lg:mr-20 block text-[var(--gold-main)]">لقبيلة السلامي</span>
             </h1>
 
             {/* فخذ العفاريت */}
@@ -132,7 +132,7 @@ export default function App() {
               }}>
               <div className="rounded-2xl overflow-hidden"
                 style={{ boxShadow: 'inset 0 4px 12px rgba(0,0,0,0.45)', border: '1px solid rgba(198,161,107,0.12)' }}>
-                <img src={logo} alt="شعار عائلة السلامي"
+                <img src={logo} alt="شعار قبيلة السلامي"
                   className="w-[285px] md:w-[330px] lg:w-[365px] object-contain block"
                   style={{ filter: 'contrast(1.3) saturate(1.5) brightness(0.92) drop-shadow(0 3px 6px rgba(0,0,0,0.55))' }} />
               </div>
@@ -155,7 +155,7 @@ export default function App() {
         <div className="rounded-[28px] p-7 mb-5"
           style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
           <h3 className="font-nav font-bold text-xl mb-4 text-[var(--gold-main)]">
-            عائلة السلامي : ارث يمتد عبر الاجيال
+            قبيلة السلامي : ارث يمتد عبر الاجيال
           </h3>
           <p className="font-nav text-sm text-gray-300 leading-8">
             نحن عائلة تفخر بجذورها الممتدة في عمق التاريخ، نجمع بين عراقة الماضي وطموح المستقبل لبناء مجتمع عائلي متماسك يقتدي بقيم الاجداد
@@ -176,7 +176,7 @@ export default function App() {
               <h3 className="font-nav font-bold text-base" style={{ color: '#a5b4fc' }}>لمحة تاريخية</h3>
             </div>
             <p className="font-nav text-sm text-gray-300 leading-8">
-              من رحم الجزيرة العربية انطلقت مسيرة عائلة السلامي، حاملةً معها خصال الكرم والشجاعة والوفاء. بدأت رحلة العائلة منذ قرون مضت حيث استقرت في مناطق مختلفة مساهمةً في البناء الاجتماعي والاقتصادي، واشتُهر أبناؤها بالحكمة في القول والسداد في الرأي
+              من رحم الجزيرة العربية انطلقت مسيرة قبيلة السلامي، حاملةً معها خصال الكرم والشجاعة والوفاء. بدأت رحلة العائلة منذ قرون مضت حيث استقرت في مناطق مختلفة مساهمةً في البناء الاجتماعي والاقتصادي، واشتُهر أبناؤها بالحكمة في القول والسداد في الرأي
             </p>
           </div>
 
@@ -326,7 +326,7 @@ export default function App() {
 
             {/* الهوية */}
             <div className="text-center lg:text-right">
-              <h2 className="text-3xl font-bold text-[var(--gold-main)]">عائلة السلامي</h2>
+              <h2 className="text-3xl font-bold text-[var(--gold-main)]">قبيلة السلامي</h2>
               <p className="mt-4 text-gray-300 leading-loose max-w-[500px] font-nav text-sm">
                 منصة عائلية تهدف إلى توثيق شجرة العائلة وتعزيز التواصل بين أفرادها والأجيال القادمة.
               </p>
@@ -366,7 +366,7 @@ export default function App() {
 
           <div className="mt-10 pt-6 text-center font-nav text-gray-400 text-sm"
             style={{ borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            جميع الحقوق محفوظة © عائلة السلامي
+            جميع الحقوق محفوظة © قبيلة السلامي
           </div>
         </div>
       </footer>
