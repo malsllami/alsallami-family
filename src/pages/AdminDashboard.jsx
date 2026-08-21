@@ -96,36 +96,56 @@ export default function AdminDashboard() {
     setBackupLoading(true)
     try {
       const data = await callSettings({ action: 'exportBackup' })
-      if (!data.success) { alert(data.message || 'فشل سحب النسخة الاحتياطية'); return }
+      if (!data.success) { alert('فشل سحب النسخة الاحتياطية: ' + (data.message || 'خطأ غير معروف بالخادم')); return }
+      const tableCount = Object.keys(data.tables || {}).length
+      if (!tableCount) { alert('لم يرجع الخادم أي جداول — تحقّق من الاتصال'); return }
 
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
       Object.entries(data.tables || {}).forEach(([tableName, rows]) => {
-        const ws = XLSX.utils.json_to_sheet(rows || [])
+        // json_to_sheet لا يقبل قيمًا متداخلة (كائنات/مصفوفات JSONB) كما هي —
+        // تُحوَّل نصًا JSON صريحًا بدل تركها تتحوّل ضمنيًا لـ"[object Object]"
+        const flatRows = (rows || []).map(row => {
+          const flat = {}
+          for (const [k, v] of Object.entries(row)) {
+            flat[k] = (v && typeof v === 'object') ? JSON.stringify(v) : v
+          }
+          return flat
+        })
+        const ws = XLSX.utils.json_to_sheet(flatRows)
         // أسماء أوراق الإكسل محدودة بـ31 حرفًا كحد أقصى — قصّ آمن لأي اسم جدول أطول
         XLSX.utils.book_append_sheet(wb, ws, tableName.slice(0, 31))
       })
-      const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
-      const filename = `نسخة-احتياطية-عائلة-السلامي-${new Date().toISOString().slice(0, 10)}.xlsx`
-      const file = new File([arrayBuffer], filename, {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
+      const filename = `نسخة-احتياطية-قبيلة-السلامي-${new Date().toISOString().slice(0, 10)}.xlsx`
 
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      // مشاركة (جوال) إن كانت مدعومة — أسلوب SheetJS القياسي المُختبَر
+      // (XLSX.writeFile) هو المسار الأساسي دائمًا، لأنه أثبت أكثر استقرارًا
+      // عبر المتصفحات من بناء File/Blob يدويًا؛ المشاركة فقط طبقة إضافية
+      // اختيارية فوقه حين تكون مدعومة، لا بديل له
+      let shared = false
+      if (navigator.canShare && navigator.share) {
         try {
-          await navigator.share({ files: [file], title: 'نسخة احتياطية — قبيلة السلامي', text: filename })
-        } catch { /* المستخدم ألغى المشاركة أو فشلت — الملف لم يُفقد، يقدر يعيد الضغط */ }
-        return
+          const arrayBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+          const file = new File([arrayBuffer], filename, {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+          })
+          if (navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: 'نسخة احتياطية — قبيلة السلامي' })
+            shared = true
+          }
+        } catch (shareErr) {
+          // المستخدم ألغى المشاركة، أو فشلت — نكمل للتحميل المباشر بدل التوقف بصمت
+          if (shareErr?.name === 'AbortError') { shared = true } // إلغاء متعمَّد من المستخدم — ليس خطأ
+        }
       }
 
-      // تحميل مباشر — خطة بديلة للمتصفحات التي لا تدعم مشاركة الملفات (Web Share API)
-      const url = URL.createObjectURL(file)
-      const a = document.createElement('a')
-      a.href = url; a.download = filename
-      document.body.appendChild(a); a.click(); document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch {
-      alert('خطأ في الاتصال أثناء سحب النسخة الاحتياطية')
+      if (!shared) {
+        XLSX.writeFile(wb, filename) // يفتح حوار الحفظ/يبدأ التحميل مباشرة — طريقة SheetJS الرسمية
+        alert(`تم إنشاء الملف "${filename}" — تحقّق من مجلد التنزيلات إن لم يظهر إشعار`)
+      }
+    } catch (err) {
+      console.error('handleExportBackup error:', err)
+      alert('تعذّرت النسخة الاحتياطية: ' + (err?.message || String(err)))
     } finally {
       setBackupLoading(false)
     }
