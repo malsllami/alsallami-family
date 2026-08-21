@@ -107,20 +107,6 @@ function SmallBtn({ t, onClick, label, danger }) {
   )
 }
 
-function AliveToggle({ alive, onChange }) {
-  return (
-    <button type="button" onClick={() => onChange(!alive)}
-      className="font-nav text-[11px] px-3 py-1 rounded-xl transition-all duration-200"
-      style={{
-        background: alive ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.08)',
-        border:     alive ? '1px solid rgba(16,185,129,0.3)' : '1px solid rgba(239,68,68,0.2)',
-        color:      alive ? '#34d399' : '#f87171',
-      }}>
-      {alive ? 'حي' : 'متوفى'}
-    </button>
-  )
-}
-
 function InlineEditButtons({ t, onSave, onCancel, loading }) {
   return (
     <div className="flex gap-2 pt-1">
@@ -1130,7 +1116,7 @@ export default function MemberDashboard() {
                     يجب أن تكون مرتبطاً بالشجرة أولاً حتى يتم ضم الابن إلى التسلسل الشجري مع أبيه.
                   </p>
                 )}
-                <button onClick={handleAddChild} disabled={childLoading || !newChild.name.trim() || !newChild.birthDate || !newChild.nationalId.trim() || !familyAncestors?.path}
+                <button onClick={handleAddChild} disabled={childLoading || !canAddChild}
                   className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   style={{ background: T.emerald.soft, border: `1px solid ${T.emerald.border}`, color: T.emerald.accent }}>
                   {childLoading ? 'جاري الإضافة...' : 'إضافة ابن'}
