@@ -300,8 +300,17 @@ export default function AdminDashboard() {
     scriptStats: false, platformStats: false, onlineUsers: false,
     regReq: false, treeReq: false, treeStats: false,
     addMember: false, addArchivedMember: false, memberPhoto: false, treeManage: false, adminProfile: false,
+    membersDirectory: false,
   })
   const toggleSec = k => setOpenSec(p => ({ ...p, [k]: !p[k] }))
+
+  /* بطاقة "بيانات الأعضاء" — دليل بحث سريع (اسم/هوية/جوال) بديل آمن عن
+     الدخول لقاعدة البيانات مباشرة عند نسيان عضو لرقم جواله المسجَّل. حالة
+     مستقلة بذاتها (بلا اعتماد على amMembers المرتبطة بدورة حياة تبويب
+     إدارة الشجرة ولا ضمانة أنها محمَّلة وقت فتح هذي البطاقة) */
+  const [membersDirectory,        setMembersDirectory]        = useState([])
+  const [membersDirectoryLoading, setMembersDirectoryLoading] = useState(false)
+  const [membersDirectoryQuery,   setMembersDirectoryQuery]   = useState('')
 
   /* جلب إحصائيات العائلة الحقيقية (أعضاء/طلبات/صناديق/مقالات) */
   useEffect(() => {
@@ -760,6 +769,36 @@ export default function AdminDashboard() {
     }
     load()
   }, [openSec.addArchivedMember])
+
+  /* تحميل بيانات الأعضاء عند فتح بطاقة "بيانات الأعضاء" لأول مرة —
+     getAllMembers مستبعِدة أعضاء الفروع المؤرشفة أصلًا (نفس الفكرة أعلاه) */
+  useEffect(() => {
+    if (!openSec.membersDirectory || membersDirectory.length) return
+    const load = async () => {
+      setMembersDirectoryLoading(true)
+      try {
+        const data = await callRegistrations({ action: 'getAllMembers' })
+        if (data.success && data.members) setMembersDirectory(data.members)
+      } catch { /* ignore network errors */ }
+      setMembersDirectoryLoading(false)
+    }
+    load()
+  }, [openSec.membersDirectory])
+
+  // تطبيع للمقارنة: يزيل الفراغات الزائدة فقط (البحث نفسه غير حسّاس لحالة
+  // الأحرف لأن كل البيانات عربية) — أرقام الهوية/الجوال تُطبَّع بـnormalizeDigits
+  // (عربي/إنجليزي) قبل المقارنة، فيعمل البحث بالرقمين معًا
+  const membersDirectoryFiltered = (() => {
+    const q = normalizeDigits(membersDirectoryQuery.trim())
+    if (!q) return membersDirectory
+    const qDigits = q.replace(/\D/g, '')
+    return membersDirectory.filter(m => {
+      const fullName = [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ')
+      if (fullName.includes(q)) return true
+      if (qDigits && (String(m.nationalId || '').includes(qDigits) || String(m.phone || '').includes(qDigits))) return true
+      return false
+    })
+  })()
 
   const amArchOptions     = amArchivedTree.filter(n => !n.isChildRecord && n.archived)
   const amArchBranchDepth = findBranchDepth(amArchivedTree)
@@ -3133,6 +3172,109 @@ export default function AdminDashboard() {
           <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.58)' }}>
             تعذّر تحميل إحصائيات الشجرة
           </p>
+        )}
+      </div>
+
+      {/* ══════════════════════════════════════
+          بيانات الأعضاء — دليل بحث سريع
+         ══════════════════════════════════════ */}
+      <div className="rounded-2xl sm:rounded-[28px] p-4 sm:p-7"
+        style={{ background: 'rgba(198,161,107,0.06)', border: '1px solid rgba(198,161,107,0.18)', boxShadow: '0 4px 24px rgba(0,0,0,0.18)' }}>
+
+        <div className="flex items-center justify-between mb-6 cursor-pointer" onClick={() => toggleSec('membersDirectory')}>
+          <div>
+            <p className="font-nav text-sm text-gray-400 mb-1">بيانات الأعضاء</p>
+            {openSec.membersDirectory && (
+              <p className="font-nav text-xs text-gray-600">دليل بحث سريع (الاسم/رقم الهوية/الجوال) — بديل آمن عن الدخول لقاعدة البيانات مباشرة</p>
+            )}
+          </div>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: 'rgba(198,161,107,0.12)', border: '1px solid rgba(198,161,107,0.25)' }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="var(--gold-main)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="m21 21-4.3-4.3"/>
+            </svg>
+          </div>
+        </div>
+
+        {openSec.membersDirectory && (
+          <>
+            <input
+              className="form-input mb-4"
+              placeholder="ابحث بالاسم أو رقم الهوية أو الجوال..."
+              value={membersDirectoryQuery}
+              onChange={e => setMembersDirectoryQuery(e.target.value)}
+            />
+
+            {membersDirectoryLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-12 rounded-2xl animate-pulse" style={{ background: 'rgba(255,255,255,0.04)' }} />
+                ))}
+              </div>
+            ) : membersDirectory.length ? (
+              <>
+                <div className="overflow-x-auto rounded-2xl" style={{ maxHeight: 480, overflowY: 'auto', border: '1px solid rgba(198,161,107,0.14)' }}>
+                  <table className="w-full font-nav" style={{ borderCollapse: 'collapse' }}>
+                    <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+                      <tr>
+                        {['الاسم الكامل', 'الفخذ', 'رقم الهوية', 'رقم الجوال', 'رقم العضوية', 'الحالة'].map(h => (
+                          <th key={h} className="text-center py-3 px-2 font-bold"
+                            style={{ background: '#2a2f38', color: 'var(--gold-main)', fontSize: 12, borderBottom: '1px solid rgba(198,161,107,0.25)' }}>
+                            {h}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {membersDirectoryFiltered.map(m => (
+                        <tr key={m.memberId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                          <td className="text-center py-2.5 px-2 font-bold text-white" style={{ fontSize: 12 }}>
+                            {[m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ')}
+                          </td>
+                          <td className="text-center py-2.5 px-2 font-bold" style={{ fontSize: 12, color: 'rgba(255,255,255,0.80)' }}>
+                            {m.branch || '—'}
+                          </td>
+                          <td className="text-center py-2.5 px-2 font-bold tabular-nums" style={{ fontSize: 12, color: 'rgba(255,255,255,0.80)' }}>
+                            {m.nationalId || '—'}
+                          </td>
+                          <td className="text-center py-2.5 px-2 font-bold tabular-nums" style={{ fontSize: 12, color: '#4ade80' }}>
+                            {m.phone || '—'}
+                          </td>
+                          <td className="text-center py-2.5 px-2 font-bold tabular-nums" style={{ fontSize: 12, color: 'var(--gold-main)' }}>
+                            {m.serialNumber != null ? `#${m.serialNumber}` : '—'}
+                          </td>
+                          <td className="text-center py-2.5 px-2">
+                            <span className="font-nav font-bold px-2.5 py-1 rounded-full" style={{ fontSize: 11,
+                              background: m.accountStatus === 'موقوف' ? 'rgba(239,68,68,0.12)' : 'rgba(74,222,128,0.1)',
+                              color: m.accountStatus === 'موقوف' ? '#f87171' : '#4ade80',
+                              border: `1px solid ${m.accountStatus === 'موقوف' ? 'rgba(239,68,68,0.25)' : 'rgba(74,222,128,0.22)'}` }}>
+                              {m.accountStatus || '—'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                      {!membersDirectoryFiltered.length && (
+                        <tr>
+                          <td colSpan={6} className="text-center py-6 font-nav text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                            لا توجد نتائج مطابقة
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="font-nav text-xs mt-3 text-center" style={{ color: 'rgba(255,255,255,0.45)' }}>
+                  {membersDirectoryFiltered.length} من {membersDirectory.length} عضو
+                </p>
+              </>
+            ) : (
+              <p className="font-nav text-sm text-center py-6" style={{ color: 'rgba(255,255,255,0.58)' }}>
+                تعذّر تحميل بيانات الأعضاء
+              </p>
+            )}
+          </>
         )}
       </div>
 
