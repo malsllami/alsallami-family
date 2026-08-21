@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
 import SearchableSelect from '../components/SearchableSelect'
-import FamilyTree from './FamilyTree'
 import { normalizeDigits } from '../utils/normalizeInput'
 import PhoneInput from '../components/PhoneInput'
 import { callFunction } from '../services/api'
@@ -211,7 +210,6 @@ export default function AdminDashboard() {
   const [amArchivedTree,    setAmArchivedTree]     = useState([]) // flat، الشجرة كاملة (ظاهرة + مؤرشفة)
   const [amArchTreeLoading, setAmArchTreeLoading]  = useState(false)
   const [amArchPhoneCountry, setAmArchPhoneCountry] = useState('+966')
-  const [showArchivedTreeView, setShowArchivedTreeView] = useState(false)
   const [treeRequestsLoading, setTreeRequestsLoading] = useState(true)
   const [treeActionLoading,   setTreeActionLoading]   = useState(null)
   const [treeRejectingId,     setTreeRejectingId]     = useState(null)
@@ -2019,11 +2017,16 @@ export default function AdminDashboard() {
 
         <div style={{ display: openSec.addArchivedMember ? 'block' : 'none' }}>
 
-        <button type="button" onClick={() => setShowArchivedTreeView(true)}
-          className="mt-4 font-nav text-xs py-2.5 px-4 rounded-xl transition-all duration-200"
+        {/* يفتح صفحة الشجرة الحقيقية بتبويب جديد (بدل تضمينها كمكوّن متداخل
+            داخل نافذة منبثقة — أبسط وأثبت لصفحة كاملة الشاشة أصلًا بتصميمها).
+            includeArchived=1 لا يُفعِّل شيئًا فعليًا إلا للمدير (تحقق خادم).
+            import.meta.env.BASE_URL لازم (نفس basename بـRouter.jsx) لأن
+            الموقع منشور تحت مسار فرعي (GitHub Pages) وليس جذر النطاق */}
+        <a href={`${import.meta.env.BASE_URL}family-tree?includeArchived=1`} target="_blank" rel="noopener noreferrer"
+          className="mt-4 inline-block font-nav text-xs py-2.5 px-4 rounded-xl transition-all duration-200"
           style={{ background: 'rgba(167,139,250,0.1)', border: '1px solid rgba(167,139,250,0.3)', color: '#a78bfa' }}>
-          عرض شجرة المؤرشفين
-        </button>
+          عرض شجرة المؤرشفين ↗
+        </a>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
           <AmField label="الاسم الأول *">
@@ -2173,23 +2176,6 @@ export default function AdminDashboard() {
 
         </div>
       </div>
-
-      {/* نافذة "عرض شجرة المؤرشفين" — الشجرة الظاهرة حاليًا + الفروع المؤرشفة
-          معًا، مرجع بصري للمدير فقط أثناء اختيار الأب أعلاه */}
-      {showArchivedTreeView && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)' }}
-          onClick={() => setShowArchivedTreeView(false)}>
-          <div className="w-full h-full max-w-6xl rounded-2xl overflow-hidden relative" style={{ background: '#0f172a' }}
-            onClick={e => e.stopPropagation()}>
-            <button onClick={() => setShowArchivedTreeView(false)}
-              className="absolute top-3 left-3 z-10 w-9 h-9 rounded-full flex items-center justify-center font-nav text-sm"
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff' }}>
-              ✕
-            </button>
-            <FamilyTree viewerMode includeArchived />
-          </div>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════
           صورة العضو — تُخزَّن الآن في Supabase Storage بدل Google Drive

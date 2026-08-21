@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+// react-dom/server تُحمَّل ديناميكيًا فقط عند الضغط على زر "تصدير PDF"
+// (نفس نمط تحميل xlsx بلوحة المدير) — لا داعي أن يحمّلها كل زائر للشجرة
 import PhoneInput from '../components/PhoneInput'
 import { callFunction } from '../services/api'
 
@@ -792,6 +794,13 @@ function PR({ label, value, color }) {
 export default function FamilyTree({ viewerMode = false, includeArchived = false }) {
   const navigate   = useNavigate()
   const user       = JSON.parse(localStorage.getItem('user') || 'null')
+  // زر "عرض شجرة المؤرشفين" بلوحة المدير يفتح الصفحة الحقيقية (تبويب جديد)
+  // بدل تضمينها داخل نافذة منبثقة — أبسط وأثبت من تضمين صفحة كاملة الشاشة
+  // كمكوّن متداخل. الخادم وحده يقرّر فعليًا هل يُظهر الفروع المؤرشفة (يتحقق
+  // من دور المتصل الحقيقي)، فلا خطر من ظهور ?includeArchived=1 بالرابط حتى
+  // لو فتحه غير المدير — يُتجاهَل تلقائيًا (البند 2)
+  const [searchParams] = useSearchParams()
+  const includeArchivedFinal = includeArchived || searchParams.get('includeArchived') === '1'
 
   /* ── حالة الشجرة ── */
   const [treeRoot,   setTreeRoot]  = useState(null)
@@ -851,10 +860,10 @@ export default function FamilyTree({ viewerMode = false, includeArchived = false
      تُعرض حالة خطأ حقيقية بدل شجرة تجريبية ثابتة ── */
   useEffect(() => {
     const load = async () => {
-      // includeArchived: تُفعَّل فقط من نافذة "عرض شجرة المؤرشفين" بلوحة
-      // المدير (البند 4/2) — بلا أثر لأي متصل غير مدير (الخادم يتحقق من
-      // الدور فعليًا قبل أي تجاوز لفلتر الأرشفة)
-      const d = await callFunction('manage-tree', { action: 'getFamilyTree', ...(includeArchived ? { includeArchived: true } : {}) })
+      // includeArchived: تُفعَّل فقط برابط "عرض شجرة المؤرشفين" بلوحة المدير
+      // (البند 4/2) — بلا أثر لأي متصل غير مدير (الخادم يتحقق من الدور
+      // فعليًا قبل أي تجاوز لفلتر الأرشفة)
+      const d = await callFunction('manage-tree', { action: 'getFamilyTree', ...(includeArchivedFinal ? { includeArchived: true } : {}) })
       if (d.success && d.tree?.length > 0) setTreeRoot(d.tree[0])
       else setLoadError(true)
       setLoading(false)
@@ -886,6 +895,60 @@ export default function FamilyTree({ viewerMode = false, includeArchived = false
       svgH: Math.max(0, ...allY) + PAD,
     }
   }, [effectiveRoot, showWives, branch, branchPointDepth, lineageMode])
+
+  /* ── تصدير PDF — يصدّر بالضبط ما هو ظاهر حاليًا على الشاشة (الشجرة كاملة
+     أو فخذ محدد، حسب فلتر "الفخذ" أعلاه) كرسم شجرة حقيقي (SVG) وليس جدولًا،
+     عبر معاينة طباعة المتصفح (حفظ كـPDF من مربع حوار الطباعة) — بلا أي
+     مكتبة PDF إضافية. nodes/lines/wives هنا مشتقّة أصلًا من نفس بيانات
+     getFamilyTree المفلترة (الأعضاء المؤرشفون مستبعدون منها سلفًا، فلا
+     يظهرون في التصدير إطلاقًا بلا أي منطق أرشفة إضافي هنا) ── */
+  const handleExportPdf = async () => {
+    if (!nodes.length || !svgW || !svgH) return
+    const { renderToStaticMarkup } = await import('react-dom/server')
+
+    const exportSvg = (
+      <svg xmlns="http://www.w3.org/2000/svg" width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+        <rect width={svgW} height={svgH} fill="#0f1c2e" />
+        {lines.map((l, i) => (
+          <line key={`l${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+            stroke={genPalette(l.d ?? 0).line} strokeWidth={1.2} opacity={0.65} />
+        ))}
+        {wLines.map((l, i) => (
+          <line key={`wl${i}`} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2}
+            stroke={WIFE_LC} strokeWidth={1.4} strokeDasharray="6,3" />
+        ))}
+        {nodes.map(n => (
+          <CircleNode key={n.id} n={n} active={false} onClick={() => {}} dimmed={false} isMe={false} />
+        ))}
+        {wives.map((w, i) => (
+          <g key={`wu${i}`}>
+            <MarriageDiamond cx={w.diamondX} cy={w.diamondY} />
+            <WifeCircle cx={w.cx} cy={w.cy} name={w.name} />
+          </g>
+        ))}
+      </svg>
+    )
+    const svgMarkup = renderToStaticMarkup(exportSvg)
+
+    const title = branch === 'all'
+      ? `شجرة ${treeRoot?.name || 'العائلة'} كاملة`
+      : branch
+        ? `فخذ ${branches.find(b => b.id === branch)?.name || ''}`
+        : `شجرة ${treeRoot?.name || 'العائلة'}`
+
+    const win = window.open('', '_blank')
+    if (!win) { alert('يرجى السماح بالنوافذ المنبثقة لتصدير الشجرة'); return }
+    win.document.write(`<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>${title}</title>
+<style>
+  @page { size: A3 landscape; margin: 8mm; }
+  html, body { margin: 0; padding: 0; background: #0f1c2e; }
+  body { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+  svg { max-width: 100%; height: auto; }
+  @media print { body { min-height: 0; } }
+</style></head><body>${svgMarkup}</body></html>`)
+    win.document.close()
+    setTimeout(() => { win.focus(); win.print() }, 350)
+  }
 
   /* بعد اختيار نتيجة بحث وإعادة حساب العقد المرئية لفرعها الجديد — افتح
      نافذة تفاصيلها تلقائياً (التمركز/التكبير مُتكفَّل به أصلاً عبر تأثير
@@ -1225,6 +1288,27 @@ export default function FamilyTree({ viewerMode = false, includeArchived = false
               <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
             </svg>
             <span className="hidden sm:inline">إحصائيات</span>
+          </button>
+
+          {/* زر تصدير PDF — يصدّر بالضبط ما هو ظاهر حاليًا (الكل أو الفخذ
+              المختار بفلتر الفخذ أعلاه) كرسم شجرة عبر معاينة طباعة المتصفح */}
+          <button
+            onClick={handleExportPdf}
+            disabled={!nodes.length}
+            title="تصدير الشجرة الحالية إلى PDF"
+            className="font-nav text-xs sm:text-sm px-2 sm:px-3 py-1.5 rounded-xl transition-all duration-200 flex items-center gap-1.5 disabled:opacity-40"
+            style={{
+              background: 'rgba(255,255,255,0.06)',
+              border: '1px solid rgba(255,255,255,0.1)',
+              color: 'rgba(255,255,255,0.88)',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <path d="M12 18v-6M9.5 14.5 12 12l2.5 2.5"/>
+            </svg>
+            <span className="hidden sm:inline">تصدير PDF</span>
           </button>
 
           {/* زر موقعي في الشجرة */}
