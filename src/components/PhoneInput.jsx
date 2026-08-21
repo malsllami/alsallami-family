@@ -14,6 +14,24 @@ const COUNTRIES = [
   { code: '+44',  flag: '🇬🇧', name: 'بريطانيا' },
 ]
 
+/* يقسّم رقمًا دوليًا مخزَّنًا بصيغته الموحَّدة (أرقام فقط، مثال:
+   "966568088098") إلى (مفتاح الدولة، الرقم المحلي) لتهيئة PhoneInput عند
+   فتح نموذج تعديل — استخدامه إلزامي بكل مكان يُعاد فيه تعبئة رقم جوال
+   محفوظ مسبقًا؛ استخدام القيمة المخزَّنة كاملة كـ"رقم محلي" مباشرة يُنتج
+   رقمًا مضاعف البادئة (مثال: +966966568088098) عند الحفظ بلا تعديل الحقل */
+export function splitIntlPhone(full, defaultCode = '+966') {
+  const digits = String(full || '').replace(/\D/g, '')
+  if (!digits) return { countryCode: defaultCode, local: '' }
+  const byLongestCode = [...COUNTRIES].sort((a, b) => b.code.length - a.code.length)
+  for (const c of byLongestCode) {
+    const codeDigits = c.code.slice(1) // بلا "+"
+    if (digits.startsWith(codeDigits)) {
+      return { countryCode: c.code, local: digits.slice(codeDigits.length) }
+    }
+  }
+  return { countryCode: defaultCode, local: digits } // لا مفتاح دولة معروف مطابق — افتراض رقم محلي بالكامل
+}
+
 const BOX = {
   background:   'rgba(48,60,72,0.85)',
   border:       '1.5px solid rgba(255,255,255,0.09)',

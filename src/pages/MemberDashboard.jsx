@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import PasswordInput from '../components/PasswordInput'
 import { normalizeDigits } from '../utils/normalizeInput'
 import TreeNavigator from '../components/TreeNavigator'
-import PhoneInput from '../components/PhoneInput'
+import PhoneInput, { splitIntlPhone } from '../components/PhoneInput'
 import { registerPasskey, isWebAuthnSupported, detectBiometricPlatform } from '../services/webauthn'
 import BiometricIcon from '../components/BiometricIcon'
 import { callFunction } from '../services/api'
@@ -328,7 +328,12 @@ export default function MemberDashboard() {
           if (data.member.photoUrl) setPhotoUrl(data.member.photoUrl)
           if (data.preLinked) setPreLinked(data.preLinked)
           if (data.treeRequestStatus) setTreeRequestStatus(data.treeRequestStatus)
-          setDraft({ firstName: m.firstName || '', phone: m.phone || '', email: m.email || '', city: m.city || '', job: m.job || '' })
+          // الرقم المخزَّن دوليًا كاملاً — يُقسَّم لمفتاح الدولة + الرقم
+          // المحلي بدل استخدامه كاملاً كـ"رقم محلي" مباشرة (وإلا يُنتَج رقم
+          // مضاعف البادئة عند الحفظ بلا تعديل الحقل)
+          const splitPhone = splitIntlPhone(m.phone)
+          setPhoneCountry(splitPhone.countryCode)
+          setDraft({ firstName: m.firstName || '', phone: splitPhone.local, email: m.email || '', city: m.city || '', job: m.job || '' })
         }
       } catch (e) { console.error(e) }
       finally { setDataLoading(false) }
@@ -942,7 +947,12 @@ export default function MemberDashboard() {
           </svg>
         } action={!dataLoading && (
           <button
-            onClick={() => { setEditContact(e => !e); setDraft({ firstName: m.firstName || '', phone: m.phone || '', email: m.email || '', city: m.city || '', job: m.job || '' }) }}
+            onClick={() => {
+              setEditContact(e => !e)
+              const splitPhone = splitIntlPhone(m.phone)
+              setPhoneCountry(splitPhone.countryCode)
+              setDraft({ firstName: m.firstName || '', phone: splitPhone.local, email: m.email || '', city: m.city || '', job: m.job || '' })
+            }}
             className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
             style={{ border: `1px solid ${editContact ? T.teal.border : 'rgba(255,255,255,0.1)'}`, color: editContact ? T.teal.accent : 'rgba(255,255,255,0.72)', background: editContact ? T.teal.soft : 'transparent' }}>
             {editContact ? 'إلغاء' : 'تعديل'}

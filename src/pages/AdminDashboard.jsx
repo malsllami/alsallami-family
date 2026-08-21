@@ -4,7 +4,7 @@ import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
 import SearchableSelect from '../components/SearchableSelect'
 import { normalizeDigits } from '../utils/normalizeInput'
-import PhoneInput from '../components/PhoneInput'
+import PhoneInput, { splitIntlPhone } from '../components/PhoneInput'
 import { callFunction } from '../services/api'
 // xlsx تُحمَّل ديناميكيًا فقط عند الضغط على زر "نسخة احتياطية" (استيراد داخل
 // handleExportBackup) — مكتبة كبيرة (+300kb) يستخدمها المدير فقط أحيانًا،
@@ -392,11 +392,16 @@ export default function AdminDashboard() {
     setEditingReqId(req.requestId)
     const parentNodeId = req.parentNodeId || ''
     const branch       = req.branch       || ''
+    // الرقم المخزَّن دوليًا كاملاً — يُقسَّم لمفتاح الدولة + الرقم المحلي
+    // بدل استخدامه كاملاً كـ"رقم محلي" مباشرة (وإلا يُنتَج رقم مضاعف
+    // البادئة عند الحفظ بلا تعديل الحقل)
+    const splitPhone = splitIntlPhone(req.phone)
+    setEditReqPhoneCountry(splitPhone.countryCode)
     setEditFields({
       'الاسم الأول':        req.name         || '',
       'اسم الأب':           req.fatherName   || '',
       'اسم الجد':           req.grandName    || '',
-      'رقم الجوال':         req.phone        || '',
+      'رقم الجوال':         splitPhone.local,
       'رقم الهوية':         req.nationalId   || '',
       'الفخذ':              branch,
       'الجيل':              req.generation   || '',

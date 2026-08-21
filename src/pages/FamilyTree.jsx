@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 // react-dom/server تُحمَّل ديناميكيًا فقط عند الضغط على زر "تصدير PDF"
 // (نفس نمط تحميل xlsx بلوحة المدير) — لا داعي أن يحمّلها كل زائر للشجرة
-import PhoneInput from '../components/PhoneInput'
+import PhoneInput, { splitIntlPhone } from '../components/PhoneInput'
 import { callFunction } from '../services/api'
 
 /* ════ ثوابت التصميم ════════════════════════════════════════════════════════ */
@@ -487,8 +487,12 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
   const [editing,         setEditing]         = useState(false)
   const [editName,        setEditName]        = useState(node.name)
   const [editAlive,       setEditAlive]       = useState(node.alive)
-  const [editPhone,       setEditPhone]       = useState(node.phone || '')
-  const [editPhoneCountry,setEditPhoneCountry]= useState('+966')
+  // الرقم المخزَّن دوليًا كاملاً (مثال: "966568088098") — يُقسَّم لمفتاح
+  // الدولة + الرقم المحلي بدل استخدامه كاملاً كـ"رقم محلي" مباشرة، وإلا
+  // يُنتَج رقم مضاعف البادئة عند الحفظ بلا تعديل الحقل
+  const initialPhone = splitIntlPhone(node.phone)
+  const [editPhone,       setEditPhone]       = useState(initialPhone.local)
+  const [editPhoneCountry,setEditPhoneCountry]= useState(initialPhone.countryCode)
   const [editMarital,     setEditMarital]     = useState(mapMarital(node.marital))
   const [editJob,         setEditJob]         = useState(node.job || '')
   const [editLocation,    setEditLocation]    = useState(node.location || '')
@@ -602,7 +606,8 @@ function Popup({ node, onClose, isAdmin, user, onUpdateNode }) {
     setEditing(false)
     setEditName(node.name)
     setEditAlive(node.alive)
-    setEditPhone(node.phone || '')
+    setEditPhone(initialPhone.local)
+    setEditPhoneCountry(initialPhone.countryCode)
     setEditMarital(mapMarital(node.marital))
     setEditJob(node.job || '')
     setEditLocation(node.location || '')
