@@ -37,6 +37,7 @@ export default function App() {
   const [stats,      setStats]      = useState(null)
   const [mapOpen,    setMapOpen]    = useState(false)
   const [adminPhone, setAdminPhone] = useState('')    // رقم جوال المدير — يُقرأ ديناميكياً من جدول الإعدادات (لا رقم ثابت بالكود)
+  const [adminEmail, setAdminEmail] = useState('')    // بريد المدير — نفس المبدأ (لا بريد ثابت بالكود)
 
   /* parallax */
   const handleMouseMove = useCallback((e) => {
@@ -61,16 +62,21 @@ export default function App() {
       .catch(() => {})
   }, [])
 
-  // خلل مُصلَح: رابط واتساب بالتذييل كان رقمًا ثابتًا مكتوبًا بالكود مباشرة
-  // — يخالف قاعدة "لا بيانات ثابتة بالكود" ويبقى معطوبًا بصمت لو تغيّر رقم
-  // المدير الحقيقي بقاعدة البيانات دون تعديل الكود يدويًا. الآن يُقرأ من نفس
-  // الـView العام "الإعدادات العامة" المستخدَم بصفحة التسجيل (بلا Edge Function
-  // — القيمة العامة الوحيدة المسموح كشفها من جدول "الإعدادات")
+  // خلل مُصلَح: روابط واتساب/البريد بالتذييل كانت قيمًا ثابتة مكتوبة بالكود
+  // مباشرة — يخالف قاعدة "لا بيانات ثابتة بالكود" وتبقى معطوبة بصمت لو
+  // تغيّرت بيانات المدير الحقيقية بقاعدة البيانات دون تعديل الكود يدويًا.
+  // الآن تُقرآن من نفس الـView العام "الإعدادات العامة" المستخدَم بصفحة
+  // التسجيل (بلا Edge Function — القيم العامة الوحيدة المسموح كشفها من
+  // جدول "الإعدادات")
   useEffect(() => {
     let mounted = true
-    supabase.from('الإعدادات العامة').select('*').eq('المفتاح', 'رقم جوال المدير').maybeSingle()
+    supabase.from('الإعدادات العامة').select('*')
       .then(({ data }) => {
-        if (mounted && data) setAdminPhone(normalizeToIntlPhone(data['القيمة']))
+        if (!mounted || !data) return
+        const phone = data.find(r => r['المفتاح'] === 'رقم جوال المدير')
+        const email = data.find(r => r['المفتاح'] === 'بريد المدير')
+        if (phone) setAdminPhone(normalizeToIntlPhone(phone['القيمة']))
+        if (email) setAdminEmail(String(email['القيمة'] || '').trim())
       })
     return () => { mounted = false }
   }, [])
@@ -374,7 +380,7 @@ export default function App() {
               </a>
 
               {/* البريد */}
-              <a href="mailto:malsllami@gmail.com"
+              <a href={adminEmail ? `mailto:${adminEmail}` : undefined}
                 className="group flex flex-col items-center gap-2 px-5 py-4 rounded-2xl transition-all duration-300"
                 style={{ background: 'rgba(234,67,53,0.08)', border: '1px solid rgba(234,67,53,0.22)' }}
                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(234,67,53,0.14)'}
