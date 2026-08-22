@@ -670,8 +670,12 @@ export default function MemberDashboard() {
 
   const memberHasTreePath = Boolean(familyAncestors?.path && memberTreeNode)
   const canOpenTreeLink = Boolean(memberHasTreePath || isProfileCompleteForTree)
-  const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && familyAncestors?.path)
-  const childTreeWarning = !familyAncestors?.path
+  // شرط "الأب مرتبط بالشجرة" مطلوب فقط للابن الذكر (يحتاج موضعًا بالشجرة) —
+  // البنت ممنوع ظهورها بالشجرة نهائيًا مهما كان وضع أبيها (عضو مرتبط أو لا)،
+  // فلا داعي لتعطيل إضافتها بلوحة أبيها بانتظار ربطه هو نفسه بالشجرة
+  const isAddingDaughter = newChild.gender === 'أنثى'
+  const canAddChild = Boolean(newChild.name.trim() && newChild.birthDate && newChild.nationalId.trim() && (isAddingDaughter || familyAncestors?.path))
+  const childTreeWarning = !isAddingDaughter && !familyAncestors?.path
 
   /* ══ ضغط وتحويل الصورة ══ */
   const compressImage = (file) => new Promise((resolve, reject) => {
@@ -1012,9 +1016,14 @@ export default function MemberDashboard() {
         )}>
           {dataLoading ? <Skeleton lines={3} /> : (
             <>
-              {!(m.children?.filter(c => c.gender !== 'أنثى').length) ? (
+              {/* خلل مُصلَح: كان هذا الفلتر يخفي البنات حتى عن أبيهن نفسه بلوحته
+                  الخاصة — قرار العمل الثابت يمنع ظهور الإناث لأي طرف آخر (الشجرة
+                  العامة، الإحصائيات، بقية الأعضاء) لكن ليس عن صاحب الحساب نفسه؛
+                  الخادم (getMemberData) أصلًا لا يُرجع بيانات البنات هنا إطلاقًا
+                  إلا لصاحب الحساب نفسه (isOwner)، فلا حاجة لأي فلتر جنس إضافي هنا */}
+              {!(m.children?.length) ? (
                 <p className="font-nav text-sm text-gray-600 py-1">لا يوجد أبناء مسجلون</p>
-              ) : m.children.filter(c => c.gender !== 'أنثى').map((c, i) => (
+              ) : m.children.map((c, i) => (
                 editingChildId === c.id ? (
                   /* وضع التعديل */
                   <div key={c.id} className="py-3 border-b border-white/[0.05] last:border-0 space-y-2">
@@ -1032,6 +1041,25 @@ export default function MemberDashboard() {
                       value={childDraft.nationalId}
                       onChange={e => setChildDraft(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))}
                       className="form-input" />
+                    <div>
+                      {/* عمود الجنس (ذكر/أنثى) — كان غائبًا تمامًا من قبل، فكل
+                          ابن يُسجَّل "ذكر" دومًا مهما كان جنسه الفعلي. البنت لا
+                          تظهر بالشجرة العامة ولا الإحصائيات إطلاقًا (يُطبَّق من
+                          الخادم)، لكن تبقى ظاهرة وقابلة للتعديل هنا بلوحة أبيها فقط */}
+                      <label className="font-nav text-xs text-gray-500 mb-1.5 block">الجنس</label>
+                      <div className="flex gap-2 mb-3">
+                        <button type="button" onClick={() => setChildDraft(p => ({ ...p, gender: 'ذكر' }))}
+                          className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
+                          style={{ background: childDraft.gender !== 'أنثى' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${childDraft.gender !== 'أنثى' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, color: childDraft.gender !== 'أنثى' ? '#34d399' : 'rgba(255,255,255,0.62)' }}>
+                          ذكر
+                        </button>
+                        <button type="button" onClick={() => setChildDraft(p => ({ ...p, gender: 'أنثى' }))}
+                          className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
+                          style={{ background: childDraft.gender === 'أنثى' ? 'rgba(236,72,153,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${childDraft.gender === 'أنثى' ? 'rgba(236,72,153,0.3)' : 'rgba(255,255,255,0.08)'}`, color: childDraft.gender === 'أنثى' ? '#f472b6' : 'rgba(255,255,255,0.62)' }}>
+                          أنثى
+                        </button>
+                      </div>
+                    </div>
                     <div>
                       <label className="font-nav text-xs text-gray-500 mb-1.5 block">الحالة الصحية</label>
                       <div className="flex gap-2">
@@ -1096,6 +1124,26 @@ export default function MemberDashboard() {
                   value={newChild.nationalId}
                   onChange={e => setNewChild(p => ({ ...p, nationalId: normalizeDigits(e.target.value) }))}
                   className="form-input" />
+                <div>
+                  {/* عمود الجنس (ذكر/أنثى) — كان غائبًا تمامًا، فكل ابن يُسجَّل
+                      "ذكر" دومًا افتراضيًا (حتى لو الحقل بأصل الكود gender:'ذكر')
+                      مهما كان جنسه الفعلي، فتظهر البنات بالخطأ بالشجرة العامة
+                      والإحصائيات. البنت تبقى ظاهرة وقابلة للإدارة هنا بلوحة
+                      أبيها فقط — تختفي تلقائيًا من كل مكان آخر (الخادم يتكفل بذلك) */}
+                  <label className="font-nav text-xs text-gray-500 mb-1.5 block">الجنس</label>
+                  <div className="flex gap-2 mb-3">
+                    <button type="button" onClick={() => setNewChild(p => ({ ...p, gender: 'ذكر' }))}
+                      className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
+                      style={{ background: newChild.gender !== 'أنثى' ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${newChild.gender !== 'أنثى' ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.08)'}`, color: newChild.gender !== 'أنثى' ? '#34d399' : 'rgba(255,255,255,0.62)' }}>
+                      ذكر
+                    </button>
+                    <button type="button" onClick={() => setNewChild(p => ({ ...p, gender: 'أنثى' }))}
+                      className="flex-1 font-nav text-xs py-2 rounded-xl transition-all"
+                      style={{ background: newChild.gender === 'أنثى' ? 'rgba(236,72,153,0.1)' : 'rgba(255,255,255,0.04)', border: `1px solid ${newChild.gender === 'أنثى' ? 'rgba(236,72,153,0.3)' : 'rgba(255,255,255,0.08)'}`, color: newChild.gender === 'أنثى' ? '#f472b6' : 'rgba(255,255,255,0.62)' }}>
+                      أنثى
+                    </button>
+                  </div>
+                </div>
                 <div>
                   <label className="font-nav text-xs text-gray-500 mb-1.5 block">الحالة الصحية</label>
                   <div className="flex gap-2">
