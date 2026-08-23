@@ -1299,7 +1299,7 @@ export default function AdminDashboard() {
           <h1 className="text-2xl sm:text-4xl font-bold text-[var(--gold-main)]">لوحة تحكم المدير</h1>
           <p className="mt-2 font-nav text-gray-400">مرحباً {user?.firstName} — {today}</p>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
+        <div className="flex gap-2 flex-shrink-0 flex-wrap">
           <a href={SUPABASE_USAGE_URL} target="_blank" rel="noopener noreferrer"
             className="font-nav text-xs px-3 py-1.5 rounded-xl flex items-center gap-1.5"
             style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.3)', color: '#a5b4fc' }}>
@@ -2345,7 +2345,7 @@ export default function AdminDashboard() {
         <div style={{ display: openSec.treeManage ? 'block' : 'none' }}>
 
           {/* التبويبات */}
-          <div className="flex gap-2 mt-5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-2 mt-5 flex-wrap">
             {[
               { key: 'edit',    label: 'تعديل اسم الجد' },
               { key: 'delete',  label: 'احذف جد' },
