@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import PasswordInput from '../components/PasswordInput'
 import TreeNavigator from '../components/TreeNavigator'
@@ -266,6 +266,17 @@ export default function AdminDashboard() {
   const [mvBranch,    setMvBranch]    = useState('')
   const [mvLoading,   setMvLoading]   = useState(false)
   const [mvResult,    setMvResult]    = useState(null)
+
+  /* "تعديل الشجرة" ببطاقة "بيانات الأعضاء" — يصلح عضوًا حقيقيًا بلا موضع
+     صحيح بالشجرة (غير مرتبط، أو مرتبط بعقدة خطأ بسبب اختيار فخذ غلط وقت
+     التسجيل) عبر ربطه/دمجه بعقدته اليتيمة الصحيحة. نفس آلية "نقل عضو" بالضبط
+     (فخذ + تسلسل متدرّج)، حالة مستقلة خاصة بها لتفادي أي تصادم مع mv* */
+  const [tfMemberId,  setTfMemberId]  = useState(null)  // أي صف مفتوح حاليًا (memberId)، null=مغلق
+  const [tfTargetId,  setTfTargetId]  = useState('')
+  const [tfCascade,   setTfCascade]   = useState([])
+  const [tfBranch,    setTfBranch]    = useState('')
+  const [tfLoading,   setTfLoading]   = useState(false)
+  const [tfResult,    setTfResult]    = useState(null)
 
   /* إضافة عقدة جديدة تحت أب موجود بالشجرة — اختياريًا مربوطة بعضو مسجَّل
      مسبقًا (يحل حالة "الأب غير موجود بالشجرة": تُضاف عقدة الأب أولاً بلا
@@ -988,6 +999,69 @@ export default function AdminDashboard() {
     finally { setMvLoading(false) }
   }
 
+  /* "تعديل الشجرة" ببطاقة بيانات الأعضاء — نفس آلية نقل عضو بالضبط (فخذ +
+     تسلسل متدرّج)، لكن مصدرها ثابت (memberId الصف المفتوح) بدل SearchableSelect */
+  const handleOpenTreeFix = (memberId) => {
+    setTfMemberId(prev => prev === memberId ? null : memberId)
+    setTfTargetId(''); setTfBranch(''); setTfCascade([]); setTfResult(null)
+  }
+
+  const handleTfBranchChange = val => {
+    if (val.startsWith(TRUNK_PREFIX)) {
+      const node = amFlatTree.find(n => n.id === val.slice(TRUNK_PREFIX.length) && !n.isChildRecord)
+      setTfBranch(val)
+      setTfTargetId(node?.id || '')
+      setTfCascade([])
+      return
+    }
+    const branchName = val
+    const bn = amFlatTree.find(n => n.name === branchName && n.depth === amBranchDepth && !n.isChildRecord)
+    setTfBranch(branchName)
+    setTfTargetId(bn?.id || '')
+    if (bn) {
+      const kids = amFlatTree.filter(n => n.parentId === bn.id)
+      setTfCascade(kids.length ? [{ label: `أبناء ${branchName}`, options: kids, selectedId: '' }] : [])
+    } else {
+      setTfCascade([])
+    }
+  }
+
+  const handleTfCascadeChange = (levelIdx, selectedId) => {
+    const node = amFlatTree.find(n => n.id === selectedId)
+    setTfTargetId(selectedId || tfTargetId)
+    if (!selectedId || node?.isChildRecord) {
+      setTfCascade(prev => prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l))
+      return
+    }
+    const kids = amFlatTree.filter(n => n.parentId === selectedId)
+    setTfCascade(prev => {
+      const next = prev.slice(0, levelIdx + 1).map((l, i) => i === levelIdx ? { ...l, selectedId } : l)
+      if (kids.length) next.push({ label: `أبناء ${node?.name || ''}`, options: kids, selectedId: '' })
+      return next
+    })
+  }
+
+  const handleLinkOrMergeMemberToNode = async () => {
+    if (!tfMemberId) return
+    if (!tfTargetId) return setTfResult({ ok: false, msg: 'اختر العقدة الصحيحة' })
+    setTfLoading(true); setTfResult(null)
+    try {
+      const data = await callTree({ action: 'linkOrMergeMemberToNode', memberId: tfMemberId, targetNodeId: tfTargetId })
+      setTfResult({ ok: data.success, msg: data.message || (data.success ? 'تم' : 'فشل') })
+      if (data.success) {
+        try {
+          const td = await callTree({ action: 'getFamilyTree' })
+          if (td.success && td.tree?.length) setAmFlatTree(buildFlatTree(td.tree))
+        } catch { /* ignore */ }
+        try {
+          const md = await callRegistrations({ action: 'getAllMembers' })
+          if (md.success && md.members) setMembersDirectory(md.members)
+        } catch { /* ignore */ }
+      }
+    } catch { setTfResult({ ok: false, msg: 'خطأ في الاتصال' }) }
+    finally { setTfLoading(false) }
+  }
+
   /* قائمة كل الأعضاء المسجَّلين — تُحمَّل مرة واحدة فقط عند أول فتح لتبويب "إضافة عقدة" */
   const loadAllMembersForTree = async () => {
     if (amMembers.length) return
@@ -1624,6 +1698,46 @@ export default function AdminDashboard() {
                     </div>
                   )}
                 </div>
+
+                {/* ── تحذير تعارض محتمل: الاسم المختار يطابق عقدة يتيمة قد
+                    تخص شخصًا آخر مختلفًا (تشابه اسم بفخذ خطأ) — حادثة إدارية
+                    حقيقية وقعت فعليًا. معلوماتي بحت، لا يمنع القبول/الرفض
+                    العاديين، فقط يوفّر السياق قبل اتخاذ القرار ── */}
+                {req.linkRisk && (
+                  <div className="rounded-2xl p-4 space-y-2"
+                    style={{
+                      background: req.linkRisk === 'conflict' ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.08)',
+                      border: `1px solid ${req.linkRisk === 'conflict' ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
+                    }}>
+                    <p className="font-nav text-xs font-bold" style={{ color: req.linkRisk === 'conflict' ? '#f87171' : '#f59e0b' }}>
+                      ⚠ {req.linkRisk === 'conflict'
+                        ? 'تعارض محتمل — رقم هوية مختلف عن السجل الموجود بنفس الاسم'
+                        : 'تنبيه — سيُربَط تلقائيًا بعقدة موجودة بنفس الاسم، تحقّق أنها هو فعلًا'}
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(74,222,128,0.06)', border: '1px solid rgba(74,222,128,0.2)' }}>
+                        <p className="font-nav text-[10px] mb-0.5" style={{ color: '#4ade80' }}>الموضع المستهدَف بالشجرة</p>
+                        <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.85)' }}>{req.riskNodePath || '—'}</p>
+                      </div>
+                      <div className="rounded-xl px-3 py-2" style={{ background: 'rgba(96,165,250,0.06)', border: '1px solid rgba(96,165,250,0.2)' }}>
+                        <p className="font-nav text-[10px] mb-0.5" style={{ color: '#60a5fa' }}>بيانات الطلب الجديد</p>
+                        <p className="font-nav text-xs" style={{ color: 'rgba(255,255,255,0.85)' }}>
+                          {[req.name, req.fatherName, req.grandName].filter(Boolean).join(' ')} — هوية: {req.nationalId || '—'}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="font-nav text-[10px]" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                      لا يمكن رفض الطلب وإعادة التسجيل لاحقًا — استخدم "تصحيح المسار" لاختيار الفخذ الصحيح قبل القبول، أو تواصل مع العضو للتأكد ثم صحّح بنفسك.
+                    </p>
+                    <button
+                      onClick={() => handleStartEdit(req)}
+                      disabled={!!regActionLoading}
+                      className="font-nav text-xs py-2 px-4 rounded-xl font-bold transition-all duration-200 disabled:opacity-50"
+                      style={{ background: 'rgba(198,161,107,0.1)', border: '1px solid rgba(198,161,107,0.28)', color: 'var(--gold-main)' }}>
+                      تصحيح المسار
+                    </button>
+                  </div>
+                )}
 
                 {/* ── وضع التعديل المباشر ── */}
                 {editingReqId === req.requestId && (
@@ -3219,7 +3333,7 @@ export default function AdminDashboard() {
                   <table className="w-full font-nav" style={{ borderCollapse: 'collapse' }}>
                     <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                       <tr>
-                        {['الاسم الكامل', 'الفخذ', 'رقم الهوية', 'رقم الجوال', 'رقم العضوية', 'الحالة'].map(h => (
+                        {['الاسم الكامل', 'الفخذ', 'رقم الهوية', 'رقم الجوال', 'رقم العضوية', 'الحالة', 'إجراء'].map(h => (
                           <th key={h} className="text-center py-3 px-2 font-bold"
                             style={{ background: '#2a2f38', color: 'var(--gold-main)', fontSize: 12, borderBottom: '1px solid rgba(198,161,107,0.25)' }}>
                             {h}
@@ -3228,8 +3342,12 @@ export default function AdminDashboard() {
                       </tr>
                     </thead>
                     <tbody>
-                      {membersDirectoryFiltered.map(m => (
-                        <tr key={m.memberId} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                      {membersDirectoryFiltered.map(m => {
+                        const currentNode = amFlatTree.find(n => n.memberId === m.memberId)
+                        const panelOpen = tfMemberId === m.memberId
+                        return (
+                        <Fragment key={m.memberId}>
+                        <tr style={{ borderBottom: panelOpen ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
                           <td className="text-center py-2.5 px-2 font-bold text-white" style={{ fontSize: 12 }}>
                             {[m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ')}
                           </td>
@@ -3253,8 +3371,79 @@ export default function AdminDashboard() {
                               {m.accountStatus || '—'}
                             </span>
                           </td>
+                          <td className="text-center py-2.5 px-2">
+                            <button onClick={() => handleOpenTreeFix(m.memberId)}
+                              className="font-nav font-bold px-2.5 py-1.5 rounded-xl transition-all"
+                              style={{ fontSize: 11,
+                                background: panelOpen ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.08)',
+                                color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.28)' }}>
+                              {panelOpen ? '✓ تعديل الشجرة' : 'تعديل الشجرة'}
+                            </button>
+                          </td>
                         </tr>
-                      ))}
+                        {panelOpen && (
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <td colSpan={7} className="px-3 pb-4">
+                              <div className="rounded-2xl p-4 mt-1"
+                                style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.2)' }}>
+                                <p className="font-nav text-xs mb-3" style={{ color: 'rgba(165,180,252,0.85)' }}>
+                                  {currentNode
+                                    ? <>موقعه الحالي: <span className="font-bold" style={{ color: '#a5b4fc' }}>{nodeFullName(currentNode)}</span> — اختيار عقدة أخرى أدناه يعني <span className="font-bold">دمجًا</span>: تُنقَل عقدته الحالية وأبناؤها للعقدة الجديدة، وتُحذف العقدة القديمة الفارغة تلقائيًا.</>
+                                    : <>هذا العضو <span className="font-bold" style={{ color: '#fdba74' }}>بلا موضع بالشجرة حاليًا</span> — اختر عقدته الصحيحة أدناه ليُربَط بها مباشرة.</>
+                                  }
+                                </p>
+                                <div className="p-3 rounded-2xl space-y-2"
+                                  style={{ background: 'rgba(99,102,241,0.05)', border: '1px solid rgba(99,102,241,0.18)' }}>
+                                  <p className="font-nav text-[10px]" style={{ color: '#a5b4fc' }}>الموضع الصحيح</p>
+                                  <select className="form-input text-xs" value={tfBranch} onChange={e => handleTfBranchChange(e.target.value)}>
+                                    <option value="">— اختر الفخذ —</option>
+                                    {trunkNodes.map(n => (
+                                      <option key={n.id} value={TRUNK_PREFIX + n.id}>⬆ {n.name} — أب مباشر (فخذ جديد)</option>
+                                    ))}
+                                    {amBranches.map(b => <option key={b.id} value={b.name}>{b.name}</option>)}
+                                  </select>
+                                  {tfCascade.map((level, i) => (
+                                    <div key={i}>
+                                      <p className="font-nav text-[10px] text-gray-500 mb-1">{level.label}</p>
+                                      <select className="form-input text-xs" value={level.selectedId}
+                                        onChange={e => handleTfCascadeChange(i, e.target.value)}>
+                                        <option value="">— اتركه فارغاً لاختيار هذا المستوى —</option>
+                                        {level.options.map(n => <option key={n.id} value={n.id}>{nodeFullName(n)}</option>)}
+                                      </select>
+                                    </div>
+                                  ))}
+                                  {tfTargetId && (() => {
+                                    const targetNode = amFlatTree.find(n => n.id === tfTargetId)
+                                    const occupied = targetNode?.memberId && targetNode.memberId !== m.memberId
+                                    return (
+                                      <p className="font-nav text-[10px] px-3 py-1.5 rounded-xl"
+                                        style={{ background: occupied ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.1)', color: occupied ? '#f87171' : '#a5b4fc' }}>
+                                        {occupied
+                                          ? `⚠ هذه العقدة مرتبطة بعضو آخر بالفعل — اختر عقدة يتيمة غيرها`
+                                          : `العقدة المختارة: ${nodeFullName(targetNode || {}) || tfTargetId}`}
+                                      </p>
+                                    )
+                                  })()}
+                                </div>
+                                {tfResult && (
+                                  <div className="px-4 py-3 mt-3 rounded-2xl font-nav text-sm"
+                                    style={{ background: tfResult.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)', border: tfResult.ok ? '1px solid rgba(34,197,94,0.2)' : '1px solid rgba(239,68,68,0.2)', color: tfResult.ok ? '#4ade80' : '#f87171' }}>
+                                    {tfResult.msg}
+                                  </div>
+                                )}
+                                <button onClick={handleLinkOrMergeMemberToNode}
+                                  disabled={tfLoading || !tfTargetId || (amFlatTree.find(n => n.id === tfTargetId)?.memberId && amFlatTree.find(n => n.id === tfTargetId)?.memberId !== m.memberId)}
+                                  className="font-nav text-sm py-2.5 px-6 mt-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                                  style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)', color: '#a5b4fc' }}>
+                                  {tfLoading ? 'جاري التنفيذ...' : currentNode ? 'دمج وربط بالعقدة الصحيحة' : 'ربط بالعقدة الصحيحة'}
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
+                        )
+                      })}
                       {!membersDirectoryFiltered.length && (
                         <tr>
                           <td colSpan={6} className="text-center py-6 font-nav text-sm" style={{ color: 'rgba(255,255,255,0.55)' }}>
