@@ -286,10 +286,13 @@ export default function AdminDashboard() {
   const [tfLoading,   setTfLoading]   = useState(false)
   const [tfResult,    setTfResult]    = useState(null)
 
-  /* "استعادة حساب عضو" ببطاقة "بيانات الأعضاء" (schema/21) — تظهر فقط لعضو
-     تجاوز فعليًا حدّ محاولات forgot-password (m.recoveryLocked)؛ المدير
-     يُصدر له رمزًا مؤقتًا (6 أرقام، 15 دقيقة، استخدام واحد) بعد التحقق
-     اليدوي من هويته (مكالمة/واتساب)، يتجاوز الأربعة عوامل العادية دفعة واحدة */
+  /* "استعادة حساب عضو" ببطاقة "بيانات الأعضاء" (schema/21) — متاحة دائمًا
+     لأي عضو (وليس فقط من تجاوز رسميًا حدّ 6 محاولات فاشلة): عضو نسي رمز
+     استعادته غالبًا يراسل المدير مباشرة طالبًا المساعدة، قبل أن يصل أصلًا
+     لحدّ القفل الرسمي. المدير يُصدر رمزًا مؤقتًا (6 أرقام، 15 دقيقة، استخدام
+     واحد) بعد التحقق اليدوي من هويته (مكالمة/واتساب)، يتجاوز الأربعة عوامل
+     العادية دفعة واحدة. m.recoveryLocked يبقى يُستخدم فقط لعرض حالة القفل
+     الرسمي داخل البطاقة (معلومة، وليس شرط ظهور). */
   const [recoveryTargetId,  setRecoveryTargetId]  = useState(null) // أي صف مفتوح حاليًا (memberId)، null=مغلق
   const [recoveryGenLoading, setRecoveryGenLoading] = useState(false)
   const [recoveryGenResult,  setRecoveryGenResult]  = useState(null) // {code, expiresAt} | null
@@ -3492,16 +3495,15 @@ export default function AdminDashboard() {
                                   color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.28)' }}>
                                 {panelOpen ? '✓ تعديل الشجرة' : 'تعديل الشجرة'}
                               </button>
-                              {/* يظهر فقط لعضو تجاوز فعليًا حدّ محاولات forgot-password (schema/21) */}
-                              {m.recoveryLocked && (
-                                <button onClick={() => handleToggleRecoveryPanel(m.memberId)}
-                                  className="font-nav font-bold px-2.5 py-1.5 rounded-xl transition-all"
-                                  style={{ fontSize: 11,
-                                    background: recoveryPanelOpen ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.08)',
-                                    color: '#f87171', border: '1px solid rgba(239,68,68,0.28)' }}>
-                                  {recoveryPanelOpen ? '✓ استعادة الحساب' : '🔒 استعادة الحساب'}
-                                </button>
-                              )}
+                              {/* متاح دائمًا لأي عضو — المدير غالبًا يُساعد عضوًا راسله مباشرة طالبًا
+                                  المساعدة، قبل أن يصل رسميًا لحدّ 6 محاولات فاشلة (schema/21) */}
+                              <button onClick={() => handleToggleRecoveryPanel(m.memberId)}
+                                className="font-nav font-bold px-2.5 py-1.5 rounded-xl transition-all"
+                                style={{ fontSize: 11,
+                                  background: recoveryPanelOpen ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.08)',
+                                  color: '#f87171', border: '1px solid rgba(239,68,68,0.28)' }}>
+                                {recoveryPanelOpen ? '✓ استعادة الحساب' : '🔑 استعادة الحساب'}
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -3576,7 +3578,7 @@ export default function AdminDashboard() {
                                     ['العضو', [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ')],
                                     ['رقم الهوية', maskFully(m.nationalId)],
                                     ['رقم الجوال', maskKeepPrefix(m.phone, 2)],
-                                    ['الحالة', 'محاولات الاستعادة مستنفدة'],
+                                    ['الحالة', m.recoveryLocked ? 'محاولات الاستعادة مستنفدة' : 'الحساب نشط — لا قفل حاليًا'],
                                   ].map(([label, value]) => (
                                     <div key={label} className="flex items-center justify-between font-nav text-xs">
                                       <span className="tabular-nums font-bold" style={{ color: 'rgba(255,255,255,0.85)' }}>{value}</span>
