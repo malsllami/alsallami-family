@@ -735,12 +735,12 @@ export default function MemberDashboard() {
             {forcedRecoveryError && (
               <p className="font-nav text-sm text-center text-red-400">{forcedRecoveryError}</p>
             )}
-            <input type="text" inputMode="numeric" maxLength={6} value={forcedRecoveryCode}
+            <PasswordInput inputMode="numeric" maxLength={6} value={forcedRecoveryCode}
               onChange={e => setForcedRecoveryCode(e.target.value.replace(/\D/g, ''))}
               placeholder="رمز الاستعادة (6 أرقام)" dir="ltr"
               className="font-nav w-full px-4 py-4 text-center text-base outline-none rounded-2xl"
               style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 4 }} />
-            <input type="text" inputMode="numeric" maxLength={6} value={forcedRecoveryCodeConfirm}
+            <PasswordInput inputMode="numeric" maxLength={6} value={forcedRecoveryCodeConfirm}
               onChange={e => setForcedRecoveryCodeConfirm(e.target.value.replace(/\D/g, ''))}
               placeholder="تأكيد رمز الاستعادة" dir="ltr"
               className="font-nav w-full px-4 py-4 text-center text-base outline-none rounded-2xl"
@@ -1535,12 +1535,12 @@ export default function MemberDashboard() {
                 : 'لم تُعيّن رمز استعادة بعد'}
             </p>
           )}
-          <input type="text" inputMode="numeric" maxLength={6} value={newRecoveryCode}
+          <PasswordInput inputMode="numeric" maxLength={6} value={newRecoveryCode}
             onChange={e => setNewRecoveryCode(e.target.value.replace(/\D/g, ''))}
             placeholder="رمز استعادة جديد (6 أرقام)" dir="ltr"
             className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl"
             style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 3 }} />
-          <input type="text" inputMode="numeric" maxLength={6} value={confirmRecoveryCode2}
+          <PasswordInput inputMode="numeric" maxLength={6} value={confirmRecoveryCode2}
             onChange={e => setConfirmRecoveryCode2(e.target.value.replace(/\D/g, ''))}
             placeholder="تأكيد الرمز الجديد" dir="ltr"
             className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl mt-3"

@@ -23,6 +23,8 @@ function normalizeToIntlPhone(raw) {
 }
 
 const FP_COOLDOWN_STORAGE_KEY = 'fp_cooldown_until'
+// رابط الموقع مُضاف لنهاية رسائل واتساب لتفعيل معاينة الشعار تلقائيًا (نفس أسلوب Register.jsx)
+const SITE_URL = 'https://malsllami.github.io/alsallami-family/'
 
 export default function Login() {
   const { login }   = useAuth()
@@ -507,7 +509,7 @@ export default function Login() {
                   <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.85)' }}>
                     الرمز المؤقت من المدير
                   </label>
-                  <input type="text" inputMode="numeric" maxLength={6} value={fpAdminTempCode}
+                  <PasswordInput inputMode="numeric" maxLength={6} value={fpAdminTempCode}
                     onChange={e => setFpAdminTempCode(e.target.value.replace(/\D/g, ''))}
                     placeholder="6 أرقام" dir="ltr"
                     className="font-nav w-full px-4 text-center text-base outline-none"
@@ -533,7 +535,7 @@ export default function Login() {
                     <label className="font-nav text-sm mb-1.5 block" style={{ color: 'rgba(255,255,255,0.85)' }}>
                       رمز الاستعادة
                     </label>
-                    <input type="text" inputMode="numeric" maxLength={6} value={fpRecoveryCode}
+                    <PasswordInput inputMode="numeric" maxLength={6} value={fpRecoveryCode}
                       onChange={e => setFpRecoveryCode(e.target.value.replace(/\D/g, ''))}
                       placeholder="6 أرقام" dir="ltr"
                       className="font-nav w-full px-4 text-center text-base outline-none"
@@ -597,11 +599,12 @@ export default function Login() {
                           ))}
                           <a
                             href={adminPhone ? `https://wa.me/${adminPhone}?text=${encodeURIComponent(
-                              `مرحباً، تجاوزت عدد محاولات استعادة كلمة المرور. بياناتي:\n` +
+                              `السلام عليكم ورحمة الله وبركاته،\n\n` +
+                              `تجاوزت عدد محاولات استعادة كلمة المرور. بياناتي:\n` +
                               `رقم الهوية: ${waFields.nationalId}\nرقم الجوال: ${waFields.phone}\n` +
                               `الاسم الأول: ${waFields.firstName}\nاسم الأب: ${waFields.fatherName}\n` +
-                              `اسم الجد: ${waFields.grandfatherName}\nالفخذ: ${waFields.branch}\n` +
-                              `أرجو مساعدتي باستعادة حسابي.`
+                              `اسم الجد: ${waFields.grandfatherName}\nالفخذ: ${waFields.branch}\n\n` +
+                              `أرجو مساعدتي باستعادة حسابي.\n${SITE_URL}`
                             )}` : undefined}
                             target="_blank" rel="noopener noreferrer"
                             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-nav font-bold text-sm transition-all hover:opacity-90"
@@ -685,7 +688,7 @@ export default function Login() {
                 </div>
               )}
 
-              <input type="text" inputMode="numeric" maxLength={6} value={newRecoveryCode}
+              <PasswordInput inputMode="numeric" maxLength={6} value={newRecoveryCode}
                 onChange={e => setNewRecoveryCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="رمز الاستعادة (6 أرقام)" dir="ltr"
                 className="font-nav w-full px-4 text-center text-base outline-none"
@@ -694,7 +697,7 @@ export default function Login() {
                   background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
                   color: '#fff', letterSpacing: 4,
                 }} />
-              <input type="text" inputMode="numeric" maxLength={6} value={confirmRecoveryCode}
+              <PasswordInput inputMode="numeric" maxLength={6} value={confirmRecoveryCode}
                 onChange={e => setConfirmRecoveryCode(e.target.value.replace(/\D/g, ''))}
                 placeholder="تأكيد رمز الاستعادة" dir="ltr"
                 className="font-nav w-full px-4 text-center text-base outline-none"

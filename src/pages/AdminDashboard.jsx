@@ -1660,12 +1660,12 @@ export default function AdminDashboard() {
                       : 'لم تُعيّن رمز استعادة بعد'}
                   </p>
                 )}
-                <input type="text" inputMode="numeric" maxLength={6} value={recoveryCodeData.next}
+                <PasswordInput inputMode="numeric" maxLength={6} value={recoveryCodeData.next}
                   onChange={e => setRecoveryCodeData(p => ({ ...p, next: e.target.value.replace(/\D/g, '') }))}
                   placeholder="رمز استعادة جديد (6 أرقام)" dir="ltr"
                   className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl"
                   style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 3 }} />
-                <input type="text" inputMode="numeric" maxLength={6} value={recoveryCodeData.confirm}
+                <PasswordInput inputMode="numeric" maxLength={6} value={recoveryCodeData.confirm}
                   onChange={e => setRecoveryCodeData(p => ({ ...p, confirm: e.target.value.replace(/\D/g, '') }))}
                   placeholder="تأكيد الرمز الجديد" dir="ltr"
                   className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl"
@@ -3604,7 +3604,9 @@ export default function AdminDashboard() {
                                     </p>
                                     <a
                                       href={m.phone ? `https://wa.me/${m.phone}?text=${encodeURIComponent(
-                                        `تم إنشاء رمز مؤقت\n\n${recoveryGenResult.code}\n\nصلاحية الرمز: 15 دقيقة\nعدد الاستخدامات: مرة واحدة`
+                                        `السلام عليكم ورحمة الله وبركاته،\n\n` +
+                                        `تم إنشاء رمز مؤقت لاستعادة حسابك:\n\n${recoveryGenResult.code}\n\n` +
+                                        `صلاحية الرمز: 15 دقيقة\nعدد الاستخدامات: مرة واحدة\n${SITE_URL}`
                                       )}` : undefined}
                                       target="_blank" rel="noopener noreferrer"
                                       className="flex items-center justify-center gap-2 w-full mt-3 py-2.5 rounded-xl font-nav font-bold text-xs transition-all hover:opacity-90"

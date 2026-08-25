@@ -619,19 +619,19 @@ export default function Register() {
               كلمة المرور — العضو يقدر يراه/يغيّره لاحقًا من لوحته الشخصية) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Field label="رمز الاستعادة (6 أرقام) *">
-              <input type="text" inputMode="numeric" maxLength={6} name="recoveryCode"
+              <PasswordInput inputMode="numeric" maxLength={6} name="recoveryCode"
                 value={formData.recoveryCode}
                 onChange={e => handleChange({ target: { name: 'recoveryCode', value: e.target.value.replace(/\D/g, '') } })}
-                className="form-input" placeholder="مثال: 135790" dir="ltr" style={{ letterSpacing: 3, textAlign: 'center' }} />
+                placeholder="مثال: 135790" dir="ltr" style={{ letterSpacing: 3, textAlign: 'center' }} />
               <p className="font-nav text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
                 يُستخدم لاحقًا لاستعادة حسابك إن نسيت كلمة المرور — احفظه في مكان آمن
               </p>
             </Field>
             <Field label="تأكيد رمز الاستعادة *">
-              <input type="text" inputMode="numeric" maxLength={6} name="confirmRecoveryCode"
+              <PasswordInput inputMode="numeric" maxLength={6} name="confirmRecoveryCode"
                 value={formData.confirmRecoveryCode}
                 onChange={e => handleChange({ target: { name: 'confirmRecoveryCode', value: e.target.value.replace(/\D/g, '') } })}
-                className="form-input" placeholder="أعد كتابة رمز الاستعادة" dir="ltr" style={{ letterSpacing: 3, textAlign: 'center' }} />
+                placeholder="أعد كتابة رمز الاستعادة" dir="ltr" style={{ letterSpacing: 3, textAlign: 'center' }} />
             </Field>
           </div>
 
