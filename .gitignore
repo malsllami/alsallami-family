@@ -26,3 +26,8 @@ dist-ssr
 *.sln
 *.sw?
 .clasp.json
+
+# الباك إند (Supabase) — يُدار يدويًا/عبر Supabase CLI محليًا فقط،
+# لا يُرفع لمستودع GitHub العام (نفس سياسة gas/ بمشاريع سهم واحداثيات المحطات)
+/schema/
+/supabase/
