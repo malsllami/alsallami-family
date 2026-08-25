@@ -129,6 +129,9 @@ function InlineEditButtons({ t, onSave, onCancel, loading }) {
 export default function MemberDashboard() {
   const savedUser = JSON.parse(localStorage.getItem('user'))
   const mustChangePassword = savedUser?.mustChangePassword
+  // عضو قديم لم يعيّن رمز استعادته بعد (schema/21) — يُفحَص بعد شاشة تغيير
+  // كلمة المرور الإجبارية (لو احتاج كلاهما معًا، الترتيب: كلمة المرور أولًا)
+  const needsRecoveryCodeSetup = savedUser?.needsRecoveryCodeSetup
 
   const [memberData,         setMemberData]         = useState(null)
   const [dataLoading,        setDataLoading]        = useState(true)
@@ -178,6 +181,20 @@ export default function MemberDashboard() {
   const [passwordData,    setPasswordData]    = useState({ currentPassword: '', newPassword: '', confirmPassword: '' })
   const [showChangePw,    setShowChangePw]    = useState(false)
   const [changePwLoading, setChangePwLoading] = useState(false)
+
+  /* رمز الاستعادة (schema/21) — تعيين إجباري لعضو قديم، أو عرض/تعديل اختياري
+     من الإعدادات الشخصية لأي عضو */
+  const [forcedRecoveryCode,        setForcedRecoveryCode]        = useState('')
+  const [forcedRecoveryCodeConfirm, setForcedRecoveryCodeConfirm] = useState('')
+  const [forcedRecoveryLoading,     setForcedRecoveryLoading]     = useState(false)
+  const [forcedRecoveryError,       setForcedRecoveryError]       = useState('')
+
+  const [showRecoveryCode,     setShowRecoveryCode]     = useState(false)
+  const [currentRecoveryCode,  setCurrentRecoveryCode]  = useState(null) // null=لم يُجلَب بعد
+  const [recoveryCodeLoaded,   setRecoveryCodeLoaded]   = useState(false)
+  const [newRecoveryCode,      setNewRecoveryCode]      = useState('')
+  const [confirmRecoveryCode2, setConfirmRecoveryCode2] = useState('')
+  const [recoveryCodeSaving,   setRecoveryCodeSaving]   = useState(false)
 
   /* بصمة الجهاز (WebAuthn) — تفعيل اختياري */
   const [showBiometric,    setShowBiometric]    = useState(false)
@@ -582,6 +599,51 @@ export default function MemberDashboard() {
     finally { setChangePwLoading(false) }
   }
 
+  /* ── تعيين رمز الاستعادة الإجباري (عضو قديم — أول دخول بعد هذه الميزة) ── */
+  const handleForcedSetRecoveryCode = async () => {
+    if (!/^\d{6}$/.test(forcedRecoveryCode)) return setForcedRecoveryError('رمز الاستعادة يجب أن يكون 6 أرقام')
+    if (forcedRecoveryCode !== forcedRecoveryCodeConfirm) return setForcedRecoveryError('رمز الاستعادة وتأكيده غير متطابقين')
+    setForcedRecoveryError('')
+    try {
+      setForcedRecoveryLoading(true)
+      const result = await callMember({ action: 'setRecoveryCode', recoveryCode: forcedRecoveryCode })
+      if (result?.success) {
+        localStorage.setItem('user', JSON.stringify({ ...savedUser, needsRecoveryCodeSetup: 'N' }))
+        window.location.reload()
+      } else {
+        setForcedRecoveryError(result?.message || 'حدث خطأ')
+      }
+    } catch { setForcedRecoveryError('تعذّر الاتصال بالخادم') }
+    finally { setForcedRecoveryLoading(false) }
+  }
+
+  /* ── عرض/تعديل رمز الاستعادة من الإعدادات الشخصية (اختياري، لأي عضو) ── */
+  const handleToggleRecoveryCode = async () => {
+    const opening = !showRecoveryCode
+    setShowRecoveryCode(opening)
+    if (opening && !recoveryCodeLoaded) {
+      try {
+        const result = await callMember({ action: 'getRecoveryCode' })
+        if (result?.success) setCurrentRecoveryCode(result.recoveryCode)
+      } catch { /* لا رمز مُعيَّن بعد — يبقى null */ }
+      setRecoveryCodeLoaded(true)
+    }
+  }
+  const handleUpdateRecoveryCode = async () => {
+    if (!/^\d{6}$/.test(newRecoveryCode)) return alert('رمز الاستعادة يجب أن يكون 6 أرقام')
+    if (newRecoveryCode !== confirmRecoveryCode2) return alert('رمز الاستعادة وتأكيده غير متطابقين')
+    try {
+      setRecoveryCodeSaving(true)
+      const result = await callMember({ action: 'setRecoveryCode', recoveryCode: newRecoveryCode })
+      if (result?.success) {
+        alert('تم حفظ رمز الاستعادة بنجاح')
+        setCurrentRecoveryCode(newRecoveryCode)
+        setNewRecoveryCode(''); setConfirmRecoveryCode2('')
+      } else alert(result?.message)
+    } catch { alert('حدث خطأ') }
+    finally { setRecoveryCodeSaving(false) }
+  }
+
   /* ── بصمة الجهاز: جلب قائمة الأجهزة المربوطة بهذا العضو ── */
   const loadBioDevices = async () => {
     try {
@@ -652,6 +714,41 @@ export default function MemberDashboard() {
           <button onClick={handleForceChange}
             className="font-nav w-full mt-8 bg-red-500 text-white py-4 rounded-2xl font-bold hover:opacity-90 duration-300">
             تغيير كلمة المرور
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  /* ── شاشة إجبار رمز الاستعادة (عضو قديم لم يعيّنه بعد) — تُفحَص بعد
+     شاشة كلمة المرور مباشرة، تضمن عدم إمكانية "الهروب" منها بفتح لوحة
+     العضو مباشرة (بجلسة قائمة) دون المرور بتدفق الدخول في Login.jsx ── */
+  if (needsRecoveryCodeSetup === 'Y') {
+    return (
+      <div className="fixed inset-0 bg-[#36404a] flex items-center justify-center px-6 z-[9999]">
+        <div className="w-full max-w-lg bg-white/10 border border-white/10 rounded-[35px] p-10 backdrop-blur-xl">
+          <div className="text-center">
+            <h1 className="text-4xl font-bold text-[var(--gold-main)]">تعيين رمز استعادة</h1>
+            <p className="mt-5 text-gray-300 leading-8">رمز استعادة (6 أرقام) يُستخدم لاحقاً لو نسيت كلمة مرورك — اختره واحفظه في مكان آمن.</p>
+          </div>
+          <div className="mt-10 space-y-5">
+            {forcedRecoveryError && (
+              <p className="font-nav text-sm text-center text-red-400">{forcedRecoveryError}</p>
+            )}
+            <input type="text" inputMode="numeric" maxLength={6} value={forcedRecoveryCode}
+              onChange={e => setForcedRecoveryCode(e.target.value.replace(/\D/g, ''))}
+              placeholder="رمز الاستعادة (6 أرقام)" dir="ltr"
+              className="font-nav w-full px-4 py-4 text-center text-base outline-none rounded-2xl"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 4 }} />
+            <input type="text" inputMode="numeric" maxLength={6} value={forcedRecoveryCodeConfirm}
+              onChange={e => setForcedRecoveryCodeConfirm(e.target.value.replace(/\D/g, ''))}
+              placeholder="تأكيد رمز الاستعادة" dir="ltr"
+              className="font-nav w-full px-4 py-4 text-center text-base outline-none rounded-2xl"
+              style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 4 }} />
+          </div>
+          <button onClick={handleForcedSetRecoveryCode} disabled={forcedRecoveryLoading}
+            className="font-nav w-full mt-8 bg-[var(--gold-main)] text-black py-4 rounded-2xl font-bold hover:opacity-90 duration-300 disabled:opacity-50">
+            {forcedRecoveryLoading ? 'جاري الحفظ...' : 'حفظ ومتابعة'}
           </button>
         </div>
       </div>
@@ -1410,6 +1507,48 @@ export default function MemberDashboard() {
             className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
             style={{ background: T.gold.soft, border: `1px solid ${T.gold.border}`, color: 'var(--gold-main)' }}>
             {changePwLoading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+          </button>
+        </SlidePanel>
+      </div>
+
+      {/* رمز الاستعادة (schema/21) — يُستخدم لاحقاً عند استعادة كلمة المرور */}
+      <div className="rounded-[28px] p-6" style={{ background: T.gold.bg, border: `1px solid ${T.gold.border}` }}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: T.gold.soft, border: `1px solid ${T.gold.border}` }}>
+              <span style={{ fontSize: 15 }}>🔑</span>
+            </div>
+            <span className="font-nav text-sm font-semibold text-[var(--gold-main)]">رمز الاستعادة</span>
+          </div>
+          <button onClick={handleToggleRecoveryCode}
+            className="font-nav text-xs px-3 py-1.5 rounded-xl transition-all duration-200"
+            style={{ border: `1px solid ${showRecoveryCode ? T.gold.border : 'rgba(255,255,255,0.1)'}`, color: showRecoveryCode ? 'var(--gold-main)' : 'rgba(255,255,255,0.72)', background: showRecoveryCode ? T.gold.soft : 'transparent' }}>
+            {showRecoveryCode ? 'إلغاء' : 'عرض/تعديل'}
+          </button>
+        </div>
+        <SlidePanel open={showRecoveryCode}>
+          {recoveryCodeLoaded && (
+            <p className="font-nav text-sm text-center py-1" style={{ color: 'rgba(255,255,255,0.75)' }}>
+              {currentRecoveryCode
+                ? <>رمزك الحالي: <span className="font-bold" style={{ color: 'var(--gold-main)', letterSpacing: 3 }}>{currentRecoveryCode}</span></>
+                : 'لم تُعيّن رمز استعادة بعد'}
+            </p>
+          )}
+          <input type="text" inputMode="numeric" maxLength={6} value={newRecoveryCode}
+            onChange={e => setNewRecoveryCode(e.target.value.replace(/\D/g, ''))}
+            placeholder="رمز استعادة جديد (6 أرقام)" dir="ltr"
+            className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 3 }} />
+          <input type="text" inputMode="numeric" maxLength={6} value={confirmRecoveryCode2}
+            onChange={e => setConfirmRecoveryCode2(e.target.value.replace(/\D/g, ''))}
+            placeholder="تأكيد الرمز الجديد" dir="ltr"
+            className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl mt-3"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 3 }} />
+          <button onClick={handleUpdateRecoveryCode} disabled={recoveryCodeSaving}
+            className="w-full font-nav text-sm py-3 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50 mt-3"
+            style={{ background: T.gold.soft, border: `1px solid ${T.gold.border}`, color: 'var(--gold-main)' }}>
+            {recoveryCodeSaving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
           </button>
         </SlidePanel>
       </div>

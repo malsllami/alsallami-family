@@ -55,6 +55,7 @@ export default function Register() {
   const [formData, setFormData] = useState({
     firstName: '', phone: '', nationalId: '', birthDate: '',
     job: '', jobOther: '', maritalStatus: '', password: '', confirmPassword: '',
+    recoveryCode: '', confirmRecoveryCode: '',
     email: '', city: '',
   });
   const [countryCode, setCountryCode] = useState('+966');
@@ -228,6 +229,10 @@ export default function Register() {
     if (formData.job === 'أخرى' && !formData.jobOther.trim()) { setMessage('يرجى تحديد المهنة'); return false; }
     if (formData.password.length < 6)                  { setMessage('كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return false; }
     if (formData.password !== formData.confirmPassword) { setMessage('كلمة المرور وتأكيدها غير متطابقتين'); return false; }
+    // رمز الاستعادة (schema/21) — عامل رابع لاستعادة كلمة المرور لاحقًا، عن
+    // عمد مختلف عن كلمة المرور نفسها (يتذكره العضو بسهولة كرقم قصير)
+    if (!/^\d{6}$/.test(formData.recoveryCode))          { setMessage('رمز الاستعادة يجب أن يكون 6 أرقام بالضبط'); return false; }
+    if (formData.recoveryCode !== formData.confirmRecoveryCode) { setMessage('رمز الاستعادة وتأكيده غير متطابقين'); return false; }
     return true;
   };
 
@@ -267,6 +272,7 @@ export default function Register() {
         job:             jobFinal,
         maritalStatus:   formData.maritalStatus,
         password:        formData.password,
+        recoveryCode:    formData.recoveryCode,
         email:           formData.email.trim(),
         city:            formData.city.trim(),
         // فارغة عمدًا لحالة "جد فقط بلا تطابق اسم الأب" (parentNode = الجد
@@ -605,6 +611,27 @@ export default function Register() {
             <Field label="تأكيد كلمة المرور *">
               <PasswordInput name="confirmPassword" value={formData.confirmPassword}
                 onChange={handleChange} placeholder="أعد كتابة كلمة المرور" />
+            </Field>
+          </div>
+
+          {/* 8. رمز الاستعادة — عامل رابع مستقل عن كلمة المرور، يُستخدم لاحقًا
+              عند استعادة الحساب (رقم قصير سهل التذكر، وليس سرًا بنفس حساسية
+              كلمة المرور — العضو يقدر يراه/يغيّره لاحقًا من لوحته الشخصية) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Field label="رمز الاستعادة (6 أرقام) *">
+              <input type="text" inputMode="numeric" maxLength={6} name="recoveryCode"
+                value={formData.recoveryCode}
+                onChange={e => handleChange({ target: { name: 'recoveryCode', value: e.target.value.replace(/\D/g, '') } })}
+                className="form-input" placeholder="مثال: 135790" dir="ltr" style={{ letterSpacing: 3, textAlign: 'center' }} />
+              <p className="font-nav text-xs mt-1.5" style={{ color: 'rgba(255,255,255,0.55)' }}>
+                يُستخدم لاحقًا لاستعادة حسابك إن نسيت كلمة المرور — احفظه في مكان آمن
+              </p>
+            </Field>
+            <Field label="تأكيد رمز الاستعادة *">
+              <input type="text" inputMode="numeric" maxLength={6} name="confirmRecoveryCode"
+                value={formData.confirmRecoveryCode}
+                onChange={e => handleChange({ target: { name: 'confirmRecoveryCode', value: e.target.value.replace(/\D/g, '') } })}
+                className="form-input" placeholder="أعد كتابة رمز الاستعادة" dir="ltr" style={{ letterSpacing: 3, textAlign: 'center' }} />
             </Field>
           </div>
 

@@ -181,6 +181,14 @@ export default function AdminDashboard() {
 
   const [showPw,  setShowPw]  = useState(false)
   const [pwData,  setPwData]  = useState({ current: '', next: '', confirm: '' })
+
+  /* رمز الاستعادة (schema/21) — عرض/تعديل اختياري للمدير نفسه (تعيينه
+     الإجباري الأول يمر عبر Login.jsx/MemberDashboard.jsx كأي عضو آخر) */
+  const [showRecoveryCode,    setShowRecoveryCode]    = useState(false)
+  const [currentRecoveryCode, setCurrentRecoveryCode] = useState(null)
+  const [recoveryCodeLoaded,  setRecoveryCodeLoaded]  = useState(false)
+  const [recoveryCodeData,    setRecoveryCodeData]    = useState({ next: '', confirm: '' })
+  const [recoveryCodeLoading, setRecoveryCodeLoading] = useState(false)
   const [pwLoading,setPwLoading] = useState(false)
 
   const [regRequests,        setRegRequests]        = useState([])
@@ -277,6 +285,14 @@ export default function AdminDashboard() {
   const [tfBranch,    setTfBranch]    = useState('')
   const [tfLoading,   setTfLoading]   = useState(false)
   const [tfResult,    setTfResult]    = useState(null)
+
+  /* "استعادة حساب عضو" ببطاقة "بيانات الأعضاء" (schema/21) — تظهر فقط لعضو
+     تجاوز فعليًا حدّ محاولات forgot-password (m.recoveryLocked)؛ المدير
+     يُصدر له رمزًا مؤقتًا (6 أرقام، 15 دقيقة، استخدام واحد) بعد التحقق
+     اليدوي من هويته (مكالمة/واتساب)، يتجاوز الأربعة عوامل العادية دفعة واحدة */
+  const [recoveryTargetId,  setRecoveryTargetId]  = useState(null) // أي صف مفتوح حاليًا (memberId)، null=مغلق
+  const [recoveryGenLoading, setRecoveryGenLoading] = useState(false)
+  const [recoveryGenResult,  setRecoveryGenResult]  = useState(null) // {code, expiresAt} | null
 
   /* إضافة عقدة جديدة تحت أب موجود بالشجرة — اختياريًا مربوطة بعضو مسجَّل
      مسبقًا (يحل حالة "الأب غير موجود بالشجرة": تُضاف عقدة الأب أولاً بلا
@@ -914,6 +930,33 @@ export default function AdminDashboard() {
     finally  { setPwLoading(false) }
   }
 
+  /* عرض/تعديل رمز الاستعادة (اختياري، من إعدادات المدير الشخصية) */
+  const handleToggleRecoveryCode = async () => {
+    const opening = !showRecoveryCode
+    setShowRecoveryCode(opening)
+    if (opening && !recoveryCodeLoaded) {
+      try {
+        const result = await callFunction('manage-member', { action: 'getRecoveryCode' })
+        if (result.success) setCurrentRecoveryCode(result.recoveryCode)
+      } catch { /* لا رمز مُعيَّن بعد — يبقى null */ }
+      setRecoveryCodeLoaded(true)
+    }
+  }
+  const handleSaveRecoveryCode = async () => {
+    if (!/^\d{6}$/.test(recoveryCodeData.next)) return alert('رمز الاستعادة يجب أن يكون 6 أرقام')
+    if (recoveryCodeData.next !== recoveryCodeData.confirm) return alert('رمز الاستعادة وتأكيده غير متطابقين')
+    try {
+      setRecoveryCodeLoading(true)
+      const result = await callFunction('manage-member', { action: 'setRecoveryCode', recoveryCode: recoveryCodeData.next })
+      if (result.success) {
+        alert('تم حفظ رمز الاستعادة بنجاح')
+        setCurrentRecoveryCode(recoveryCodeData.next)
+        setRecoveryCodeData({ next: '', confirm: '' })
+      } else alert(result.message)
+    } catch { alert('حدث خطأ أثناء الاتصال بالخادم') }
+    finally { setRecoveryCodeLoading(false) }
+  }
+
   /* تعديل اسم جد */
   const handleEditAncestor = async () => {
     if (!eaTargetId) return setEaResult({ ok: false, msg: 'اختر العقدة أولاً' })
@@ -1005,6 +1048,24 @@ export default function AdminDashboard() {
     setTfMemberId(prev => prev === memberId ? null : memberId)
     setTfTargetId(''); setTfBranch(''); setTfCascade([]); setTfResult(null)
   }
+
+  /* "استعادة حساب عضو" — فتح/إغلاق البطاقة الموسَّعة لعضو معيّن */
+  const handleToggleRecoveryPanel = (memberId) => {
+    setRecoveryTargetId(prev => prev === memberId ? null : memberId)
+    setRecoveryGenResult(null)
+  }
+  const handleGenerateTempRecoveryCode = async (memberId) => {
+    try {
+      setRecoveryGenLoading(true)
+      const result = await callRegistrations({ action: 'generateTempRecoveryCode', memberId })
+      if (result.success) setRecoveryGenResult({ code: result.code, expiresAt: result.expiresAt })
+      else alert(result.message)
+    } catch { alert('حدث خطأ أثناء الاتصال بالخادم') }
+    finally { setRecoveryGenLoading(false) }
+  }
+  // إخفاء جزئي لرقم الهوية/الجوال بالبطاقة (نفس نمط عرضها بالتصميم المتفق عليه)
+  const maskFully = (v) => (v ? '•'.repeat(String(v).length) : '—')
+  const maskKeepPrefix = (v, n) => (v ? String(v).slice(0, n) + '•'.repeat(Math.max(0, String(v).length - n)) : '—')
 
   const handleTfBranchChange = val => {
     if (val.startsWith(TRUNK_PREFIX)) {
@@ -1565,6 +1626,56 @@ export default function AdminDashboard() {
                   className="w-full font-nav bg-[var(--gold-main)] text-black py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-all duration-200 disabled:opacity-50"
                 >
                   {pwLoading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* زر عرض/تعديل رمز الاستعادة */}
+          <button
+            onClick={handleToggleRecoveryCode}
+            className="mt-3 w-full font-nav text-sm py-3 rounded-2xl transition-all duration-250"
+            style={{
+              border:     '1px solid rgba(255,255,255,0.1)',
+              color:      showRecoveryCode ? 'var(--gold-main)' : 'rgba(255,255,255,0.82)',
+              background: showRecoveryCode ? 'rgba(198,161,107,0.06)' : 'transparent',
+            }}
+          >
+            {showRecoveryCode ? '↑ إلغاء' : '🔑 رمز الاستعادة'}
+          </button>
+
+          <div
+            style={{
+              display:       'grid',
+              gridTemplateRows: showRecoveryCode ? '1fr' : '0fr',
+              transition:    'grid-template-rows 0.38s cubic-bezier(0.23,1,0.32,1)',
+            }}
+          >
+            <div style={{ overflow: 'hidden' }}>
+              <div className="pt-4 space-y-3">
+                {recoveryCodeLoaded && (
+                  <p className="font-nav text-sm text-center" style={{ color: 'rgba(255,255,255,0.75)' }}>
+                    {currentRecoveryCode
+                      ? <>رمزك الحالي: <span className="font-bold" style={{ color: 'var(--gold-main)', letterSpacing: 3 }}>{currentRecoveryCode}</span></>
+                      : 'لم تُعيّن رمز استعادة بعد'}
+                  </p>
+                )}
+                <input type="text" inputMode="numeric" maxLength={6} value={recoveryCodeData.next}
+                  onChange={e => setRecoveryCodeData(p => ({ ...p, next: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="رمز استعادة جديد (6 أرقام)" dir="ltr"
+                  className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 3 }} />
+                <input type="text" inputMode="numeric" maxLength={6} value={recoveryCodeData.confirm}
+                  onChange={e => setRecoveryCodeData(p => ({ ...p, confirm: e.target.value.replace(/\D/g, '') }))}
+                  placeholder="تأكيد الرمز الجديد" dir="ltr"
+                  className="font-nav w-full px-4 py-3 text-center text-sm outline-none rounded-2xl"
+                  style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', letterSpacing: 3 }} />
+                <button
+                  onClick={handleSaveRecoveryCode}
+                  disabled={recoveryCodeLoading}
+                  className="w-full font-nav bg-[var(--gold-main)] text-black py-3 rounded-2xl font-bold text-sm hover:opacity-90 transition-all duration-200 disabled:opacity-50"
+                >
+                  {recoveryCodeLoading ? 'جاري الحفظ...' : 'حفظ التغييرات'}
                 </button>
               </div>
             </div>
@@ -3345,6 +3456,7 @@ export default function AdminDashboard() {
                       {membersDirectoryFiltered.map(m => {
                         const currentNode = amFlatTree.find(n => n.memberId === m.memberId)
                         const panelOpen = tfMemberId === m.memberId
+                        const recoveryPanelOpen = recoveryTargetId === m.memberId
                         return (
                         <Fragment key={m.memberId}>
                         <tr style={{ borderBottom: panelOpen ? 'none' : '1px solid rgba(255,255,255,0.05)' }}>
@@ -3372,13 +3484,25 @@ export default function AdminDashboard() {
                             </span>
                           </td>
                           <td className="text-center py-2.5 px-2">
-                            <button onClick={() => handleOpenTreeFix(m.memberId)}
-                              className="font-nav font-bold px-2.5 py-1.5 rounded-xl transition-all"
-                              style={{ fontSize: 11,
-                                background: panelOpen ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.08)',
-                                color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.28)' }}>
-                              {panelOpen ? '✓ تعديل الشجرة' : 'تعديل الشجرة'}
-                            </button>
+                            <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                              <button onClick={() => handleOpenTreeFix(m.memberId)}
+                                className="font-nav font-bold px-2.5 py-1.5 rounded-xl transition-all"
+                                style={{ fontSize: 11,
+                                  background: panelOpen ? 'rgba(99,102,241,0.18)' : 'rgba(99,102,241,0.08)',
+                                  color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.28)' }}>
+                                {panelOpen ? '✓ تعديل الشجرة' : 'تعديل الشجرة'}
+                              </button>
+                              {/* يظهر فقط لعضو تجاوز فعليًا حدّ محاولات forgot-password (schema/21) */}
+                              {m.recoveryLocked && (
+                                <button onClick={() => handleToggleRecoveryPanel(m.memberId)}
+                                  className="font-nav font-bold px-2.5 py-1.5 rounded-xl transition-all"
+                                  style={{ fontSize: 11,
+                                    background: recoveryPanelOpen ? 'rgba(239,68,68,0.18)' : 'rgba(239,68,68,0.08)',
+                                    color: '#f87171', border: '1px solid rgba(239,68,68,0.28)' }}>
+                                  {recoveryPanelOpen ? '✓ استعادة الحساب' : '🔒 استعادة الحساب'}
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                         {panelOpen && (
@@ -3437,6 +3561,58 @@ export default function AdminDashboard() {
                                   style={{ background: 'rgba(99,102,241,0.12)', border: '1px solid rgba(99,102,241,0.35)', color: '#a5b4fc' }}>
                                   {tfLoading ? 'جاري التنفيذ...' : currentNode ? 'دمج وربط بالعقدة الصحيحة' : 'ربط بالعقدة الصحيحة'}
                                 </button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        {recoveryPanelOpen && (
+                          <tr style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                            <td colSpan={7} className="px-3 pb-4">
+                              <div className="rounded-2xl p-4 mt-1"
+                                style={{ background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                                <p className="font-nav text-sm font-bold mb-3" style={{ color: '#f87171' }}>استعادة حساب عضو</p>
+                                <div className="space-y-1.5 mb-4">
+                                  {[
+                                    ['العضو', [m.firstName, m.fatherName, m.grandfatherName].filter(Boolean).join(' ')],
+                                    ['رقم الهوية', maskFully(m.nationalId)],
+                                    ['رقم الجوال', maskKeepPrefix(m.phone, 2)],
+                                    ['الحالة', 'محاولات الاستعادة مستنفدة'],
+                                  ].map(([label, value]) => (
+                                    <div key={label} className="flex items-center justify-between font-nav text-xs">
+                                      <span className="tabular-nums font-bold" style={{ color: 'rgba(255,255,255,0.85)' }}>{value}</span>
+                                      <span style={{ color: 'rgba(252,165,165,0.7)' }}>{label}</span>
+                                    </div>
+                                  ))}
+                                </div>
+
+                                {!recoveryGenResult ? (
+                                  <button onClick={() => handleGenerateTempRecoveryCode(m.memberId)}
+                                    disabled={recoveryGenLoading}
+                                    className="w-full font-nav text-sm py-2.5 rounded-2xl font-bold transition-all duration-200 disabled:opacity-50"
+                                    style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#f87171' }}>
+                                    {recoveryGenLoading ? 'جاري الإنشاء...' : 'إنشاء رمز استعادة مؤقت'}
+                                  </button>
+                                ) : (
+                                  <div className="rounded-2xl p-4 text-center"
+                                    style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)' }}>
+                                    <p className="font-nav text-xs mb-2" style={{ color: '#4ade80' }}>تم إنشاء رمز مؤقت</p>
+                                    <p className="font-nav font-bold tabular-nums mb-2" style={{ fontSize: 28, letterSpacing: 4, color: '#fff' }}>
+                                      {recoveryGenResult.code}
+                                    </p>
+                                    <p className="font-nav text-[11px]" style={{ color: 'rgba(255,255,255,0.65)' }}>
+                                      صلاحية الرمز: 15 دقيقة — عدد الاستخدامات: مرة واحدة
+                                    </p>
+                                    <a
+                                      href={m.phone ? `https://wa.me/${m.phone}?text=${encodeURIComponent(
+                                        `تم إنشاء رمز مؤقت\n\n${recoveryGenResult.code}\n\nصلاحية الرمز: 15 دقيقة\nعدد الاستخدامات: مرة واحدة`
+                                      )}` : undefined}
+                                      target="_blank" rel="noopener noreferrer"
+                                      className="flex items-center justify-center gap-2 w-full mt-3 py-2.5 rounded-xl font-nav font-bold text-xs transition-all hover:opacity-90"
+                                      style={{ background: 'rgba(37,211,102,0.12)', border: '1px solid rgba(37,211,102,0.35)', color: '#25d366' }}>
+                                      📱 مراسلة العضو عبر واتساب
+                                    </a>
+                                  </div>
+                                )}
                               </div>
                             </td>
                           </tr>
